@@ -4,7 +4,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR-RENDER-BACKEND.onrender.com/api/:splat"
+  to = "https://YOUR-KOYEB-BACKEND.koyeb.app/api/:splat"
   status = 200
   force = true
 
