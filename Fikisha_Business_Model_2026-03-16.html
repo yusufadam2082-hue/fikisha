@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fikisha Business Model</title>
+  <style>
+    :root {
+      --ink: #14233b;
+      --muted: #5a6b85;
+      --line: #d7deea;
+      --bg: #f1f5fb;
+      --paper: #ffffff;
+      --primary: #0b5cab;
+      --soft: #e8f2ff;
+      --good: #2b8a3e;
+      --warn: #c92a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Calibri, sans-serif;
+      line-height: 1.45;
+      font-size: 12.2pt;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 8mm auto;
+      background: var(--paper);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+      padding: 16mm;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    h1, h2, h3 { margin: 0 0 8px 0; line-height: 1.2; }
+    h1 { font-size: 24pt; }
+    h2 { font-size: 15pt; margin-top: 16px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+    h3 { font-size: 12.3pt; margin-top: 11px; }
+    p { margin: 6px 0; }
+    ul, ol { margin: 4px 0 8px 20px; }
+    li { margin: 3px 0; }
+    .muted { color: var(--muted); }
+    .hero {
+      background: linear-gradient(140deg, #0f2f57 0%, #0b5cab 60%, #4ea3ff 100%);
+      color: #fff;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .hero p { color: #e8f3ff; }
+    .pill {
+      display: inline-block;
+      border: 1px solid #cde0ff;
+      background: var(--soft);
+      color: #0d4f97;
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      font-size: 10.2pt;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10.7pt; }
+    th, td { border: 1px solid var(--line); padding: 7px 8px; text-align: left; vertical-align: top; }
+    th { background: #f6f9ff; }
+    .panel {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--primary);
+      background: #fbfdff;
+      border-radius: 4px;
+      padding: 9px 10px;
+      margin: 8px 0;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .kpi { border: 1px solid #d3e6ff; border-radius: 7px; background: #f8fcff; padding: 8px; }
+    .kpi .v { font-size: 17pt; font-weight: 700; color: #0b5cab; }
+    .good { color: var(--good); font-weight: 600; }
+    .warn { color: var(--warn); font-weight: 600; }
+    .footer { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 6px; color: var(--muted); font-size: 10pt; }
+    @page { size: A4; margin: 10mm; }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <div class="hero">
+      <h1>Fikisha Business Model</h1>
+      <p>Platform Strategy, Revenue Design, and Scale Plan</p>
+      <p><strong>Date:</strong> March 16, 2026</p>
+    </div>
+
+    <h2>1. Business Thesis</h2>
+    <p>
+      Fikisha is a multi-sided local commerce platform that aggregates customer demand,
+      routes demand to merchants, orchestrates last-mile delivery through drivers, and captures
+      platform margin by controlling payment collection and merchant settlement.
+    </p>
+    <div>
+      <span class="pill">Demand aggregation</span>
+      <span class="pill">Merchant enablement</span>
+      <span class="pill">Logistics orchestration</span>
+      <span class="pill">Settlement-led monetization</span>
+      <span class="pill">Admin-grade governance</span>
+    </div>
+
+    <h2>2. Core Value Proposition</h2>
+    <div class="grid3">
+      <div class="panel">
+        <h3>For Customers</h3>
+        <ul>
+          <li>Convenient multi-store ordering</li>
+          <li>Transparent delivery tracking</li>
+          <li>Reliable service and status updates</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>For Merchants</h3>
+        <ul>
+          <li>Additional digital sales channel</li>
+          <li>Managed order pipeline and delivery dispatch</li>
+          <li>Settlement visibility via admin accounting flow</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>For Platform</h3>
+        <ul>
+          <li>Commission-based scalable margin</li>
+          <li>Data advantage on demand and fulfillment</li>
+          <li>Cross-role control with auditable operations</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>3. Revenue Engine (Current Fit)</h2>
+    <table>
+      <tr><th>Revenue Stream</th><th>Mechanism</th><th>Current Implementation Fit</th></tr>
+      <tr>
+        <td>Merchant Commission</td>
+        <td>Platform fee % deducted before merchant payout</td>
+        <td>Accounting tab already supports configurable fee % and payout obligations</td>
+      </tr>
+      <tr>
+        <td>Delivery Fee Spread</td>
+        <td>Customer pays delivery fee, platform controls driver payout economics</td>
+        <td>Order model includes delivery fee; can be optimized by zone/time</td>
+      </tr>
+      <tr>
+        <td>Optional Merchant Subscription</td>
+        <td>Monthly SaaS tools for priority listing and analytics</td>
+        <td>Not yet launched; straightforward extension to current merchant model</td>
+      </tr>
+      <tr>
+        <td>Promotions / Sponsored Placement</td>
+        <td>Paid visibility for stores/products</td>
+        <td>Future growth lever once merchant base deepens</td>
+      </tr>
+    </table>
+
+    <h2>4. Settlement Logic</h2>
+    <div class="panel">
+      <strong>Financial flow:</strong> Customer pays platform -> platform recognizes gross revenue -> platform deducts commission -> platform settles net payable to merchant by cycle.
+    </div>
+    <p>Base formula per cycle:</p>
+    <ul>
+      <li>Gross Merchant Sales = sum of non-cancelled order totals</li>
+      <li>Platform Commission = Gross Merchant Sales × Commission %</li>
+      <li>Merchant Net Payable = Gross Merchant Sales - Platform Commission</li>
+      <li>Pending Payout = Merchant Net Payable - Recorded Payouts</li>
+    </ul>
+
+    <h2>5. Business Model Canvas (Condensed)</h2>
+    <table>
+      <tr><th>Block</th><th>Fikisha Model</th></tr>
+      <tr><td>Customer Segments</td><td>Urban consumers, SME merchants, independent drivers</td></tr>
+      <tr><td>Value Propositions</td><td>Fast commerce convenience, merchant growth channel, flexible driver income</td></tr>
+      <tr><td>Channels</td><td>Web app (customer + role portals), admin operations portal</td></tr>
+      <tr><td>Customer Relationships</td><td>Self-service ordering + operational support + transparent statuses</td></tr>
+      <tr><td>Revenue Streams</td><td>Commission, delivery spread, future subscriptions and sponsored listings</td></tr>
+      <tr><td>Key Resources</td><td>Order orchestration software, merchant network, driver pool, data and trust</td></tr>
+      <tr><td>Key Activities</td><td>Demand generation, dispatch coordination, settlement, risk control</td></tr>
+      <tr><td>Key Partners</td><td>Merchants, drivers, payment processors, telecom/maps providers</td></tr>
+      <tr><td>Cost Structure</td><td>Tech infrastructure, support ops, incentives, payment fees, growth marketing</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <h2>6. Unit Economics Template</h2>
+    <p class="muted">Example numbers are placeholders for planning and should be calibrated with live data from accounting exports.</p>
+    <table>
+      <tr><th>Metric</th><th>Symbol</th><th>Example</th><th>Formula</th></tr>
+      <tr><td>Average Order Value</td><td>AOV</td><td>KES 2,000</td><td>Gross Sales / Orders</td></tr>
+      <tr><td>Commission Rate</td><td>c</td><td>10%</td><td>Configured in Accounting</td></tr>
+      <tr><td>Commission per Order</td><td>R_comm</td><td>KES 200</td><td>AOV × c</td></tr>
+      <tr><td>Delivery Margin per Order</td><td>R_del</td><td>KES 80</td><td>Delivery fee charged - driver payout</td></tr>
+      <tr><td>Total Contribution per Order</td><td>CM1</td><td>KES 280</td><td>R_comm + R_del - variable costs</td></tr>
+      <tr><td>Monthly Fixed Cost</td><td>F</td><td>KES 1,200,000</td><td>Payroll + infra + admin</td></tr>
+      <tr><td>Break-even Orders</td><td>Q*</td><td>4,286</td><td>F / CM1</td></tr>
+    </table>
+
+    <h2>7. Go-to-Market Strategy</h2>
+    <div class="grid2">
+      <div class="panel">
+        <h3>Phase 1: Local Density (0-6 months)</h3>
+        <ul>
+          <li>Concentrate in one city zone for reliability</li>
+          <li>Onboard anchor merchants by category</li>
+          <li>Run referral loops for first-order customers</li>
+          <li>Guarantee delivery windows to build trust</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Phase 2: Network Expansion (6-18 months)</h3>
+        <ul>
+          <li>Expand to adjacent zones by demand clusters</li>
+          <li>Introduce merchant subscription tiers</li>
+          <li>Launch sponsored placement products</li>
+          <li>Add SLA-based driver incentive mechanics</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>8. Operating Model and Governance</h2>
+    <ul>
+      <li><strong>Control Tower:</strong> Admin portal manages stores, drivers, logs, and accounting settlements.</li>
+      <li><strong>Risk Gates:</strong> Role-based auth, log trails, status transitions, and payout ledger controls.</li>
+      <li><strong>Settlement Discipline:</strong> Cycle-based payout review and mark-paid workflow.</li>
+      <li><strong>Data Loop:</strong> Operational data informs pricing, driver allocation, and merchant performance management.</li>
+    </ul>
+
+    <h2>9. KPI Framework</h2>
+    <div class="grid3">
+      <div class="kpi">
+        <div class="muted">Demand</div>
+        <div class="v">GMV</div>
+        <div>Gross merchandise value growth by week/month</div>
+      </div>
+      <div class="kpi">
+        <div class="muted">Efficiency</div>
+        <div class="v">On-time %</div>
+        <div>Delivery SLA performance and prep-to-dropoff cycle time</div>
+      </div>
+      <div class="kpi">
+        <div class="muted">Profitability</div>
+        <div class="v">Take Rate</div>
+        <div>Commission + delivery margin as percentage of GMV</div>
+      </div>
+    </div>
+    <div class="grid3" style="margin-top:10px;">
+      <div class="kpi">
+        <div class="muted">Merchant Health</div>
+        <div class="v">Retention</div>
+        <div>Active merchants and churn rate by cohort</div>
+      </div>
+      <div class="kpi">
+        <div class="muted">Customer Health</div>
+        <div class="v">Repeat Rate</div>
+        <div>30/60/90-day reorder behavior</div>
+      </div>
+      <div class="kpi">
+        <div class="muted">Cash Discipline</div>
+        <div class="v">Payout Lag</div>
+        <div>Days from cycle close to merchant settlement</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>10. Financial Planning Scenarios</h2>
+    <table>
+      <tr>
+        <th>Scenario</th>
+        <th>Monthly Orders</th>
+        <th>AOV</th>
+        <th>Commission %</th>
+        <th>Est. Commission Revenue</th>
+      </tr>
+      <tr>
+        <td>Conservative</td>
+        <td>3,000</td>
+        <td>KES 1,800</td>
+        <td>10%</td>
+        <td>KES 540,000</td>
+      </tr>
+      <tr>
+        <td>Base</td>
+        <td>6,500</td>
+        <td>KES 2,000</td>
+        <td>10%</td>
+        <td>KES 1,300,000</td>
+      </tr>
+      <tr>
+        <td>Growth</td>
+        <td>12,000</td>
+        <td>KES 2,150</td>
+        <td>11%</td>
+        <td>KES 2,838,000</td>
+      </tr>
+    </table>
+
+    <h2>11. Risk Register and Mitigation</h2>
+    <table>
+      <tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+      <tr>
+        <td>Delivery SLA failures</td>
+        <td class="warn">High</td>
+        <td>Driver performance scoring, dynamic dispatch rules, peak-hour staffing</td>
+      </tr>
+      <tr>
+        <td>Merchant payout disputes</td>
+        <td class="warn">High</td>
+        <td>Cycle ledger transparency, downloadable statements, immutable logs</td>
+      </tr>
+      <tr>
+        <td>Fraud/abuse attempts</td>
+        <td class="warn">Medium-High</td>
+        <td>Rate limits, role controls, event auditing, anomaly monitoring</td>
+      </tr>
+      <tr>
+        <td>Low repeat customer behavior</td>
+        <td class="warn">Medium</td>
+        <td>Loyalty mechanics, fulfillment quality control, service recovery programs</td>
+      </tr>
+    </table>
+
+    <h2>12. 90-Day Action Roadmap</h2>
+    <ol>
+      <li>Stabilize settlement ops: monthly close checklist + merchant payout statement templates.</li>
+      <li>Add accounting exports: CSV/PDF for payout and commission reports.</li>
+      <li>Launch merchant performance dashboard: fulfillment speed, cancellation, rating trends.</li>
+      <li>Introduce driver incentive policy tied to on-time and completion quality.</li>
+      <li>Instrument KPI dashboard for executive weekly review (GMV, take rate, payout lag, repeat rate).</li>
+    </ol>
+
+    <h2>13. Final Recommendation</h2>
+    <div class="panel">
+      Fikisha’s strongest strategic edge is the integrated control of order flow, delivery execution, and merchant settlement.
+      The near-term objective should be to maximize city-level density and service reliability while institutionalizing settlement trust.
+      This positions the business for scalable unit economics and defensible marketplace network effects.
+    </div>
+
+    <div class="footer">
+      This business model document is tailored to the current Fikisha implementation snapshot and is suitable for internal planning,
+      partner alignment, and investor discussions.
+    </div>
+  </section>
+</body>
+</html>

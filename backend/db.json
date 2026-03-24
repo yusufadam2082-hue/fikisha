@@ -1,0 +1,310 @@
+{
+  "categories": [
+    {
+      "id": "c1",
+      "name": "Restaurants",
+      "image": "🍔"
+    },
+    {
+      "id": "c2",
+      "name": "Groceries",
+      "image": "🛒"
+    },
+    {
+      "id": "c3",
+      "name": "Pharmacy",
+      "image": "💊"
+    },
+    {
+      "id": "c4",
+      "name": "Packages",
+      "image": "📦"
+    }
+  ],
+  "users": [
+    {
+      "id": "admin-1",
+      "username": "admin",
+      "password": "$2b$10$WDugHDYGldjfhESnlqvYzOQrWP/skx.Q92cqwNYHUyAdZ1VyFCAYa",
+      "role": "ADMIN",
+      "name": "Admin User"
+    },
+    {
+      "id": "merchant-1",
+      "username": "merchant",
+      "password": "$2b$10$wWZOkhK6dxvutLzR.090V.yrZebYso4Fwo4onp8AXOUO8racFGeTq",
+      "role": "MERCHANT",
+      "storeId": "1",
+      "name": "Merchant User"
+    },
+    {
+      "id": "customer-1",
+      "username": "customer",
+      "password": "$2b$10$guGT.cwuZ2eQRHdVCZ36e.NEPkyJ1evkhsll0kkP4biZrxhKDdfd6",
+      "role": "CUSTOMER",
+      "name": "Customer User"
+    }
+  ],
+  "stores": [
+    {
+      "id": "1",
+      "name": "Burger Joint",
+      "rating": 4.8,
+      "time": "15-25 min",
+      "deliveryFee": 5.99,
+      "category": "American",
+      "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1200&q=80",
+      "description": "The best burgers in town.",
+      "menu": [
+        {
+          "id": "m1",
+          "name": "Classic Cheeseburger",
+          "description": "Angus beef",
+          "price": 8.99,
+          "image": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=200&q=80",
+          "storeId": "1"
+        },
+        {
+          "id": "4a612f30-4082-4f82-a66f-4caad1f7cdb9",
+          "name": "French Fries",
+          "description": "A new product description.",
+          "price": 5,
+          "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=200&q=80",
+          "storeId": "1"
+        }
+      ]
+    },
+    {
+      "id": "7061b0b1-c009-4a86-84be-e10b9d1a01f8",
+      "name": "Real Database Store",
+      "rating": 5,
+      "time": "20-30 min",
+      "deliveryFee": 2.99,
+      "category": "New Category",
+      "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
+      "description": "A newly added store description.",
+      "menu": [
+        {
+          "id": "fd654e5e-8f65-4502-9246-dddd967fbe0e",
+          "name": "Persistent Product",
+          "description": "A new product description.",
+          "price": 15,
+          "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=200&q=80",
+          "storeId": "7061b0b1-c009-4a86-84be-e10b9d1a01f8"
+        }
+      ]
+    },
+    {
+      "id": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "name": "mpambe",
+      "rating": 5,
+      "time": "20-30 min",
+      "deliveryFee": 2.99,
+      "category": "Swahili",
+      "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
+      "description": "A newly added store description.",
+      "menu": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "description": "A new product description.",
+          "price": 9.99,
+          "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=200&q=80",
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a"
+        }
+      ]
+    },
+    {
+      "id": "586ff625-9b34-4fa0-af73-a75b83baccfb",
+      "name": "zanziba",
+      "rating": 5,
+      "time": "20-30 min",
+      "deliveryFee": 2.99,
+      "category": "New Category",
+      "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80",
+      "description": "A newly added store description.",
+      "menu": []
+    }
+  ],
+  "orders": [
+    {
+      "id": "9c3cdfc5-1de5-4a68-b51d-d1b2ce0c2b95",
+      "storeId": "1",
+      "items": [
+        {
+          "id": "m1",
+          "name": "Classic Cheeseburger",
+          "price": 8.99,
+          "storeId": "1",
+          "quantity": 1
+        }
+      ],
+      "total": 10.98,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T09:22:00.263Z"
+    },
+    {
+      "id": "d53e7d98-11ef-47a7-8425-21f89f104c0b",
+      "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "items": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "price": 9.99,
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+          "quantity": 1
+        }
+      ],
+      "total": 11.98,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T09:27:31.860Z"
+    },
+    {
+      "id": "8cd13c8a-a63b-458d-add3-906f1fa8fcb7",
+      "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "items": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "price": 9.99,
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+          "quantity": 3
+        }
+      ],
+      "total": 31.959999999999997,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T09:30:37.080Z"
+    },
+    {
+      "id": "4fe3d084-6a51-41ee-b1a4-7fdb7d4561ac",
+      "storeId": "1",
+      "items": [
+        {
+          "id": "m1",
+          "name": "Classic Cheeseburger",
+          "price": 8.99,
+          "storeId": "1",
+          "quantity": 1
+        }
+      ],
+      "total": 10.98,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T09:33:01.679Z"
+    },
+    {
+      "id": "ab752cf4-2418-474c-99ca-0195f815f97a",
+      "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "items": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "price": 9.99,
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+          "quantity": 1
+        }
+      ],
+      "total": 11.98,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T09:37:35.285Z"
+    },
+    {
+      "id": "be8b2435-15b6-4550-b1de-114c251ef181",
+      "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "items": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "price": 9.99,
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+          "quantity": 3
+        }
+      ],
+      "total": 31.959999999999997,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "cancelled",
+      "createdAt": "2026-03-14T10:57:15.328Z"
+    },
+    {
+      "id": "9563be24-9eac-4568-8d9e-fe407d83d707",
+      "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+      "items": [
+        {
+          "id": "20be28d3-d0ac-4133-904f-00d75a08e440",
+          "name": "biriani",
+          "price": 9.99,
+          "storeId": "f5c0b170-5a3f-444a-be88-c33b68bb295a",
+          "quantity": 3
+        }
+      ],
+      "total": 31.959999999999997,
+      "customerInfo": {
+        "name": "Guest User",
+        "address": "123 Delivery Street"
+      },
+      "status": "delivered",
+      "createdAt": "2026-03-14T10:58:22.008Z",
+      "driverId": "817bb6ac-3e9d-42d9-8e9f-8b0279b4041f"
+    },
+    {
+      "id": "c94c3fed-52ba-4757-8b50-9255c90245ef",
+      "storeId": "1",
+      "items": [
+        {
+          "id": "m1",
+          "name": "Classic Cheeseburger",
+          "price": 8.99,
+          "storeId": "1",
+          "quantity": 1
+        }
+      ],
+      "total": 10.98,
+      "customerInfo": {
+        "name": "Customer",
+        "address": "malindi.maweni"
+      },
+      "status": "pending",
+      "createdAt": "2026-03-14T12:32:52.111Z"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "f23f0d20-14d2-4121-898e-8038e9693d80",
+      "name": "Mike Tyres",
+      "phone": "(555) 999-1234",
+      "vehicle": "Box Truck",
+      "username": "miket",
+      "password": "mikepass"
+    },
+    {
+      "id": "817bb6ac-3e9d-42d9-8e9f-8b0279b4041f",
+      "name": "Yusuf",
+      "phone": "0798619759",
+      "vehicle": "bike",
+      "username": "yusuf",
+      "password": "yusufadam"
+    }
+  ]
+}

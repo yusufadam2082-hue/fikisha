@@ -1,0 +1,184 @@
+[
+  {
+    "id": "d9756aec-d385-4dcd-9a20-564f52e0a72b",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_CLOSED",
+    "actorUserId": "608acd42-c592-419c-8a34-9c95ae7cbfbc",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-16T16:32:55.336Z"
+  },
+  {
+    "id": "2f1ccd78-3686-4e62-9deb-0316c97320a8",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_OPENED",
+    "actorUserId": "608acd42-c592-419c-8a34-9c95ae7cbfbc",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-16T16:33:08.478Z"
+  },
+  {
+    "id": "c24ee527-ceaa-40ad-b35a-d575b0df0951",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_CLOSED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-16T16:40:49.605Z"
+  },
+  {
+    "id": "b7c76157-c75d-4992-aabe-3a0520099dfa",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_OPENED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-16T16:40:50.846Z"
+  },
+  {
+    "id": "2e354f2b-f3b0-4f07-aff4-383a3c7878ed",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_CLOSED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-17T09:41:28.455Z"
+  },
+  {
+    "id": "2dfdc107-2609-438f-a70b-4aa6f55916fa",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_OPENED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-17T09:41:32.986Z"
+  },
+  {
+    "id": "b5ac39e0-e56e-47a4-b07a-b5274b2bcee5",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_CLOSED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-17T09:41:35.515Z"
+  },
+  {
+    "id": "dc4d2278-4694-4ed6-bab1-e32a70bcac4b",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_OPENED",
+    "actorUserId": "a1a1137e-4768-4d46-b0e1-6f39155505ce",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-17T09:42:39.954Z"
+  },
+  {
+    "id": "bcb45806-de10-47fe-b8f2-01f31a0446f4",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_CLOSED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-17T09:42:50.459Z"
+  },
+  {
+    "id": "c2c82aa6-12f8-406a-bcad-e15e67cc09f1",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_OPENED",
+    "actorUserId": "a1a1137e-4768-4d46-b0e1-6f39155505ce",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-17T10:20:06.467Z"
+  },
+  {
+    "id": "5885dce4-dd8a-4c7a-b18e-6e8a777af567",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_CLOSED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-19T11:33:43.593Z"
+  },
+  {
+    "id": "33cbe26e-dd6b-4028-af02-4f8b8fdc7326",
+    "storeId": "b4a3cfe7-bd0e-4888-b2d1-6a5e706632a0",
+    "type": "STORE_OPENED",
+    "actorUserId": "c66de4b4-fa5f-4755-a493-00b4f0c6a5d1",
+    "actorRole": "ADMIN",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-19T11:34:03.720Z"
+  },
+  {
+    "id": "8b66aa86-ef0a-4f0c-b924-5c363e099621",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_CLOSED",
+    "actorUserId": "608acd42-c592-419c-8a34-9c95ae7cbfbc",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as CLOSED",
+    "metadata": {
+      "from": true,
+      "to": false
+    },
+    "createdAt": "2026-03-24T13:29:09.299Z"
+  },
+  {
+    "id": "0b8fefb4-5d36-4bf1-97f6-419aebc665f6",
+    "storeId": "ae16e77e-b511-4a67-8815-83d1e863adc6",
+    "type": "STORE_OPENED",
+    "actorUserId": "608acd42-c592-419c-8a34-9c95ae7cbfbc",
+    "actorRole": "MERCHANT",
+    "message": "Store marked as OPEN",
+    "metadata": {
+      "from": false,
+      "to": true
+    },
+    "createdAt": "2026-03-24T13:29:14.073Z"
+  }
+]

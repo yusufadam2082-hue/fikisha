@@ -1,0 +1,158 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  password  String
+  role      String   @default("CUSTOMER")
+  name      String
+  email     String?
+  phone     String?
+  storeId   String?
+  banned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ownedStores Store[] @relation("StoreOwner")
+  orders      Order[] @relation("OrderCustomer")
+  driver      Driver?
+
+  @@index([storeId])
+  @@index([role])
+}
+
+model Store {
+  id          String    @id @default(uuid())
+  name        String
+  rating      Float     @default(5.0)
+  time        String    @default("15-25 min")
+  deliveryFee Float     @default(2.99)
+  category    String
+  image       String
+  description String
+  address     String?
+  phone       String?
+  isOpen      Boolean   @default(true)
+  isActive    Boolean   @default(true)
+  ownerId     String
+  owner       User      @relation("StoreOwner", fields: [ownerId], references: [id])
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([ownerId])
+  @@index([category])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  image       String
+  category    String?
+  available   Boolean  @default(true)
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([storeId])
+  @@index([available])
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  orderNumber   String?  @unique
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerId    String
+  customer      User     @relation("OrderCustomer", fields: [customerId], references: [id])
+  driverId      String?
+  status        String   @default("PENDING")
+  total         Float
+  deliveryFee   Float
+  tax           Float    @default(0)
+  deliveryOtp   String?
+  deliveryOtpVerifiedAt DateTime?
+  customerInfo  String   // JSON string instead of Json type
+  deliveryAddress String? // JSON string instead of Json type
+  items         OrderItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  driver Driver?  @relation(fields: [driverId], references: [id])
+
+  @@index([storeId])
+  @@index([customerId])
+  @@index([driverId])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Driver {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  phone     String
+  vehicle   String
+  license   String?
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  orders    Order[]
+  available Boolean  @default(true)
+  rating    Float    @default(5.0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([available])
+}
+
+model Category {
+  id    String @id @default(uuid())
+  name  String @unique
+  image String?
+  slug  String @unique
+}
+
+model Promotion {
+  id        String    @id @default(uuid())
+  title     String
+  subtitle  String
+  ctaText   String    @default("Order now")
+  ctaLink   String?
+  bgColor   String    @default("#FF5A5F")
+  image     String?
+  active    Boolean   @default(true)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}

@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fikisha Platform Report</title>
+  <style>
+    :root {
+      --ink: #12223a;
+      --muted: #4d5f79;
+      --line: #d8dfeb;
+      --paper: #ffffff;
+      --accent: #1c7ed6;
+      --accent-soft: #e7f2ff;
+      --good: #2b8a3e;
+      --warn: #d9480f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Calibri", sans-serif;
+      color: var(--ink);
+      background: #f3f6fb;
+      line-height: 1.45;
+      font-size: 12.5pt;
+    }
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 8mm auto;
+      background: var(--paper);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+      padding: 16mm;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+    h1, h2, h3 { margin: 0 0 8px 0; line-height: 1.2; }
+    h1 { font-size: 23pt; letter-spacing: 0.2px; }
+    h2 {
+      font-size: 15pt;
+      margin-top: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 4px;
+    }
+    h3 { font-size: 12.5pt; margin-top: 10px; }
+    p { margin: 6px 0; color: var(--ink); }
+    ul { margin: 4px 0 8px 18px; }
+    li { margin: 3px 0; }
+    .muted { color: var(--muted); }
+    .tag {
+      display: inline-block;
+      border: 1px solid #c7daff;
+      color: #0b4f99;
+      background: var(--accent-soft);
+      border-radius: 999px;
+      padding: 3px 9px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      font-size: 10.5pt;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      background: #fbfdff;
+      padding: 9px 11px;
+      margin: 8px 0;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 10.8pt;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #f6f9ff; }
+    .good { color: var(--good); font-weight: 600; }
+    .warn { color: var(--warn); font-weight: 600; }
+    .small { font-size: 10pt; }
+    .cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .cover {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 255mm;
+    }
+    .cover-top {
+      background: linear-gradient(135deg, #0f2f57, #1c7ed6);
+      color: #fff;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .cover-top p { color: #e8f3ff; }
+    .kpi {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .kpi-card {
+      border: 1px solid #d3e5ff;
+      border-radius: 8px;
+      padding: 8px;
+      background: #f8fcff;
+    }
+    .kpi-value { font-size: 17pt; font-weight: 700; color: #0b4f99; }
+    .footer {
+      margin-top: 14px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 10pt;
+    }
+    @page { size: A4; margin: 10mm; }
+  </style>
+</head>
+<body>
+  <section class="page cover">
+    <div class="cover-top">
+      <h1>Fikisha Platform Detailed Summary Report</h1>
+      <p>Business and Technical Overview</p>
+      <p><strong>Report Date:</strong> March 16, 2026</p>
+      <p><strong>Prepared For:</strong> Platform Owner and Operations Team</p>
+    </div>
+
+    <div>
+      <h2>Executive Summary</h2>
+      <p>
+        Fikisha is a multi-role commerce and delivery platform with separate experiences for Customers,
+        Merchants, Drivers, and Administrators. The platform currently runs as three coordinated applications:
+        a main customer/staff web app, an admin operations portal, and an Express + Prisma backend API.
+      </p>
+      <div class="kpi">
+        <div class="kpi-card">
+          <div class="small muted">Core Apps</div>
+          <div class="kpi-value">3</div>
+          <div class="small">Main App, Admin Portal, Backend API</div>
+        </div>
+        <div class="kpi-card">
+          <div class="small muted">Primary Roles</div>
+          <div class="kpi-value">4</div>
+          <div class="small">Admin, Merchant, Driver, Customer</div>
+        </div>
+        <div class="kpi-card">
+          <div class="small muted">Data Backbone</div>
+          <div class="kpi-value">Prisma</div>
+          <div class="small">SQLite schema with role-based relations</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Document purpose: consolidated summary for operations, governance, and future planning.
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>1. Platform Architecture</h2>
+    <div>
+      <span class="tag">Frontend: React + TypeScript + Vite (main app)</span>
+      <span class="tag">Admin: React + MUI + Axios</span>
+      <span class="tag">Backend: Node.js + Express</span>
+      <span class="tag">ORM: Prisma</span>
+      <span class="tag">Database: SQLite</span>
+      <span class="tag">Auth: JWT + bcrypt</span>
+    </div>
+
+    <h3>Application Components</h3>
+    <table>
+      <tr>
+        <th>Component</th>
+        <th>Purpose</th>
+        <th>Key Notes</th>
+      </tr>
+      <tr>
+        <td>Main App (Port 5173)</td>
+        <td>Customer storefront and role-specific staff portals</td>
+        <td>Protected routes by role, checkout and order tracking, merchant and driver dashboards</td>
+      </tr>
+      <tr>
+        <td>Admin Portal (Port 3000)</td>
+        <td>Operational command center</td>
+        <td>Store controls, driver fleet management, store logs and security-related views</td>
+      </tr>
+      <tr>
+        <td>Backend API (Port 3002)</td>
+        <td>Business logic and data access layer</td>
+        <td>Role middleware, validation, rate limiting, security headers, Prisma transactions</td>
+      </tr>
+    </table>
+
+    <h3>Data Model Coverage</h3>
+    <p>Core entities include User, Store, Product, Order, OrderItem, Driver, and Category. The model supports:</p>
+    <ul>
+      <li>Merchant-owned stores and store-linked products</li>
+      <li>Customer-linked order history</li>
+      <li>Driver assignment and delivery lifecycle</li>
+      <li>Role-based account ownership and operational boundaries</li>
+    </ul>
+
+    <h2>2. Role-Based Experience</h2>
+    <div class="cols">
+      <div class="panel">
+        <h3>Customer</h3>
+        <ul>
+          <li>Browse stores and products</li>
+          <li>Place orders and track statuses</li>
+          <li>Maintain profile and local payment/address preferences</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Merchant</h3>
+        <ul>
+          <li>Access merchant-only dashboard and orders</li>
+          <li>Manage own store products (backend-enforced)</li>
+          <li>Store-scoped order visibility and status updates</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Driver</h3>
+        <ul>
+          <li>Driver login and task visibility</li>
+          <li>Assigned and available-order flow</li>
+          <li>Status progression during fulfillment</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Admin</h3>
+        <ul>
+          <li>Create and manage stores</li>
+          <li>Open/close stores and update merchant credentials</li>
+          <li>Manage driver fleet and credentials</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2>3. Admin Portal Operations</h2>
+    <h3>Store Operations</h3>
+    <ul>
+      <li>Create stores with merchant owner account details</li>
+      <li>Toggle store status open/closed (without deletion as standard path)</li>
+      <li>Edit merchant credentials securely through dedicated endpoint</li>
+      <li>View store-level security and operational logs</li>
+    </ul>
+
+    <h3>Driver Fleet Management</h3>
+    <ul>
+      <li>Add new drivers with explicit login credentials (username/password)</li>
+      <li>Edit driver profile and credentials</li>
+      <li>View driver order history from admin interface</li>
+      <li>Review availability and rating summaries</li>
+    </ul>
+
+    <h3>Security and Audit Visibility</h3>
+    <ul>
+      <li>Store security logs include opening/closing events and credential-change events</li>
+      <li>Order logs include payment method, driver assignment, and timestamps</li>
+      <li>Fallback local event storage exists in admin portal for resilience</li>
+    </ul>
+
+    <h2>4. Order Lifecycle and Governance</h2>
+    <table>
+      <tr>
+        <th>Lifecycle Stage</th>
+        <th>Status Examples</th>
+        <th>Operational Significance</th>
+      </tr>
+      <tr>
+        <td>Intake</td>
+        <td>PENDING, CONFIRMED</td>
+        <td>Initial acceptance and merchant acknowledgment</td>
+      </tr>
+      <tr>
+        <td>Preparation</td>
+        <td>PREPARING, READY_FOR_PICKUP</td>
+        <td>Store production completion and dispatch readiness</td>
+      </tr>
+      <tr>
+        <td>Delivery</td>
+        <td>OUT_FOR_DELIVERY</td>
+        <td>Driver handoff and last-mile movement</td>
+      </tr>
+      <tr>
+        <td>Closure</td>
+        <td>DELIVERED, CANCELLED</td>
+        <td>Completion or operational exception handling</td>
+      </tr>
+    </table>
+
+    <div class="panel">
+      <strong>Store Isolation:</strong>
+      Merchant order access is store-scoped to prevent cross-store visibility and protect commercial boundaries.
+    </div>
+
+    <h2>5. Security Posture</h2>
+    <ul>
+      <li>JWT authentication with role-aware access controls</li>
+      <li>Password hashing with bcrypt</li>
+      <li>Rate limiting on login routes to reduce brute-force risk</li>
+      <li>Express validator layer for input validation and schema guardrails</li>
+      <li>Security headers via Helmet and CORS policy controls</li>
+    </ul>
+  </section>
+
+  <section class="page">
+    <h2>6. Operational Readiness Summary</h2>
+    <table>
+      <tr>
+        <th>Area</th>
+        <th>Status</th>
+        <th>Comments</th>
+      </tr>
+      <tr>
+        <td>Multi-role Routing</td>
+        <td class="good">Implemented</td>
+        <td>Customer, Merchant, Driver, and Admin route separation in place</td>
+      </tr>
+      <tr>
+        <td>Store Governance</td>
+        <td class="good">Implemented</td>
+        <td>Create/open-close flows and merchant credential updates available</td>
+      </tr>
+      <tr>
+        <td>Driver Operations</td>
+        <td class="good">Implemented</td>
+        <td>Driver CRUD plus credential management and order visibility</td>
+      </tr>
+      <tr>
+        <td>Audit Visibility</td>
+        <td class="good">Implemented</td>
+        <td>Store and order logs exposed in admin reporting screens</td>
+      </tr>
+      <tr>
+        <td>Currency Handling</td>
+        <td class="good">Implemented</td>
+        <td>KES display standardization available in UI formatting utilities</td>
+      </tr>
+    </table>
+
+    <h2>7. Current Risks and Improvement Priorities</h2>
+    <h3>High-Value Next Steps</h3>
+    <ol>
+      <li>Implement immutable audit trails with tamper-evident chaining for critical events.</li>
+      <li>Add formal export options (PDF/CSV) from admin logs for compliance workflows.</li>
+      <li>Expand driver analytics: on-time ratio, cancellation impact, SLA adherence.</li>
+      <li>Add account lifecycle controls for drivers (suspend/reactivate) and credential reset policy.</li>
+      <li>Introduce environment-specific deployment profiles and centralized secret management.</li>
+    </ol>
+
+    <h3>Medium-Term Enhancements</h3>
+    <ul>
+      <li>Automated regression tests around role isolation and auth flows</li>
+      <li>Advanced store-level performance dashboards (conversion, fulfillment latency)</li>
+      <li>Notification workflow for key operational events (order risk, driver availability drop)</li>
+    </ul>
+
+    <h2>8. Conclusion</h2>
+    <p>
+      The platform is operationally structured with a clear role model and meaningful admin governance controls.
+      Current implementation supports day-to-day store and fleet management while maintaining separation of access,
+      credential controls, and event visibility. With targeted improvements in audit hardening, analytics depth,
+      and reporting exports, Fikisha is well-positioned to scale in reliability and management maturity.
+    </p>
+
+    <div class="footer">
+      End of report. Generated from current workspace implementation snapshot on March 16, 2026.
+    </div>
+  </section>
+</body>
+</html>

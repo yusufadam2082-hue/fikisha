@@ -1,0 +1,426 @@
+package com.fikisha.customer.ui.screens.login
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowRightAlt
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fikisha.customer.ui.viewmodel.AuthViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(
+    viewModel: AuthViewModel = viewModel(),
+    onLoginSuccess: (String) -> Unit,
+    defaultPortalMode: AuthViewModel.PortalMode = AuthViewModel.PortalMode.CUSTOMER,
+    allowPortalSwitch: Boolean = true
+) {
+    var portalMode by remember { mutableStateOf(defaultPortalMode) }
+    var isRegisterView by remember { mutableStateOf(false) }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(true) }
+    var showForgotDialog by remember { mutableStateOf(false) }
+    var forgotIdentifier by remember { mutableStateOf("") }
+    var forgotResult by remember { mutableStateOf<String?>(null) }
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "fikisha.",
+                style = MaterialTheme.typography.displayMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+
+            Text(
+                text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) "Merchant Portal" else "Customer Portal",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp, bottom = 24.dp)
+            )
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 520.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (allowPortalSwitch) {
+                        FilterChip(
+                            selected = portalMode == AuthViewModel.PortalMode.CUSTOMER,
+                            onClick = {
+                                portalMode = AuthViewModel.PortalMode.CUSTOMER
+                                isRegisterView = false
+                                viewModel.clearError()
+                                forgotResult = null
+                            },
+                            label = { Text("Customer") }
+                        )
+                        FilterChip(
+                            selected = portalMode == AuthViewModel.PortalMode.MERCHANT,
+                            onClick = {
+                                portalMode = AuthViewModel.PortalMode.MERCHANT
+                                isRegisterView = false
+                                viewModel.clearError()
+                                forgotResult = null
+                            },
+                            label = { Text("Merchant") }
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ) {
+                        Icon(
+                            imageVector = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                                Icons.Default.Storefront
+                            } else if (isRegisterView) {
+                                Icons.Default.PersonAdd
+                            } else {
+                                Icons.Default.Person
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(14.dp)
+                                .size(28.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                                "Manage Your Store"
+                            } else if (isRegisterView) {
+                                "Create Account"
+                            } else {
+                                "Welcome Back"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                                "Access orders, products, and store profile from your mobile workspace."
+                            } else {
+                                "Shop nearby stores and track deliveries."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = {
+                        username = it
+                        viewModel.clearError()
+                    },
+                    label = { Text(if (portalMode == AuthViewModel.PortalMode.MERCHANT) "Merchant Username" else "Username") },
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(999.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        viewModel.clearError()
+                    },
+                    label = { Text("Password") },
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                            )
+                        }
+                    },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(999.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { rememberMe = !rememberMe }
+                    ) {
+                        Checkbox(
+                            checked = rememberMe,
+                            onCheckedChange = { rememberMe = it }
+                        )
+                        Text(
+                            text = "Remember me",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    TextButton(onClick = { showForgotDialog = true }) {
+                        Text("Forgot password?")
+                    }
+                }
+
+                if (error != null) {
+                    Text(
+                        text = error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+
+                forgotResult?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (portalMode == AuthViewModel.PortalMode.CUSTOMER && isRegisterView) {
+                            viewModel.register(username, password, rememberMe, onLoginSuccess)
+                        } else {
+                            viewModel.login(username, password, rememberMe, portalMode, onLoginSuccess)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    enabled = !isLoading && username.isNotBlank() && password.isNotBlank(),
+                    shape = RoundedCornerShape(999.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                                "Sign In to Merchant Portal"
+                            } else if (isRegisterView) {
+                                "Sign Up"
+                            } else {
+                                "Sign In"
+                            },
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+
+                if (portalMode == AuthViewModel.PortalMode.CUSTOMER) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Divider(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "or",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Divider(modifier = Modifier.weight(1f))
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.continueAsGuest { onLoginSuccess("CUSTOMER") } },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text("Continue as Guest")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.ArrowRightAlt, contentDescription = null)
+                    }
+
+                    Text(
+                        text = if (isRegisterView) "Already have an account?" else "Don't have an account?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = if (isRegisterView) "Sign In" else "Create Account",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            isRegisterView = !isRegisterView
+                            viewModel.clearError()
+                            forgotResult = null
+                        }
+                    )
+                }
+
+                Text(
+                    text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                        "Merchant alerts are delivered in-app for new pending orders."
+                    } else {
+                        "MFA login is not currently enabled. Delivery OTP remains active at handoff."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                        "Admin and driver access remain on the web portal."
+                    } else {
+                        "Staff member? Use staff login on the web portal."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = if (portalMode == AuthViewModel.PortalMode.MERCHANT) {
+                    "Use merchant credentials issued from the store admin workflow"
+                } else {
+                    "Demo: Use customer credentials from your portal environment"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+
+    if (showForgotDialog) {
+        AlertDialog(
+            onDismissRequest = { showForgotDialog = false },
+            title = { Text("Reset Password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Enter your username or email. If a matching account exists, we'll send reset instructions.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = forgotIdentifier,
+                        onValueChange = { forgotIdentifier = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("Username or email") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.requestPasswordReset(forgotIdentifier) { result ->
+                            forgotResult = result
+                        }
+                        showForgotDialog = false
+                    }
+                ) {
+                    Text("Send")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showForgotDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = Color.Unspecified
+        )
+    }
+}

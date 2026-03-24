@@ -1,0 +1,39 @@
+import type { ReactNode } from 'react';
+import { Navbar } from './Navbar';
+import { CartModal } from '../ui/CartModal';
+import { AiAssistant } from '../ui/AiAssistant';
+import { Link } from 'react-router-dom';
+import { MobileNav } from './MobileNav';
+
+interface LayoutProps {
+  children: ReactNode;
+}
+
+export function Layout({ children }: LayoutProps) {
+  return (
+    <div className="layout-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Navbar />
+      <MobileNav />
+      <CartModal />
+      <AiAssistant />
+      <main style={{ flex: 1, padding: '32px 0' }} className="animate-fade-in">
+        {children}
+      </main>
+
+      {/* Issue 24: footer links converted from <span> to <Link> */}
+      <footer style={{ background: 'var(--surface)', padding: '48px 0', marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
+        <div className="container flex-between">
+          <div>
+            <h3 className="text-h3" style={{ color: 'var(--primary)', marginBottom: '16px' }}>fikisha.</h3>
+            <p className="text-muted">Hyperlocal delivery at your fingertips.</p>
+          </div>
+          <div className="flex-center" style={{ gap: '24px' }}>
+            <Link to="/customer/about"   className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>About</Link>
+            <Link to="/customer/terms"   className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>Terms</Link>
+            <Link to="/customer/privacy" className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>Privacy</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
