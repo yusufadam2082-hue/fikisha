@@ -1587,7 +1587,30 @@ app.post('/api/auth/login',
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      const validPassword = await bcrypt.compare(password, user.password);
+      let validPassword = false;
+
+      // Accept legacy plaintext passwords safely and migrate them to bcrypt on successful login.
+      if (typeof user.password === 'string' && user.password.startsWith('$2')) {
+        try {
+          validPassword = await bcrypt.compare(password, user.password);
+        } catch {
+          validPassword = false;
+        }
+      } else if (typeof user.password === 'string' && user.password === password) {
+        validPassword = true;
+
+        // Best-effort migration so future logins use bcrypt without requiring a password reset.
+        try {
+          const migratedHash = await bcrypt.hash(password, 12);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { password: migratedHash }
+          });
+        } catch {
+          // Ignore migration failures and continue login flow.
+        }
+      }
+
       if (!validPassword) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
