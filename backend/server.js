@@ -1624,6 +1624,11 @@ app.post('/api/auth/login',
       const { password: _, ...userWithoutPassword } = user;
       res.json({ token, user: userWithoutPassword });
     } catch (error) {
+      console.error('[auth/login] Failed login request:', {
+        username: req.body?.username,
+        message: error?.message,
+        stack: error?.stack
+      });
       res.status(500).json({ error: 'Login failed' });
     }
   }
