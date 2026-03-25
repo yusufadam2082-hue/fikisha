@@ -123,15 +123,15 @@ export function StoreDetail() {
         <p className="text-body text-muted" style={{ marginBottom: '32px', maxWidth: '800px' }}>{store.description}</p>
         <h2 className="text-h2" style={{ marginBottom: '24px' }}>Menu</h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
+        <div className="store-menu-grid">
           {store.products.map((item: Product) => {
             const cartItem = getCartItem(item.id);
             return (
-              <Card key={item.id} style={{ display: 'flex', padding: '16px', gap: '16px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <h3 className="text-h3" style={{ marginBottom: '4px' }}>{item.name}</h3>
-                  <p className="text-sm text-muted" style={{ marginBottom: '12px', flex: 1 }}>{item.description}</p>
-                  <div className="flex-between">
+              <Card key={item.id} className="store-menu-card">
+                <div className="store-menu-content">
+                  <h3 className="text-h3 store-menu-title">{item.name}</h3>
+                  <p className="text-sm text-muted store-menu-description">{item.description}</p>
+                  <div className="flex-between store-menu-footer">
                     <span className="text-body" style={{ fontWeight: 600 }}>{formatKES(item.price)}</span>
                     {/* Issue 8: cart-aware add button */}
                     {cartItem ? (
@@ -156,7 +156,7 @@ export function StoreDetail() {
                   </div>
                 </div>
                 {/* Issue 9: product image fallback */}
-                <div style={{ width: '120px', height: '120px', borderRadius: 'var(--radius-sm)', overflow: 'hidden', flexShrink: 0, background: 'var(--surface-hover)' }}>
+                <div className="store-menu-image">
                   <img
                     src={item.image}
                     alt={item.name}

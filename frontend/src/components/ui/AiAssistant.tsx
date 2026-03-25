@@ -96,6 +96,7 @@ export function AiAssistant() {
     <>
       <button
         type="button"
+        className="ai-assistant-toggle"
         aria-label="Open AI assistant"
         onClick={() => setIsOpen((previous) => !previous)}
         style={{
@@ -121,6 +122,7 @@ export function AiAssistant() {
 
       {isOpen ? (
         <div
+          className="ai-assistant-panel"
           style={{
             position: 'fixed',
             right: 20,

@@ -139,7 +139,7 @@ export function Home() {
             return (
               <div
                 key={promo.id}
-                className="animate-fade-in"
+                className="animate-fade-in home-promo-slide"
                 style={{
                   display: idx === heroIndex ? 'flex' : 'none',
                   alignItems: 'center',
@@ -250,22 +250,20 @@ export function Home() {
         <div style={{ marginBottom: '24px' }}>
           <h2 className="text-h2">What do you need?</h2>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '24px' }}>
+        <div className="home-categories-grid">
           {categories.map((cat) => (
             <Card
               key={cat.id}
-              className="flex-center"
+              className="flex-center home-category-card"
               hoverable
               onClick={() => setSelectedCategory(selectedCategory === cat.name ? null : cat.name)}
               style={{
-                flexDirection: 'row', padding: '12px 16px', gap: '12px',
                 background: selectedCategory === cat.name ? 'rgba(255, 90, 95, 0.1)' : 'var(--surface)',
                 borderColor: selectedCategory === cat.name ? 'var(--primary)' : 'transparent',
-                cursor: 'pointer', borderRadius: '40px', alignItems: 'center'
               }}
             >
-              <span style={{ fontSize: '1.5rem' }}>{cat.image}</span>
-              <span className="text-h3" style={{ color: selectedCategory === cat.name ? 'var(--primary)' : 'inherit', fontSize: '0.9rem' }}>
+              <span className="home-category-emoji">{cat.image}</span>
+              <span className="text-h3 home-category-label" style={{ color: selectedCategory === cat.name ? 'var(--primary)' : 'inherit' }}>
                 {cat.name}
               </span>
             </Card>
@@ -284,11 +282,11 @@ export function Home() {
         ) : aiRecommendations.length === 0 ? (
           <div className="text-muted">No personalized picks yet. Place an order and AI suggestions will improve.</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
+          <div className="home-ai-grid">
             {aiRecommendations.map((item) => (
               <Link key={item.id} to={`/customer/store/${item.storeId}`}>
-                <Card style={{ padding: '0', overflow: 'hidden' }}>
-                  <div style={{ height: '140px', background: 'var(--surface-hover)' }}>
+                <Card className="home-ai-card">
+                  <div className="home-ai-image">
                     {item.image ? (
                       <img
                         src={item.image}
@@ -306,7 +304,7 @@ export function Home() {
                       <div className="image-fallback">No Image</div>
                     )}
                   </div>
-                  <div style={{ padding: '16px' }}>
+                  <div className="home-ai-content">
                     <p className="text-sm" style={{ color: 'var(--primary)', fontWeight: 700, marginBottom: '6px' }}>{item.storeName}</p>
                     <h3 className="text-h3" style={{ fontSize: '1rem', marginBottom: '8px' }}>{item.name}</h3>
                     <p className="text-sm text-muted" style={{ marginBottom: '10px' }}>{item.reason}</p>
@@ -357,12 +355,12 @@ export function Home() {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '32px' }}>
+          <div className="home-stores-grid">
             {filteredStores.map((place) => (
               <Link key={place.id} to={`/customer/store/${place.id}`}>
-                <Card style={{ display: 'flex', flexDirection: 'column' }}>
+                <Card className="home-store-card">
                   {/* Issue 9: image fallback */}
-                  <div style={{ height: '200px', width: '100%', overflow: 'hidden', background: 'var(--surface-hover)' }}>
+                  <div className="home-store-image">
                     <img
                       src={place.image}
                       alt={place.name}
@@ -376,9 +374,9 @@ export function Home() {
                       }}
                     />
                   </div>
-                  <div style={{ padding: '24px' }}>
+                  <div className="home-store-content">
                     <div className="flex-between" style={{ marginBottom: '8px' }}>
-                      <h3 className="text-h3">{place.name}</h3>
+                      <h3 className="text-h3 home-store-title">{place.name}</h3>
                       <div className="flex-center" style={{ gap: '4px', background: 'var(--surface-hover)', padding: '4px 8px', borderRadius: 'var(--radius-sm)' }}>
                         <Star size={16} color="var(--accent)" fill="var(--accent)" />
                         <span className="text-sm" style={{ fontWeight: 600 }}>{place.rating}</span>

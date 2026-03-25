@@ -53,7 +53,7 @@ export function Login() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)', padding: '24px' }}>
       <div style={{ maxWidth: '600px', width: '100%' }}>
-        <h1 className="text-h1" style={{ textAlign: 'center', marginBottom: '8px', color: 'var(--primary)', letterSpacing: '-1px', fontSize: '3rem' }}>fikisha.</h1>
+        <h1 className="text-h1" style={{ textAlign: 'center', marginBottom: '8px', color: 'var(--primary)', letterSpacing: '-1px' }}>fikisha.</h1>
         <p className="text-muted" style={{ textAlign: 'center', marginBottom: '12px' }}>Staff Login Portal</p>
         <p className="text-sm text-muted" style={{ textAlign: 'center', marginBottom: '40px' }}>
           Customer? Use <strong>/customer/login</strong>. Merchant? Use <strong>/merchant/login</strong>.
