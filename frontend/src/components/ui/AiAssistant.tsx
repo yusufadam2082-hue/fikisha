@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bot, MessageCircle, Send, X } from 'lucide-react';
 import { Button } from './Button';
+import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 
 type ChatRole = 'assistant' | 'user';
 
@@ -16,11 +17,7 @@ interface ChatResponse {
 }
 
 function getAuthHeaders(): HeadersInit {
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}') as { token?: string };
-  return {
-    'Content-Type': 'application/json',
-    ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {})
-  };
+  return buildAuthHeaders(true);
 }
 
 export function AiAssistant() {

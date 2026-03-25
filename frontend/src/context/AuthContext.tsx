@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
+import { clearStoredAuth, getStoredAuth, setStoredAuth } from '../utils/authStorage';
 
 export type Role = 'ADMIN' | 'MERCHANT' | 'CUSTOMER' | 'DRIVER';
 
@@ -31,16 +32,16 @@ const API_URL = '/api';
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore the previous session on refresh so users stay signed in between page loads.
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('fikisha_auth');
-    return saved ? JSON.parse(saved) : null;
+    const saved = getStoredAuth<User>();
+    return saved?.role ? saved : null;
   });
 
   useEffect(() => {
     // Persist auth changes immediately so the rest of the app can reload from storage if needed.
     if (user) {
-      localStorage.setItem('fikisha_auth', JSON.stringify(user));
+      setStoredAuth(user);
     } else {
-      localStorage.removeItem('fikisha_auth');
+      clearStoredAuth();
     }
   }, [user]);
 
@@ -152,7 +153,7 @@ export async function updateProfile(updates: {
   password?: string;
 }): Promise<User> {
   // Read the token from persisted auth so profile updates stay authenticated after refreshes.
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
+  const auth = getStoredAuth();
   const res = await fetch(`${API_URL}/me`, {
     method: 'PUT',
     headers: {

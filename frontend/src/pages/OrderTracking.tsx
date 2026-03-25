@@ -5,13 +5,10 @@ import { Button } from '../components/ui/Button';
 import { useToast } from '../context/ToastContext';
 import { CheckCircle, Clock, MapPin, Navigation, Package, Store } from 'lucide-react';
 import { formatKES } from '../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
 function getAuthHeaders(): HeadersInit {
-  const user = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return {
-    'Content-Type': 'application/json',
-    ...(user.token ? { Authorization: `Bearer ${user.token}` } : {})
-  };
+  return buildAuthHeaders(true);
 }
 
 function statusToStep(status: string): number {

@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { X, Minus, Plus, ShoppingBag, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatKES } from '../../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 
 const DELIVERY_FEE = 1.99;
 
@@ -19,11 +20,7 @@ interface StoredPaymentMethod {
 }
 
 function getAuthHeaders(): HeadersInit {
-  const user = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return {
-    'Content-Type': 'application/json',
-    ...(user.token ? { Authorization: `Bearer ${user.token}` } : {})
-  };
+  return buildAuthHeaders(true);
 }
 
 export function CartModal() {

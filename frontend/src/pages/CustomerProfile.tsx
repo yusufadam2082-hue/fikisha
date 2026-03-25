@@ -7,6 +7,7 @@ import { useLocation } from '../context/LocationContext';
 import { useToast } from '../context/ToastContext';
 import { User, MapPin, CreditCard, ShoppingBag, Plus, Trash2, Edit2, Save, X, Mail, Phone, Clock } from 'lucide-react';
 import { formatKES } from '../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
 interface Address {
   id: string;
@@ -74,11 +75,7 @@ function readStoredPayments(): PaymentMethod[] {
 }
 
 function getAuthHeaders(): HeadersInit {
-  const stored = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return {
-    'Content-Type': 'application/json',
-    ...(stored.token ? { Authorization: `Bearer ${stored.token}` } : {}),
-  };
+  return buildAuthHeaders(true);
 }
 
 const STATUS_COLOR: Record<string, string> = {

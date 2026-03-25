@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useStoreContext } from '../context/StoreContext';
 import { useSearch } from '../context/SearchContext';
 import { formatKES } from '../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
 interface Promotion {
   id: string;
@@ -27,11 +28,7 @@ interface AiRecommendation {
 }
 
 function getAuthHeaders(): HeadersInit {
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}') as { token?: string };
-  return {
-    'Content-Type': 'application/json',
-    ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {})
-  };
+  return buildAuthHeaders(true);
 }
 
 export function Home() {

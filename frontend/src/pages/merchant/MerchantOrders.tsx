@@ -5,10 +5,10 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { BellRing, BarChart3, Clock, DollarSign, ShoppingBag, Store as StoreIcon, ToggleLeft, ToggleRight } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 
 function getAuthHeaders(): HeadersInit {
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
+  return buildAuthHeaders(false);
 }
 
 function normalizeOrderStatus(status: string): string {

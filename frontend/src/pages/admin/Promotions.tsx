@@ -15,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 
 interface Promotion {
   id: string;
@@ -186,11 +187,7 @@ async function getApiErrorMessage(response: Response, fallback: string): Promise
 }
 
 function getAuthHeaders(): HeadersInit {
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return {
-    'Content-Type': 'application/json',
-    ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-  };
+  return buildAuthHeaders(true);
 }
 
 export function Promotions() {

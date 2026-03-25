@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
 // Product and store types describe the API payloads shared across customer and merchant screens.
 export interface Product {
@@ -82,11 +83,7 @@ const API_URL = '/api';
 
 function getAuthHeaders(): HeadersInit {
   // Reuse the saved auth token so privileged store/product mutations stay authorized.
-  const user = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return {
-    'Content-Type': 'application/json',
-    ...(user.token ? { Authorization: `Bearer ${user.token}` } : {})
-  };
+  return buildAuthHeaders(true);
 }
 
 async function readJsonSafely<T>(response: Response): Promise<T | null> {

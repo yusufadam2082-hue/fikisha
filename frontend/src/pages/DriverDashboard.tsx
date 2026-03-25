@@ -5,10 +5,10 @@ import { MapPin, CheckCircle, Navigation, DollarSign, Briefcase } from 'lucide-r
 import { useStoreContext } from '../context/StoreContext';
 import { useToast } from '../context/ToastContext';
 import { formatKES } from '../utils/currency';
+import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
 function getAuthHeaders(): HeadersInit {
-  const auth = JSON.parse(localStorage.getItem('fikisha_auth') || '{}');
-  return auth.token ? { Authorization: `Bearer ${auth.token}` } : {};
+  return buildAuthHeaders(false);
 }
 
 function normalizeOrderStatus(status: string): string {
