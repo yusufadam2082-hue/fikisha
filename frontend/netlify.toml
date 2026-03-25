@@ -4,7 +4,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR-KOYEB-BACKEND.koyeb.app/api/:splat"
+  to = "https://fikisha-sut2.onrender.com/api/:splat"
   status = 200
   force = true
 
