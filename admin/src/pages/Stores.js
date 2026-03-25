@@ -28,7 +28,7 @@ import { formatKES } from '../utils/currency';
 import { appendStoreSecurityEvent } from '../utils/storeSecurityLog';
 
 // Use backend URL directly to avoid proxy issues
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
 const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 function Stores() {

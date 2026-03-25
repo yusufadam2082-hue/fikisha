@@ -1,10 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import axios from 'axios';
 import './index.css';
 import App from './App';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
+
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
 
 const theme = createTheme({
   palette: {

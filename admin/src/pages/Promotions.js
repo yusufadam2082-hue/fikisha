@@ -40,7 +40,7 @@ import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import SortIcon from '@mui/icons-material/Sort';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
 const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 apiClient.interceptors.request.use((config) => {

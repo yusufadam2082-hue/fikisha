@@ -29,7 +29,7 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import axios from 'axios';
 
 // Use backend URL directly
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3002';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
 const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 function DriverManager() {
