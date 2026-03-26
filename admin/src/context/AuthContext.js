@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     if (token) {
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       // Fetch the current user so protected admin screens have the latest role/profile data.
       apiClient.get('/api/me')
         .then(res => {
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }) => {
           console.error('Failed to fetch user', err);
           localStorage.removeItem('token');
           delete apiClient.defaults.headers.common['Authorization'];
+          delete axios.defaults.headers.common['Authorization'];
         })
         .finally(() => setLoading(false));
     } else {
@@ -51,12 +53,14 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem('token', token);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(user);
     return user;
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    delete apiClient.defaults.headers.common['Authorization'];
     delete axios.defaults.headers.common['Authorization'];
     setUser(null);
   };
