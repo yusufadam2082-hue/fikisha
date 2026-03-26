@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Bot, MessageCircle, Send, X } from 'lucide-react';
 import { Button } from './Button';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
@@ -32,6 +32,12 @@ export function AiAssistant() {
       text: 'Hi, I am your Fikisha AI assistant. Ask me about order tracking, delivery ETA, promos, or what to order.'
     }
   ]);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const quickPrompts = useMemo(
     () => ['Track my order', 'Best stores near me', 'How is ETA calculated?'],
@@ -176,7 +182,8 @@ export function AiAssistant() {
                 {message.text}
               </div>
             ))}
-            {loading ? <div className="text-sm text-muted">Thinking...</div> : null}
+            {loading ? <div className="text-sm text-muted">Thinking…</div> : null}
+            <div ref={messagesEndRef} />
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', padding: '10px' }}>
@@ -191,8 +198,9 @@ export function AiAssistant() {
                     borderRadius: '999px',
                     border: '1px solid var(--border)',
                     background: 'var(--surface-hover)',
-                    padding: '5px 10px',
-                    cursor: 'pointer'
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    minHeight: '36px'
                   }}
                 >
                   {prompt}
@@ -209,8 +217,9 @@ export function AiAssistant() {
                     border: '1px solid rgba(37, 99, 235, 0.35)',
                     background: 'rgba(37, 99, 235, 0.08)',
                     color: '#1d4ed8',
-                    padding: '5px 10px',
-                    cursor: 'pointer'
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    minHeight: '36px'
                   }}
                 >
                   {prompt}
@@ -228,10 +237,12 @@ export function AiAssistant() {
                   }
                 }}
                 placeholder="Ask anything about your delivery"
+                aria-label="Type your message"
                 className="input-field"
                 style={{ flex: 1 }}
               />
               <Button
+                aria-label="Send message"
                 onClick={() => {
                   void sendMessage(query);
                 }}

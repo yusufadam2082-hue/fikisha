@@ -5,7 +5,8 @@ import { LocationPickerMap } from '../components/ui/LocationPickerMap';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
 import { useToast } from '../context/ToastContext';
-import { User, MapPin, CreditCard, ShoppingBag, Plus, Trash2, Edit2, Save, X, Mail, Phone, Clock } from 'lucide-react';
+import { User, MapPin, CreditCard, ShoppingBag, Plus, Trash2, Edit2, Save, X, Mail, Phone, Clock, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { formatKES } from '../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 
@@ -96,7 +97,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function CustomerProfile() {
   // Issue 15: initialise from auth user instead of hardcoded data
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const navigate = useNavigate();
   const { deliveryAddress, setDeliveryAddress } = useLocation();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -366,6 +368,11 @@ export function CustomerProfile() {
   const deleteAddress    = (id: string) => setAddresses(addresses.filter(a => a.id !== id));
   const deletePayment    = (id: string) => setPayments(payments.filter(p => p.id !== id));
 
+  const handleLogout = () => {
+    logout();
+    navigate('/customer/login');
+  };
+
   // Issue 16: added 'orders' tab
   const tabs = [
     { id: 'account',  label: 'Account',  icon: User        },
@@ -392,6 +399,7 @@ export function CustomerProfile() {
                 return (
                   <button
                     key={tab.id}
+                    type="button"
                     onClick={() => setActiveTab(tab.id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '12px',
@@ -407,6 +415,25 @@ export function CustomerProfile() {
                   </button>
                 );
               })}
+
+              {/* Mobile-visible logout button — desktop logout is in the Navbar */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px',
+                  padding: '12px 16px', borderRadius: 'var(--radius-md)',
+                  border: '1px solid rgba(220,38,38,0.25)',
+                  background: 'rgba(220,38,38,0.06)',
+                  color: '#DC2626',
+                  cursor: 'pointer', fontWeight: 600, textAlign: 'left',
+                  marginTop: '8px',
+                  transition: 'all var(--transition-smooth)',
+                  width: '100%',
+                }}
+              >
+                <LogOut size={20} />Sign Out
+              </button>
             </div>
           </Card>
         </div>

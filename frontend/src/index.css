@@ -83,7 +83,15 @@ button {
   cursor: pointer;
   font-family: inherit;
   color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:focus-visible) {
   outline: none;
+}
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 ul {
@@ -231,6 +239,21 @@ img {
   box-shadow: var(--shadow-lg);
 }
 
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* Remove the always-on hover for touch devices */
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
 /* Inputs */
 .input-wrapper {
   position: relative;
@@ -240,7 +263,7 @@ img {
 
 .input-field {
   width: 100%;
-  padding: 16px 20px 16px 48px;
+  padding: 16px 20px;
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background: var(--surface);
@@ -249,6 +272,11 @@ img {
   font-size: 1rem;
   transition: all var(--transition-fast);
   outline: none;
+}
+
+/* When inside an input-wrapper (with an icon), add left padding for the icon */
+.input-wrapper .input-field {
+  padding-left: 48px;
 }
 
 .input-field:focus {
@@ -447,9 +475,22 @@ img {
   .desktop-logout-pill {
     display: none !important;
   }
-  
+
   footer {
     display: none !important; /* Hide massive footer on mobile apps usually */
+  }
+}
+
+/* Mobile-only topbar actions (logout + profile icons) shown in Navbar */
+.mobile-topbar-actions {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 }
 

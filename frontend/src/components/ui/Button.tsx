@@ -69,7 +69,8 @@ export function Button({
   const btnClass = variant === 'primary' ? 'btn-primary' : variant === 'icon' ? 'btn-icon' : '';
 
   return (
-    <button 
+    <button
+      type={props.type ?? 'button'}
       className={`${btnClass} ${className}`}
       style={{
         ...baseStyles,

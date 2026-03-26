@@ -7,7 +7,7 @@ import { useSearch } from '../../context/SearchContext';
 export function Navbar() {
   const { items, setIsCartOpen } = useCart();
   const { user, logout } = useAuth();
-  const { searchQuery, setSearchQuery } = useSearch();
+  const { searchQuery, setSearchQuery, searchInputRef } = useSearch();
   const navigate = useNavigate();
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const homeByRole = user?.role === 'ADMIN'
@@ -38,12 +38,34 @@ export function Navbar() {
           </Link>
         </div>
 
+        {/* Mobile-only top-row actions: shown only on small screens */}
+        {user && (
+          <div className="mobile-topbar-actions">
+            <Link
+              to={profilePath}
+              title="Profile"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', background: 'var(--surface-hover)', color: 'var(--text-main)' }}
+            >
+              <User size={20} />
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Sign out"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: '50%', background: 'rgba(220,38,38,0.08)', color: '#DC2626' }}
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
+        )}
+
         <div className="input-wrapper mobile-search-bar" style={{ flex: 1, maxWidth: '400px', margin: '0 24px' }}>
           <Search className="input-icon" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search for restaurants, groceries, or items..." 
-            className="input-field" 
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search for restaurants, groceries, or items..."
+            className="input-field"
             style={{ padding: '12px 20px 12px 48px' }}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -85,6 +107,7 @@ export function Navbar() {
               <span style={{ width: '1px', alignSelf: 'stretch', background: 'var(--border)' }} />
 
               <button
+                type="button"
                 onClick={handleLogout}
                 title="Logout"
                 style={{
@@ -114,6 +137,7 @@ export function Navbar() {
 
           {/* Cart — sole primary CTA */}
           <button
+            type="button"
             className="btn-primary desktop-logout-pill"
             style={{ padding: '10px 20px', position: 'relative' }}
             onClick={() => setIsCartOpen(true)}

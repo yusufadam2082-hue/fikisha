@@ -250,17 +250,19 @@ export function CartModal() {
                   </div>
                   <div className="flex-center" style={{ gap: '12px', background: 'var(--surface-hover)', padding: '6px', borderRadius: 'var(--radius-pill)' }}>
                     <button
+                      type="button"
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
+                      style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
                     >
-                      <Minus size={14} />
+                      <Minus size={16} />
                     </button>
                     <span style={{ fontWeight: 600, width: '20px', textAlign: 'center' }}>{item.quantity}</span>
                     <button
+                      type="button"
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
+                      style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}
                     >
-                      <Plus size={14} />
+                      <Plus size={16} />
                     </button>
                   </div>
                 </div>
@@ -300,7 +302,7 @@ export function CartModal() {
                     rows={2}
                     value={confirmedAddress}
                     onChange={(e) => setConfirmedAddress(e.target.value)}
-                    style={{ width: '100%' }}
+                    style={{ width: '100%', maxHeight: '120px', overflowY: 'auto', resize: 'none' }}
                   />
                 </div>
 

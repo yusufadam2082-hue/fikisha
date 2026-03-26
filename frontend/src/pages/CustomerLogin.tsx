@@ -12,9 +12,12 @@ export function CustomerLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
+    if (isLoading) return;
     setError('');
+    setIsLoading(true);
     try {
       if (view === 'login') {
         const { token, user } = await loginUser(username, password);
@@ -31,12 +34,18 @@ export function CustomerLogin() {
       }
     } catch (e: any) {
       setError(e.message || 'Authentication failed');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && username && password) void handleSubmit();
   };
 
   const handleGuestLogin = () => {
     // Generate a secure enough guest token string / random id for session
-    const guestId = `guest_${Math.random().toString(36).substr(2, 9)}`;
+    const guestId = `guest_${Math.random().toString(36).substring(2, 11)}`;
     login({
       id: guestId,
       username: 'Guest',
@@ -70,20 +79,24 @@ export function CustomerLogin() {
             <input
               className="input-field"
               placeholder="Username"
+              autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
             <input
               className="input-field"
               type="password"
               placeholder="Password"
+              autoComplete={view === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
             {error && <p className="text-sm" style={{ color: 'var(--error)' }}>{error}</p>}
-            
-            <Button onClick={handleSubmit} disabled={!username || !password}>
-              {view === 'login' ? 'Sign In' : 'Sign Up'}
+
+            <Button onClick={handleSubmit} disabled={!username || !password || isLoading}>
+              {isLoading ? 'Please wait…' : view === 'login' ? 'Sign In' : 'Sign Up'}
             </Button>
             
             <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: '8px' }}>
