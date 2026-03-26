@@ -24,9 +24,11 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  ownedStores Store[] @relation("StoreOwner")
-  orders      Order[] @relation("OrderCustomer")
+  ownedStores Store[]         @relation("StoreOwner")
+  orders      Order[]         @relation("OrderCustomer")
   driver      Driver?
+  auditLogs   AdminAuditLog[] @relation("AdminAuditLogs")
+  orderNotes  OrderNote[]     @relation("OrderNoteAdmin")
 
   @@index([storeId])
   @@index([role])
@@ -92,7 +94,13 @@ model Order {
   deliveredAt   DateTime?
   customerInfo  String   // JSON string instead of Json type
   deliveryAddress String? // JSON string instead of Json type
+  // Admin-managed fields
+  cancellationReason  String?
+  refundedAt          DateTime?
+  refundAmount        Float?
+  refundReason        String?
   items         OrderItem[]
+  notes         OrderNote[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -157,4 +165,40 @@ model Promotion {
   endsAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+// ─── Admin Audit Log ─────────────────────────────────────────────────────────
+// Tracks every admin action for compliance and accountability.
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String   // e.g. ORDER_CANCELLED, DRIVER_SUSPENDED, REFUND_ISSUED
+  entityType String   // ORDER | USER | DRIVER | STORE | PROMOTION | SYSTEM
+  entityId   String?
+  before     String?  // JSON snapshot of state before change
+  after      String?  // JSON snapshot of state after change
+  note       String?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  admin User @relation("AdminAuditLogs", fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+// ─── Order Notes ─────────────────────────────────────────────────────────────
+// Internal notes added by admins to specific orders.
+model OrderNote {
+  id        String   @id @default(uuid())
+  orderId   String
+  adminId   String
+  text      String
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin User  @relation("OrderNoteAdmin", fields: [adminId], references: [id])
+
+  @@index([orderId])
 }

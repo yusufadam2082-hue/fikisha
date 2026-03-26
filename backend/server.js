@@ -2953,6 +2953,350 @@ app.post('/api/orders/:id/otp/verify',
 
 app.use(errorHandler);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN COMMAND CENTER — NEW ENDPOINTS (backward-compatible additions)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Audit logging helper ──────────────────────────────────────────────────────
+async function auditLog({ adminId, action, entityType, entityId, before, after, note, req }) {
+  try {
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId,
+        action,
+        entityType,
+        entityId: entityId || null,
+        before: before ? JSON.stringify(before) : null,
+        after: after ? JSON.stringify(after) : null,
+        note: note || null,
+        ip: req?.ip || null,
+      },
+    });
+  } catch (e) {
+    console.error('Audit log failed (non-fatal):', e.message);
+  }
+}
+
+// ── Dashboard KPIs ────────────────────────────────────────────────────────────
+app.get('/api/admin/dashboard', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart  = new Date(todayStart); weekStart.setDate(weekStart.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      totalOrders, todayOrders, weekOrders, monthOrders,
+      ordersByStatus, deliveredOrders, cancelledOrders,
+      refundedOrders, totalCustomers, activeDrivers,
+      totalStores, activeStores,
+    ] = await Promise.all([
+      prisma.order.count(),
+      prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.order.count({ where: { createdAt: { gte: weekStart  } } }),
+      prisma.order.count({ where: { createdAt: { gte: monthStart } } }),
+      prisma.order.groupBy({ by: ['status'], _count: { id: true } }),
+      prisma.order.findMany({ where: { status: 'DELIVERED' }, select: { total: true, deliveryFee: true, deliveredAt: true, pickedUpAt: true, createdAt: true } }),
+      prisma.order.count({ where: { status: 'CANCELLED' } }),
+      prisma.order.aggregate({ where: { refundedAt: { not: null } }, _sum: { refundAmount: true }, _count: { id: true } }),
+      prisma.user.count({ where: { role: 'CUSTOMER', banned: false } }),
+      prisma.driver.count({ where: { available: true } }),
+      prisma.store.count(),
+      prisma.store.count({ where: { isActive: true, isOpen: true } }),
+    ]);
+
+    // Revenue metrics (delivered orders only)
+    const gmv = deliveredOrders.reduce((s, o) => s + o.total, 0);
+    const deliveryFeeRevenue = deliveredOrders.reduce((s, o) => s + (o.deliveryFee || 0), 0);
+    const completionRate = totalOrders > 0 ? ((deliveredOrders.length / totalOrders) * 100).toFixed(1) : 0;
+    const cancellationRate = totalOrders > 0 ? ((cancelledOrders / totalOrders) * 100).toFixed(1) : 0;
+
+    // Average delivery time (minutes)
+    let avgDeliveryMins = 0;
+    const timed = deliveredOrders.filter(o => o.deliveredAt && o.createdAt);
+    if (timed.length) {
+      const totalMs = timed.reduce((s, o) => s + (new Date(o.deliveredAt) - new Date(o.createdAt)), 0);
+      avgDeliveryMins = Math.round(totalMs / timed.length / 60000);
+    }
+
+    const statusMap = {};
+    ordersByStatus.forEach(s => { statusMap[s.status] = s._count.id; });
+
+    res.json({
+      orders: { total: totalOrders, today: todayOrders, week: weekOrders, month: monthOrders, byStatus: statusMap },
+      revenue: { gmv, deliveryFeeRevenue, refundVolume: refundedOrders._sum.refundAmount || 0 },
+      rates: { completionRate: parseFloat(completionRate), cancellationRate: parseFloat(cancellationRate), refundCount: refundedOrders._count.id },
+      operations: { avgDeliveryMins, activeDrivers, totalCustomers, totalStores, activeStores },
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Enhanced Admin Orders List ────────────────────────────────────────────────
+app.get('/api/admin/orders', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { search, status, page = 1, limit = 40, dateFrom, dateTo } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (status) where.status = status;
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo)   where.createdAt.lte = new Date(new Date(dateTo).setHours(23,59,59,999));
+    }
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search } },
+        { customer: { name: { contains: search } } },
+        { customer: { phone: { contains: search } } },
+        { store: { name: { contains: search } } },
+      ];
+    }
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          store:    { select: { id: true, name: true, category: true } },
+          customer: { select: { id: true, name: true, phone: true, email: true } },
+          driver:   { select: { id: true, name: true, phone: true, vehicle: true } },
+          items:    { include: { product: { select: { name: true } } } },
+          notes:    { include: { admin: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    res.json({ orders, total, pages: Math.ceil(total / parseInt(limit)), page: parseInt(page) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Cancel order ───────────────────────────────────────────────────────
+app.post('/api/admin/orders/:id/cancel', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.status === 'CANCELLED') return res.status(400).json({ error: 'Order already cancelled' });
+
+    const updated = await prisma.order.update({
+      where: { id: req.params.id },
+      data: { status: 'CANCELLED', cancellationReason: reason || 'Cancelled by admin' },
+    });
+    await auditLog({ adminId: req.user.id, action: 'ORDER_CANCELLED', entityType: 'ORDER', entityId: order.id, before: { status: order.status }, after: { status: 'CANCELLED', cancellationReason: reason }, note: reason, req });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Refund order ───────────────────────────────────────────────────────
+app.post('/api/admin/orders/:id/refund', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { amount, reason } = req.body;
+    if (!amount || !reason) return res.status(400).json({ error: 'amount and reason required' });
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.refundedAt) return res.status(400).json({ error: 'Order already refunded' });
+
+    const updated = await prisma.order.update({
+      where: { id: req.params.id },
+      data: { refundedAt: new Date(), refundAmount: parseFloat(amount), refundReason: reason },
+    });
+    await auditLog({ adminId: req.user.id, action: 'REFUND_ISSUED', entityType: 'ORDER', entityId: order.id, before: { refundedAt: null }, after: { refundAmount: amount, refundReason: reason }, note: `Refunded KES ${amount}: ${reason}`, req });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Force-assign driver ────────────────────────────────────────────────
+app.post('/api/admin/orders/:id/assign', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { driverId } = req.body;
+    if (!driverId) return res.status(400).json({ error: 'driverId required' });
+
+    const [order, driver] = await Promise.all([
+      prisma.order.findUnique({ where: { id: req.params.id } }),
+      prisma.driver.findUnique({ where: { id: driverId } }),
+    ]);
+    if (!order)  return res.status(404).json({ error: 'Order not found' });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const updated = await prisma.order.update({
+      where: { id: req.params.id },
+      data: { driverId, status: 'ASSIGNED' },
+    });
+    await auditLog({ adminId: req.user.id, action: 'DRIVER_FORCE_ASSIGNED', entityType: 'ORDER', entityId: order.id, before: { driverId: order.driverId }, after: { driverId }, note: `Force-assigned driver ${driver.name}`, req });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Order notes ────────────────────────────────────────────────────────
+app.get('/api/admin/orders/:id/notes', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const notes = await prisma.orderNote.findMany({
+      where: { orderId: req.params.id },
+      include: { admin: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(notes);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/orders/:id/notes', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'Note text required' });
+
+    const note = await prisma.orderNote.create({
+      data: { orderId: req.params.id, adminId: req.user.id, text: text.trim() },
+      include: { admin: { select: { name: true } } },
+    });
+    res.status(201).json(note);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Audit logs ─────────────────────────────────────────────────────────
+app.get('/api/admin/audit-logs', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { page = 1, limit = 50, entityType, action, adminId: filterAdmin } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = {};
+    if (entityType)   where.entityType = entityType;
+    if (action)       where.action = { contains: action };
+    if (filterAdmin)  where.adminId = filterAdmin;
+
+    const [logs, total] = await Promise.all([
+      prisma.adminAuditLog.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: { admin: { select: { name: true, username: true } } },
+      }),
+      prisma.adminAuditLog.count({ where }),
+    ]);
+
+    res.json({ logs, total, pages: Math.ceil(total / parseInt(limit)), page: parseInt(page) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Suspend / reactivate store ────────────────────────────────────────
+app.post('/api/admin/stores/:id/suspend', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { suspend, reason } = req.body;
+    const store = await prisma.store.findUnique({ where: { id: req.params.id } });
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const updated = await prisma.store.update({
+      where: { id: req.params.id },
+      data: { isActive: !suspend, isOpen: suspend ? false : store.isOpen },
+    });
+    await auditLog({ adminId: req.user.id, action: suspend ? 'STORE_SUSPENDED' : 'STORE_REACTIVATED', entityType: 'STORE', entityId: store.id, before: { isActive: store.isActive }, after: { isActive: !suspend }, note: reason, req });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Suspend / reactivate driver ───────────────────────────────────────
+app.post('/api/admin/drivers/:id/suspend', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { suspend, reason } = req.body;
+    const driver = await prisma.driver.findUnique({ where: { id: req.params.id }, include: { user: true } });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const [updatedDriver] = await Promise.all([
+      prisma.driver.update({ where: { id: req.params.id }, data: { available: !suspend } }),
+      prisma.user.update({ where: { id: driver.userId }, data: { banned: !!suspend } }),
+    ]);
+    await auditLog({ adminId: req.user.id, action: suspend ? 'DRIVER_SUSPENDED' : 'DRIVER_REACTIVATED', entityType: 'DRIVER', entityId: driver.id, before: { available: driver.available }, after: { available: !suspend }, note: reason, req });
+    res.json(updatedDriver);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Reports overview ───────────────────────────────────────────────────
+app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const dateFilter = {};
+    if (from) dateFilter.gte = new Date(from);
+    if (to)   dateFilter.lte = new Date(new Date(to).setHours(23,59,59,999));
+    const where = Object.keys(dateFilter).length ? { createdAt: dateFilter } : {};
+
+    const [allOrders, topStores, driverStats] = await Promise.all([
+      prisma.order.findMany({ where, select: { total: true, deliveryFee: true, status: true, refundAmount: true, createdAt: true, store: { select: { name: true, category: true } } } }),
+      prisma.order.groupBy({ by: ['storeId'], where: { ...where, status: 'DELIVERED' }, _count: { id: true }, _sum: { total: true }, orderBy: { _sum: { total: 'desc' } }, take: 10 }),
+      prisma.driver.findMany({ include: { orders: { where: { ...where }, select: { status: true } }, _count: true } }),
+    ]);
+
+    const deliveredOrders = allOrders.filter(o => o.status === 'DELIVERED');
+    const cancelledOrders = allOrders.filter(o => o.status === 'CANCELLED');
+    const gmv    = deliveredOrders.reduce((s, o) => s + o.total, 0);
+    const fees   = deliveredOrders.reduce((s, o) => s + (o.deliveryFee || 0), 0);
+    const refunds = allOrders.reduce((s, o) => s + (o.refundAmount || 0), 0);
+    const aov    = deliveredOrders.length ? gmv / deliveredOrders.length : 0;
+
+    // Revenue by day (last 30 days bucketed)
+    const dayMap = {};
+    deliveredOrders.forEach(o => {
+      const day = o.createdAt.toISOString().slice(0,10);
+      dayMap[day] = (dayMap[day] || 0) + o.total;
+    });
+
+    // Category breakdown
+    const catMap = {};
+    allOrders.forEach(o => {
+      const cat = o.store?.category || 'Other';
+      catMap[cat] = (catMap[cat] || 0) + 1;
+    });
+
+    // Store names for topStores
+    const storeIds = topStores.map(s => s.storeId);
+    const storeNames = await prisma.store.findMany({ where: { id: { in: storeIds } }, select: { id: true, name: true } });
+    const storeNameMap = Object.fromEntries(storeNames.map(s => [s.id, s.name]));
+    const topStoresResult = topStores.map(s => ({ storeId: s.storeId, name: storeNameMap[s.storeId] || s.storeId, orders: s._count.id, revenue: s._sum.total || 0 }));
+
+    res.json({
+      summary: {
+        gmv, fees, refunds, aov,
+        totalOrders: allOrders.length,
+        deliveredOrders: deliveredOrders.length,
+        cancelledOrders: cancelledOrders.length,
+        completionRate: allOrders.length ? (deliveredOrders.length / allOrders.length * 100).toFixed(1) : 0,
+        cancellationRate: allOrders.length ? (cancelledOrders.length / allOrders.length * 100).toFixed(1) : 0,
+      },
+      charts: {
+        revenueByDay: Object.entries(dayMap).sort().map(([date, revenue]) => ({ date, revenue })),
+        ordersByCategory: Object.entries(catMap).map(([category, count]) => ({ category, count })),
+      },
+      topStores: topStoresResult,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const startServer = async () => {
   try {
     await initDB();
