@@ -19,3 +19,25 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: BACKEND_PUBLIC_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: MPESA_ENVIRONMENT
+        sync: false
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      - key: MPESA_CALLBACK_URL
+        sync: false
+      - key: MPESA_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_RECONCILIATION_INTERVAL_MS
+        sync: false

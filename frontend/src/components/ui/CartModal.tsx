@@ -34,6 +34,7 @@ export function CartModal() {
   const [confirmedAddress, setConfirmedAddress] = useState('');
   const [paymentMethods, setPaymentMethods] = useState<StoredPaymentMethod[]>([]);
   const [selectedPaymentId, setSelectedPaymentId] = useState('cod');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   useEffect(() => {
     if (!isCartOpen) {
@@ -58,6 +59,19 @@ export function CartModal() {
       return 'Cash on Delivery';
     }
     return `${selectedPayment.type} •••• ${selectedPayment.last4}`;
+  };
+
+  const getSelectedPaymentProvider = () => {
+    if (!selectedPayment) {
+      return 'COD';
+    }
+
+    const normalizedType = selectedPayment.type.toLowerCase();
+    if (normalizedType.includes('mpesa') || normalizedType.includes('m-pesa') || normalizedType.includes('mobile money')) {
+      return 'MPESA';
+    }
+
+    return 'STRIPE';
   };
 
   const validateCustomerSession = async () => {
@@ -94,7 +108,7 @@ export function CartModal() {
   };
 
   const submitOrder = async () => {
-    if (items.length === 0) return;
+    if (items.length === 0 || isSubmittingOrder) return;
 
     if (!user) {
       showToast('Please log in before checkout.', 'error');
@@ -125,18 +139,65 @@ export function CartModal() {
     setDeliveryAddress(confirmedAddress.trim());
 
     const storeId = items[0].storeId;
-    const orderData = {
-      storeId,
-      items,
-      total: total + DELIVERY_FEE,
-      customerInfo: {
-        name: 'Customer',
-        address: confirmedAddress.trim(),
-        paymentMethod: getPaymentLabel()
-      }
-    };
+    const checkoutTotal = total + DELIVERY_FEE;
+    const paymentProvider = getSelectedPaymentProvider();
+    let paymentIntentId: string | null = null;
+    let paymentAction: { type?: string; url?: string; message?: string } | null = null;
+
+    setIsSubmittingOrder(true);
 
     try {
+      if (paymentProvider !== 'COD') {
+        try {
+          const paymentIntentResponse = await fetch('/api/payments/intents', {
+            method: 'POST',
+            headers: {
+              ...getAuthHeaders(),
+              'X-Idempotency-Key': `${user.id}:${storeId}:${selectedPaymentId}:${items.map((item) => `${item.id}:${item.quantity}`).join('|')}`
+            },
+            body: JSON.stringify({
+              amount: checkoutTotal,
+              currency: 'KES',
+              provider: paymentProvider,
+              phoneNumber: paymentProvider === 'MPESA' ? user.phone || undefined : undefined,
+              description: `Fikisha order payment for ${items.length} item${items.length === 1 ? '' : 's'}`,
+              returnUrlBase: window.location.origin,
+              metadata: {
+                storeId,
+                cartItemCount: items.length,
+                paymentMethodLabel: getPaymentLabel()
+              }
+            })
+          });
+
+          const paymentPayload = await paymentIntentResponse.json().catch(() => ({ error: 'Failed to create payment intent' }));
+          if (!paymentIntentResponse.ok) {
+            showToast(paymentPayload.error || 'Failed to start payment', 'error');
+            return;
+          }
+
+          paymentIntentId = paymentPayload.intent?.id || null;
+          paymentAction = paymentPayload.action || null;
+        } catch (error) {
+          console.error('Failed to create payment intent', error);
+          showToast('Could not start the payment step. Please try again.', 'error');
+          return;
+        }
+      }
+
+      const orderData = {
+        storeId,
+        items,
+        total: checkoutTotal,
+        paymentIntentId,
+        customerInfo: {
+          name: user.name || user.username || 'Customer',
+          address: confirmedAddress.trim(),
+          paymentMethod: getPaymentLabel(),
+          paymentProvider: paymentProvider === 'COD' ? null : paymentProvider
+        }
+      };
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -159,16 +220,29 @@ export function CartModal() {
       setIsCartOpen(false);
       setShowCheckoutConfirm(false);
       clearCart();
-      // Keep orderId in the URL so tracking survives reloads and can be shared.
       const orderId = data.id || data.order?.id;
-      if (orderId) {
-        navigate(`/customer/tracking/${encodeURIComponent(String(orderId))}`, { state: { orderId } });
-      } else {
-        navigate('/customer/tracking');
+      const trackingPath = orderId
+        ? `/customer/tracking/${encodeURIComponent(String(orderId))}`
+        : '/customer/tracking';
+
+      if (paymentAction?.type === 'REDIRECT' && paymentAction.url) {
+        showToast(paymentAction.message || 'Order placed. Redirecting to secure payment.', 'info');
+        window.location.assign(paymentAction.url);
+        return;
       }
+
+      if (paymentAction?.type === 'STK_PUSH') {
+        showToast(paymentAction.message || 'Order placed. Confirm the payment prompt on your phone.', 'info');
+      } else if (paymentProvider === 'COD') {
+        showToast('Order placed successfully.', 'success');
+      }
+
+      navigate(trackingPath, orderId ? { state: { orderId } } : undefined);
     } catch (err) {
       console.error('Failed to submit order', err);
       showToast('Network error. Please try again.', 'error');
+    } finally {
+      setIsSubmittingOrder(false);
     }
   };
 
@@ -287,6 +361,7 @@ export function CartModal() {
                 size="lg"
                 style={{ fontSize: '1.1rem' }}
                 onClick={handleCheckout}
+                disabled={isSubmittingOrder}
               >
                 Checkout - {formatKES(total + DELIVERY_FEE)}
               </Button>
@@ -330,14 +405,21 @@ export function CartModal() {
                       </label>
                     ))}
                   </div>
+                  <p className="text-sm" style={{ marginTop: '10px', marginBottom: 0, color: 'var(--text-muted)' }}>
+                    {getSelectedPaymentProvider() === 'STRIPE'
+                      ? 'Card payments open a secure Stripe-hosted checkout after the order is created.'
+                      : getSelectedPaymentProvider() === 'MPESA'
+                        ? 'M-Pesa payments send an STK push to the saved phone number on your account.'
+                        : 'Cash on delivery keeps the order unpaid until delivery.'}
+                  </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button variant="outline" fullWidth onClick={() => setShowCheckoutConfirm(false)}>
+                  <Button variant="outline" fullWidth onClick={() => setShowCheckoutConfirm(false)} disabled={isSubmittingOrder}>
                     Back
                   </Button>
-                  <Button fullWidth onClick={submitOrder}>
-                    Confirm & Place Order
+                  <Button fullWidth onClick={submitOrder} disabled={isSubmittingOrder}>
+                    {isSubmittingOrder ? 'Processing...' : 'Confirm & Place Order'}
                   </Button>
                 </div>
               </div>

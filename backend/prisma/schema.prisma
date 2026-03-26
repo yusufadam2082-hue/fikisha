@@ -31,6 +31,7 @@ model User {
   orderNotes  OrderNote[]     @relation("OrderNoteAdmin")
   notifications Notification[]
   broadcastsSent BroadcastCampaign[] @relation("BroadcastCreatedBy")
+  paymentIntents PaymentIntent[]
 
   @@index([storeId])
   @@index([role])
@@ -151,8 +152,12 @@ model Order {
   rating              Float?
   ratingComment       String?
   merchantResponse    String?
+  paymentStatus       String   @default("UNPAID")
+  paymentProvider     String?
+  paymentIntentRef    String?
   items         OrderItem[]
   notes         OrderNote[]
+  paymentIntent PaymentIntent?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -323,4 +328,64 @@ model OrderNote {
   admin User  @relation("OrderNoteAdmin", fields: [adminId], references: [id])
 
   @@index([orderId])
+}
+
+model PaymentIntent {
+  id             String   @id @default(uuid())
+  customerId     String
+  customer       User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId        String?  @unique
+  order          Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  provider       String
+  providerRef    String?
+  status         String   @default("REQUIRES_ACTION")
+  amount         Float
+  currency       String   @default("KES")
+  idempotencyKey String?  @unique
+  metadata       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([provider])
+}
+
+model PaymentEvent {
+  id              String   @id @default(uuid())
+  provider        String
+  providerEventId String
+  eventType       String
+  payload         String
+  processedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+  @@index([provider])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model PayoutLedger {
+  id          String   @id @default(uuid())
+  type        String
+  orderId     String?
+  storeId     String?
+  storeName   String?
+  driverId    String?
+  driverName  String?
+  cycleKey    String?
+  amount      Float
+  note        String?
+  actorUserId String?
+  actorRole   String?
+  source      String   @default("AUTO")
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([driverId])
+  @@index([cycleKey])
+  @@index([createdAt])
 }

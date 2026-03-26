@@ -9,7 +9,8 @@ import rateLimit from 'express-rate-limit';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import Stripe from 'stripe';
 
 // Core server and environment wiring.
 const app = express();
@@ -59,6 +60,20 @@ const SETTLEMENT_TYPE = {
   DRIVER: 'DRIVER_PAYOUT'
 };
 
+const PAYMENT_PROVIDER = {
+  MOCK: 'MOCK',
+  STRIPE: 'STRIPE',
+  MPESA: 'MPESA'
+};
+
+const PAYMENT_INTENT_STATUS = {
+  REQUIRES_ACTION: 'REQUIRES_ACTION',
+  PROCESSING: 'PROCESSING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED'
+};
+
 const ORDER_STATUS_ALIASES = {
   PENDING: ORDER_STATUS.PENDING,
   CONFIRMED: ORDER_STATUS.CONFIRMED,
@@ -78,6 +93,16 @@ const ORDER_STATUS_ALIASES = {
   CANCELLED: ORDER_STATUS.CANCELLED,
   CANCELED: ORDER_STATUS.CANCELLED
 };
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const mpesaConsumerKey = process.env.MPESA_CONSUMER_KEY || '';
+const mpesaConsumerSecret = process.env.MPESA_CONSUMER_SECRET || '';
+const mpesaShortcode = process.env.MPESA_SHORTCODE || '';
+const mpesaPasskey = process.env.MPESA_PASSKEY || '';
+const mpesaEnvironment = (process.env.MPESA_ENVIRONMENT || 'sandbox').toLowerCase() === 'production' ? 'production' : 'sandbox';
+const paymentReconciliationIntervalMs = Math.max(30_000, Number(process.env.PAYMENT_RECONCILIATION_INTERVAL_MS || 120_000));
 
 // Small utility helpers support scoring, ETA estimates, and consistent response shaping.
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -234,6 +259,715 @@ const parseJsonField = (value, fallback = null) => {
   } catch {
     return fallback;
   }
+};
+
+const stringifyJsonField = (value) => {
+  if (value == null) {
+    return null;
+  }
+
+  return JSON.stringify(value);
+};
+
+const safeCompare = (left, right) => {
+  const leftBuffer = Buffer.from(String(left || ''));
+  const rightBuffer = Buffer.from(String(right || ''));
+
+  if (leftBuffer.length === 0 || rightBuffer.length === 0 || leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+};
+
+const normalizePaymentProvider = (provider) => {
+  const normalized = String(provider || PAYMENT_PROVIDER.MOCK).trim().toUpperCase();
+  if (normalized === PAYMENT_PROVIDER.STRIPE || normalized === 'CARD') {
+    return PAYMENT_PROVIDER.STRIPE;
+  }
+
+  if (normalized === PAYMENT_PROVIDER.MPESA || normalized === 'M-PESA' || normalized === 'M_PESA') {
+    return PAYMENT_PROVIDER.MPESA;
+  }
+
+  return PAYMENT_PROVIDER.MOCK;
+};
+
+const normalizeCurrency = (currency) => String(currency || 'KES').trim().toUpperCase() || 'KES';
+
+const toMinorUnits = (amount, currency) => {
+  const zeroDecimalCurrencies = new Set(['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF']);
+  const multiplier = zeroDecimalCurrencies.has(normalizeCurrency(currency)) ? 1 : 100;
+  return Math.round(Number(amount || 0) * multiplier);
+};
+
+const buildFrontendBaseUrl = (req, overrideUrl) => {
+  const candidate = String(overrideUrl || req.body?.returnUrlBase || req.headers.origin || configuredCorsOrigins[0] || 'http://localhost:5173');
+  return candidate.replace(/\/+$/, '');
+};
+
+const buildBackendBaseUrl = (req) => {
+  const explicit = (process.env.BACKEND_PUBLIC_URL || '').trim();
+  if (explicit) {
+    return explicit.replace(/\/+$/, '');
+  }
+
+  const protocol = (req.headers['x-forwarded-proto'] || req.protocol || 'http').toString().split(',')[0].trim();
+  const host = (req.headers['x-forwarded-host'] || req.get('host') || '').toString().split(',')[0].trim();
+  return `${protocol}://${host}`.replace(/\/+$/, '');
+};
+
+const normalizePhoneNumber = (rawPhone) => {
+  const digits = String(rawPhone || '').replace(/\D/g, '');
+  if (!digits) {
+    return null;
+  }
+
+  if (digits.startsWith('254')) {
+    return digits;
+  }
+
+  if (digits.startsWith('0')) {
+    return `254${digits.slice(1)}`;
+  }
+
+  if (digits.length === 9) {
+    return `254${digits}`;
+  }
+
+  return digits;
+};
+
+const paymentIntentToOrderPaymentStatus = (status) => {
+  if (status === PAYMENT_INTENT_STATUS.SUCCEEDED) {
+    return 'PAID';
+  }
+
+  if (status === PAYMENT_INTENT_STATUS.FAILED || status === PAYMENT_INTENT_STATUS.CANCELLED) {
+    return 'FAILED';
+  }
+
+  if (status === PAYMENT_INTENT_STATUS.PROCESSING || status === PAYMENT_INTENT_STATUS.REQUIRES_ACTION) {
+    return 'PENDING';
+  }
+
+  return 'UNPAID';
+};
+
+const parsePaymentMetadata = (value) => {
+  const parsed = parseJsonField(value, {});
+  return parsed && typeof parsed === 'object' ? parsed : {};
+};
+
+const buildPaymentAction = (intent) => {
+  const metadata = parsePaymentMetadata(intent?.metadata);
+  const provider = normalizePaymentProvider(intent?.provider);
+
+  if (provider === PAYMENT_PROVIDER.STRIPE) {
+    return {
+      type: 'REDIRECT',
+      url: metadata.checkoutUrl || null,
+      sessionId: metadata.checkoutSessionId || intent?.providerRef || null,
+      message: metadata.message || 'Complete payment in Stripe Checkout.'
+    };
+  }
+
+  if (provider === PAYMENT_PROVIDER.MPESA) {
+    return {
+      type: 'STK_PUSH',
+      checkoutRequestId: metadata.checkoutRequestId || intent?.providerRef || null,
+      merchantRequestId: metadata.merchantRequestId || null,
+      phoneNumber: metadata.phoneNumber || null,
+      message: metadata.message || 'Confirm the M-Pesa prompt on your phone to complete payment.'
+    };
+  }
+
+  return resolvePaymentAction(provider, intent);
+};
+
+const serializePaymentIntentForAdmin = (intent) => {
+  if (!intent) {
+    return null;
+  }
+
+  const metadata = parsePaymentMetadata(intent.metadata);
+  const adminNotes = Array.isArray(metadata.adminNotes) ? metadata.adminNotes : [];
+  return {
+    ...intent,
+    metadata,
+    action: buildPaymentAction(intent),
+    retrySourceIntentId: metadata.retriedFromIntentId || null,
+    retryCount: Number(metadata.retryCount || 0),
+    adminNotes,
+    linkedOrderNumber: intent.order?.orderNumber || null,
+    customerName: intent.customer?.name || null,
+    customerPhone: intent.customer?.phone || null,
+    storeName: intent.order?.store?.name || null
+  };
+};
+
+const escapeCsvValue = (value) => {
+  const stringValue = value == null ? '' : String(value);
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+
+  return stringValue;
+};
+
+const buildPaymentIntentAdminWhere = (query = {}) => {
+  const { search, status, provider, linkedOnly, attentionOnly } = query;
+  const where = {};
+
+  if (status) {
+    where.status = String(status).toUpperCase();
+  }
+  if (provider) {
+    where.provider = normalizePaymentProvider(provider);
+  }
+  if (String(linkedOnly || '').toLowerCase() === 'true') {
+    where.orderId = { not: null };
+  }
+  if (search) {
+    where.OR = [
+      { id: { contains: String(search) } },
+      { providerRef: { contains: String(search) } },
+      { order: { is: { orderNumber: { contains: String(search) } } } },
+      { order: { is: { store: { name: { contains: String(search) } } } } },
+      { customer: { is: { name: { contains: String(search) } } } },
+      { customer: { is: { phone: { contains: String(search) } } } }
+    ];
+  }
+
+  if (String(attentionOnly || '').toLowerCase() === 'true') {
+    const staleThreshold = new Date(Date.now() - 15 * 60 * 1000);
+    const attentionClauses = [
+      { status: PAYMENT_INTENT_STATUS.FAILED },
+      { status: PAYMENT_INTENT_STATUS.CANCELLED },
+      {
+        status: { in: [PAYMENT_INTENT_STATUS.PROCESSING, PAYMENT_INTENT_STATUS.REQUIRES_ACTION] },
+        createdAt: { lte: staleThreshold }
+      }
+    ];
+
+    if (where.OR) {
+      where.AND = [
+        { OR: where.OR },
+        { OR: attentionClauses }
+      ];
+      delete where.OR;
+    } else {
+      where.OR = attentionClauses;
+    }
+  }
+
+  return where;
+};
+
+const getMpesaBaseUrl = () => (mpesaEnvironment === 'production'
+  ? 'https://api.safaricom.co.ke'
+  : 'https://sandbox.safaricom.co.ke');
+
+const buildMpesaTimestamp = () => {
+  const now = new Date();
+  const parts = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+    String(now.getHours()).padStart(2, '0'),
+    String(now.getMinutes()).padStart(2, '0'),
+    String(now.getSeconds()).padStart(2, '0')
+  ];
+
+  return parts.join('');
+};
+
+const getMpesaAccessToken = async () => {
+  const auth = Buffer.from(`${mpesaConsumerKey}:${mpesaConsumerSecret}`).toString('base64');
+  const response = await fetch(`${getMpesaBaseUrl()}/oauth/v1/generate?grant_type=client_credentials`, {
+    headers: {
+      Authorization: `Basic ${auth}`
+    }
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.access_token) {
+    throw new Error(payload.errorMessage || payload.error_description || 'Failed to authenticate with M-Pesa');
+  }
+
+  return payload.access_token;
+};
+
+const isMpesaConfigured = () => Boolean(mpesaConsumerKey && mpesaConsumerSecret && mpesaShortcode && mpesaPasskey);
+
+const createStripeCheckoutSession = async ({ req, intent, customer, description }) => {
+  if (!stripe) {
+    const fallbackIntent = {
+      ...intent,
+      provider: PAYMENT_PROVIDER.MOCK,
+      providerRef: createPaymentProviderRef(PAYMENT_PROVIDER.MOCK)
+    };
+
+    return {
+      providerRef: fallbackIntent.providerRef,
+      provider: PAYMENT_PROVIDER.STRIPE,
+      status: PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+      metadata: {
+        mode: 'fallback',
+        checkoutUrl: `/mock-pay/${intent.id}`,
+        checkoutSessionId: fallbackIntent.providerRef,
+        message: 'Stripe is not configured. Using the mock checkout route until STRIPE_SECRET_KEY is set.'
+      },
+      action: {
+        type: 'REDIRECT',
+        url: `/mock-pay/${intent.id}`,
+        sessionId: fallbackIntent.providerRef,
+        message: 'Stripe is not configured. Using the mock checkout route until STRIPE_SECRET_KEY is set.'
+      }
+    };
+  }
+
+  const frontendBaseUrl = buildFrontendBaseUrl(req);
+  const successUrl = `${frontendBaseUrl}/customer/tracking?payment_intent=${encodeURIComponent(intent.id)}&payment_status=success`;
+  const cancelUrl = `${frontendBaseUrl}/customer/tracking?payment_intent=${encodeURIComponent(intent.id)}&payment_status=cancelled`;
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    client_reference_id: intent.id,
+    customer_email: customer?.email || undefined,
+    metadata: {
+      intentId: intent.id,
+      customerId: intent.customerId
+    },
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: intent.currency.toLowerCase(),
+          unit_amount: toMinorUnits(intent.amount, intent.currency),
+          product_data: {
+            name: description || `Fikisha order payment ${intent.id.slice(0, 8)}`
+          }
+        }
+      }
+    ],
+    success_url: successUrl,
+    cancel_url: cancelUrl
+  });
+
+  return {
+    providerRef: session.id,
+    provider: PAYMENT_PROVIDER.STRIPE,
+    status: PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+    metadata: {
+      checkoutUrl: session.url,
+      checkoutSessionId: session.id,
+      successUrl,
+      cancelUrl,
+      message: 'Complete payment in Stripe Checkout.'
+    },
+    action: {
+      type: 'REDIRECT',
+      url: session.url,
+      sessionId: session.id,
+      message: 'Complete payment in Stripe Checkout.'
+    }
+  };
+};
+
+const createMpesaPaymentRequest = async ({ req, intent, phoneNumber, description }) => {
+  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+  if (!normalizedPhoneNumber) {
+    const error = new Error('A valid phone number is required for M-Pesa checkout');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!isMpesaConfigured()) {
+    const mockProviderRef = createPaymentProviderRef(PAYMENT_PROVIDER.MPESA);
+    return {
+      providerRef: mockProviderRef,
+      provider: PAYMENT_PROVIDER.MPESA,
+      status: PAYMENT_INTENT_STATUS.PROCESSING,
+      metadata: {
+        mode: 'fallback',
+        phoneNumber: normalizedPhoneNumber,
+        checkoutRequestId: mockProviderRef,
+        message: 'M-Pesa credentials are not configured. Using a simulated STK push until MPESA_* env vars are set.'
+      },
+      action: {
+        type: 'STK_PUSH',
+        checkoutRequestId: mockProviderRef,
+        phoneNumber: normalizedPhoneNumber,
+        message: 'M-Pesa credentials are not configured. Using a simulated STK push until MPESA_* env vars are set.'
+      }
+    };
+  }
+
+  const timestamp = buildMpesaTimestamp();
+  const password = Buffer.from(`${mpesaShortcode}${mpesaPasskey}${timestamp}`).toString('base64');
+  const callbackUrl = (process.env.MPESA_CALLBACK_URL || `${buildBackendBaseUrl(req)}/api/payments/webhooks/mpesa`).replace(/\/+$/, '');
+  const accessToken = await getMpesaAccessToken();
+  const response = await fetch(`${getMpesaBaseUrl()}/mpesa/stkpush/v1/processrequest`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      BusinessShortCode: mpesaShortcode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: Math.max(1, Math.round(intent.amount)),
+      PartyA: normalizedPhoneNumber,
+      PartyB: mpesaShortcode,
+      PhoneNumber: normalizedPhoneNumber,
+      CallBackURL: callbackUrl,
+      AccountReference: `FK-${intent.id.slice(0, 8).toUpperCase()}`,
+      TransactionDesc: description || 'Fikisha order payment'
+    })
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || String(payload.ResponseCode || '') !== '0') {
+    const error = new Error(payload.errorMessage || payload.ResponseDescription || 'Failed to start M-Pesa payment');
+    error.statusCode = 502;
+    throw error;
+  }
+
+  return {
+    providerRef: payload.CheckoutRequestID,
+    provider: PAYMENT_PROVIDER.MPESA,
+    status: PAYMENT_INTENT_STATUS.PROCESSING,
+    metadata: {
+      phoneNumber: normalizedPhoneNumber,
+      merchantRequestId: payload.MerchantRequestID || null,
+      checkoutRequestId: payload.CheckoutRequestID || null,
+      message: payload.CustomerMessage || 'Confirm the payment prompt on your phone.'
+    },
+    action: {
+      type: 'STK_PUSH',
+      checkoutRequestId: payload.CheckoutRequestID || null,
+      merchantRequestId: payload.MerchantRequestID || null,
+      phoneNumber: normalizedPhoneNumber,
+      message: payload.CustomerMessage || 'Confirm the payment prompt on your phone.'
+    }
+  };
+};
+
+const createProviderPayment = async ({ req, intent, customer, phoneNumber, description }) => {
+  const provider = normalizePaymentProvider(intent.provider);
+  if (provider === PAYMENT_PROVIDER.STRIPE) {
+    return createStripeCheckoutSession({ req, intent, customer, description });
+  }
+
+  if (provider === PAYMENT_PROVIDER.MPESA) {
+    return createMpesaPaymentRequest({ req, intent, phoneNumber, description });
+  }
+
+  const providerRef = createPaymentProviderRef(provider);
+  const mockIntent = {
+    ...intent,
+    provider,
+    providerRef
+  };
+
+  return {
+    providerRef,
+    provider,
+    status: PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+    metadata: {
+      mode: 'mock',
+      message: resolvePaymentAction(provider, mockIntent).message
+    },
+    action: resolvePaymentAction(provider, mockIntent)
+  };
+};
+
+const syncOrderPaymentFromIntent = async (intent) => {
+  if (!intent?.orderId) {
+    return;
+  }
+
+  await prisma.order.update({
+    where: { id: intent.orderId },
+    data: {
+      paymentStatus: paymentIntentToOrderPaymentStatus(intent.status),
+      paymentProvider: intent.provider,
+      paymentIntentRef: intent.id
+    }
+  }).catch(() => {});
+};
+
+const updateIntentStatus = async (intent, nextStatus, extraData = {}) => {
+  const nextIntent = await prisma.paymentIntent.update({
+    where: { id: intent.id },
+    data: {
+      status: nextStatus,
+      providerRef: extraData.providerRef || intent.providerRef || null,
+      metadata: extraData.metadata ? stringifyJsonField(extraData.metadata) : intent.metadata
+    }
+  });
+
+  await syncOrderPaymentFromIntent(nextIntent);
+  return nextIntent;
+};
+
+const mapStripeSessionStatus = (session) => {
+  if (session?.payment_status === 'paid') {
+    return PAYMENT_INTENT_STATUS.SUCCEEDED;
+  }
+
+  if (session?.status === 'expired') {
+    return PAYMENT_INTENT_STATUS.CANCELLED;
+  }
+
+  if (session?.status === 'complete') {
+    return PAYMENT_INTENT_STATUS.PROCESSING;
+  }
+
+  return PAYMENT_INTENT_STATUS.REQUIRES_ACTION;
+};
+
+const reconcileStripeIntent = async (intent) => {
+  if (!stripe || !intent?.providerRef) {
+    return intent;
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(intent.providerRef);
+  const nextStatus = mapStripeSessionStatus(session);
+  const metadata = {
+    ...parsePaymentMetadata(intent.metadata),
+    checkoutUrl: session.url || parsePaymentMetadata(intent.metadata).checkoutUrl || null,
+    checkoutSessionId: session.id,
+    lastReconciledAt: new Date().toISOString()
+  };
+
+  return updateIntentStatus(intent, nextStatus, {
+    providerRef: session.id,
+    metadata
+  });
+};
+
+const reconcileMpesaIntent = async (intent) => {
+  if (!isMpesaConfigured() || !intent?.providerRef) {
+    return intent;
+  }
+
+  const timestamp = buildMpesaTimestamp();
+  const password = Buffer.from(`${mpesaShortcode}${mpesaPasskey}${timestamp}`).toString('base64');
+  const accessToken = await getMpesaAccessToken();
+  const response = await fetch(`${getMpesaBaseUrl()}/mpesa/stkpushquery/v1/query`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      BusinessShortCode: mpesaShortcode,
+      Password: password,
+      Timestamp: timestamp,
+      CheckoutRequestID: intent.providerRef
+    })
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.errorMessage || payload.ResponseDescription || 'Failed to query M-Pesa transaction status');
+  }
+
+  let nextStatus = PAYMENT_INTENT_STATUS.PROCESSING;
+  if (String(payload.ResultCode || '') === '0') {
+    nextStatus = PAYMENT_INTENT_STATUS.SUCCEEDED;
+  } else if (payload.ResultCode != null) {
+    nextStatus = PAYMENT_INTENT_STATUS.FAILED;
+  }
+
+  return updateIntentStatus(intent, nextStatus, {
+    providerRef: payload.CheckoutRequestID || intent.providerRef,
+    metadata: {
+      ...parsePaymentMetadata(intent.metadata),
+      mpesaReceiptNumber: payload.MpesaReceiptNumber || null,
+      resultCode: payload.ResultCode ?? null,
+      resultDescription: payload.ResultDesc || payload.ResponseDescription || null,
+      lastReconciledAt: new Date().toISOString()
+    }
+  });
+};
+
+const reconcilePaymentIntent = async (intent) => {
+  const provider = normalizePaymentProvider(intent?.provider);
+  if (provider === PAYMENT_PROVIDER.STRIPE) {
+    return reconcileStripeIntent(intent);
+  }
+
+  if (provider === PAYMENT_PROVIDER.MPESA) {
+    return reconcileMpesaIntent(intent);
+  }
+
+  if (!intent) {
+    return intent;
+  }
+
+  const intentAgeMs = Date.now() - new Date(intent.createdAt).getTime();
+  if (intentAgeMs > 30 * 60 * 1000 && intent.status !== PAYMENT_INTENT_STATUS.SUCCEEDED) {
+    return updateIntentStatus(intent, PAYMENT_INTENT_STATUS.CANCELLED, {
+      metadata: {
+        ...parsePaymentMetadata(intent.metadata),
+        lastReconciledAt: new Date().toISOString(),
+        expiredByReconciler: true
+      }
+    });
+  }
+
+  return intent;
+};
+
+const verifyStripeWebhook = (req) => {
+  if (!stripe) {
+    const error = new Error('Stripe is not configured');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  if (!stripeWebhookSecret) {
+    return req.body;
+  }
+
+  const signature = (req.headers['stripe-signature'] || '').toString();
+  if (!signature) {
+    const error = new Error('Missing Stripe signature');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return stripe.webhooks.constructEvent(req.rawBody || Buffer.from(JSON.stringify(req.body || {})), signature, stripeWebhookSecret);
+};
+
+const verifyMpesaWebhook = (req) => {
+  const mpesaWebhookSecret = (process.env.MPESA_WEBHOOK_SECRET || '').trim();
+  if (!mpesaWebhookSecret) {
+    return req.body;
+  }
+
+  const signature = (req.headers['x-mpesa-signature'] || '').toString().trim();
+  const expected = createHmac('sha256', mpesaWebhookSecret)
+    .update(req.rawBody || Buffer.from(JSON.stringify(req.body || {})))
+    .digest('hex');
+
+  if (!safeCompare(signature, expected)) {
+    const error = new Error('Invalid M-Pesa signature');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return req.body;
+};
+
+const parseWebhookPayload = (provider, payload) => {
+  if (provider === PAYMENT_PROVIDER.STRIPE) {
+    const event = payload;
+    const session = event?.data?.object;
+    const intentId = session?.metadata?.intentId || session?.client_reference_id || null;
+    let status = PAYMENT_INTENT_STATUS.PROCESSING;
+
+    if (event?.type === 'checkout.session.completed' || event?.type === 'checkout.session.async_payment_succeeded') {
+      status = session?.payment_status === 'paid' ? PAYMENT_INTENT_STATUS.SUCCEEDED : PAYMENT_INTENT_STATUS.PROCESSING;
+    } else if (event?.type === 'checkout.session.expired') {
+      status = PAYMENT_INTENT_STATUS.CANCELLED;
+    } else if (event?.type === 'checkout.session.async_payment_failed') {
+      status = PAYMENT_INTENT_STATUS.FAILED;
+    }
+
+    return {
+      providerEventId: event?.id || null,
+      eventType: event?.type || 'UNKNOWN',
+      intentId,
+      providerRef: session?.id || null,
+      status,
+      payload: event
+    };
+  }
+
+  if (provider === PAYMENT_PROVIDER.MPESA) {
+    const callback = payload?.Body?.stkCallback || payload?.stkCallback || payload?.body?.stkCallback || {};
+    const checkoutRequestId = callback.CheckoutRequestID || payload?.CheckoutRequestID || null;
+    const metadataItems = Array.isArray(callback.CallbackMetadata?.Item)
+      ? callback.CallbackMetadata.Item
+      : [];
+    const metadataMap = Object.fromEntries(metadataItems.map((item) => [item.Name, item.Value]));
+    const resultCode = Number(callback.ResultCode ?? payload?.ResultCode ?? -1);
+
+    return {
+      providerEventId: `${checkoutRequestId || 'mpesa'}:${resultCode}:${metadataMap.MpesaReceiptNumber || 'event'}`,
+      eventType: 'mpesa.stk_callback',
+      intentId: payload?.intentId || null,
+      providerRef: checkoutRequestId,
+      status: resultCode === 0 ? PAYMENT_INTENT_STATUS.SUCCEEDED : PAYMENT_INTENT_STATUS.FAILED,
+      payload,
+      metadata: {
+        resultCode,
+        resultDescription: callback.ResultDesc || payload?.ResultDesc || null,
+        mpesaReceiptNumber: metadataMap.MpesaReceiptNumber || null,
+        phoneNumber: metadataMap.PhoneNumber || null,
+        transactionDate: metadataMap.TransactionDate || null,
+        amount: metadataMap.Amount || null
+      }
+    };
+  }
+
+  return {
+    providerEventId: (payload?.providerEventId || payload?.id || '').toString().trim() || null,
+    eventType: (payload?.eventType || payload?.type || 'UNKNOWN').toString().trim(),
+    intentId: (payload?.intentId || '').toString().trim() || null,
+    providerRef: (payload?.providerRef || '').toString().trim() || null,
+    status: (payload?.status || PAYMENT_INTENT_STATUS.PROCESSING).toString().trim().toUpperCase(),
+    payload
+  };
+};
+
+const verifyAndParseWebhook = (provider, req) => {
+  if (provider === PAYMENT_PROVIDER.STRIPE) {
+    return parseWebhookPayload(provider, verifyStripeWebhook(req));
+  }
+
+  if (provider === PAYMENT_PROVIDER.MPESA) {
+    return parseWebhookPayload(provider, verifyMpesaWebhook(req));
+  }
+
+  return parseWebhookPayload(provider, req.body || {});
+};
+
+const runPaymentReconciliationPass = async () => {
+  const intents = await prisma.paymentIntent.findMany({
+    where: {
+      status: {
+        in: [PAYMENT_INTENT_STATUS.REQUIRES_ACTION, PAYMENT_INTENT_STATUS.PROCESSING]
+      }
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 25
+  });
+
+  for (const intent of intents) {
+    try {
+      await reconcilePaymentIntent(intent);
+    } catch (error) {
+      console.error(`Payment reconciliation failed for intent ${intent.id}:`, error?.message || error);
+    }
+  }
+};
+
+const startPaymentReconciliationLoop = () => {
+  if (process.env.PAYMENT_RECONCILIATION_DISABLED === 'true') {
+    return;
+  }
+
+  setInterval(() => {
+    runPaymentReconciliationPass().catch((error) => {
+      console.error('Payment reconciliation pass failed:', error?.message || error);
+    });
+  }, paymentReconciliationIntervalMs);
 };
 
 // Convert order rows into API responses that are easier for the frontend to consume directly.
@@ -444,6 +1178,28 @@ const writeAccountingPayoutLedger = async (records) => {
   await writeFile(ACCOUNTING_PAYOUT_LEDGER_PATH, JSON.stringify(safeRecords, null, 2));
 };
 
+const createPaymentProviderRef = (provider) => {
+  const prefix = String(provider || 'MOCK').toUpperCase();
+  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+};
+
+const resolvePaymentAction = (provider, intent) => {
+  const normalized = String(provider || '').toUpperCase();
+  if (normalized === 'MPESA') {
+    return {
+      type: 'STK_PUSH',
+      checkoutRequestId: intent.providerRef,
+      message: 'Mock M-Pesa STK push initiated. Confirm from webhook endpoint to complete payment.'
+    };
+  }
+
+  return {
+    type: 'REDIRECT',
+    url: `/mock-pay/${intent.id}`,
+    message: 'Mock redirect payment flow created. Confirm from webhook endpoint to complete payment.'
+  };
+};
+
 const getSettlementCycleKey = (order) => {
   const referenceDate = new Date(order?.updatedAt || order?.createdAt || Date.now());
   return referenceDate.toISOString().slice(0, 10);
@@ -513,6 +1269,24 @@ const appendSettlementRecordsForOrder = async (order, actor = {}) => {
   }
 
   await writeAccountingPayoutLedger([...ledger, ...nextEntries]);
+
+  await prisma.payoutLedger.createMany({
+    data: nextEntries.map((entry) => ({
+      type: entry.type,
+      orderId: entry.orderId || null,
+      storeId: entry.storeId || null,
+      storeName: entry.storeName || null,
+      driverId: entry.driverId || null,
+      driverName: entry.driverName || null,
+      cycleKey: entry.cycleKey || null,
+      amount: Number(entry.amount || 0),
+      note: entry.note || null,
+      actorUserId: entry.actorUserId || null,
+      actorRole: entry.actorRole || null,
+      source: 'AUTO'
+    }))
+  }).catch(() => {});
+
   return [...existingEntries, ...nextEntries];
 };
 
@@ -673,7 +1447,11 @@ app.use(cors({
   origin: corsOriginValidator,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buffer) => {
+    req.rawBody = buffer;
+  }
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -1918,6 +2696,313 @@ app.put('/api/me',
   }
 );
 
+// Payment intent APIs are additive and can coexist with legacy checkout payloads.
+app.post('/api/payments/intents',
+  authMiddleware,
+  roleMiddleware('CUSTOMER'),
+  body('amount').isFloat({ gt: 0 }),
+  body('currency').optional().trim().isLength({ min: 3, max: 3 }),
+  body('provider').optional().trim().isLength({ min: 2, max: 32 }),
+  body('phoneNumber').optional({ nullable: true }).trim(),
+  body('description').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const idempotencyKey = (req.headers['x-idempotency-key'] || req.body.idempotencyKey || '').toString().trim() || null;
+      const provider = normalizePaymentProvider(req.body.provider || PAYMENT_PROVIDER.MOCK);
+      const currency = normalizeCurrency(req.body.currency || 'KES');
+      const amount = Number(req.body.amount || 0);
+
+      if (idempotencyKey) {
+        const existing = await prisma.paymentIntent.findUnique({ where: { idempotencyKey } });
+        if (existing && existing.customerId === req.user.id) {
+          return res.json({
+            intent: existing,
+            action: buildPaymentAction(existing)
+          });
+        }
+      }
+
+      const customer = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { id: true, email: true, phone: true, name: true }
+      });
+
+      const seedIntent = await prisma.paymentIntent.create({
+        data: {
+          customerId: req.user.id,
+          provider,
+          providerRef: null,
+          status: PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+          amount,
+          currency,
+          idempotencyKey,
+          metadata: stringifyJsonField(req.body.metadata || null)
+        }
+      });
+
+      const providerResult = await createProviderPayment({
+        req,
+        intent: seedIntent,
+        customer,
+        phoneNumber: req.body.phoneNumber || customer?.phone || null,
+        description: req.body.description || null
+      });
+
+      const intent = await prisma.paymentIntent.update({
+        where: { id: seedIntent.id },
+        data: {
+          provider: providerResult.provider || provider,
+          providerRef: providerResult.providerRef || seedIntent.providerRef,
+          status: providerResult.status || PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+          metadata: stringifyJsonField({
+            ...parsePaymentMetadata(seedIntent.metadata),
+            ...providerResult.metadata,
+            amount,
+            currency
+          })
+        }
+      });
+
+      return res.status(201).json({
+        intent,
+        action: providerResult.action || buildPaymentAction(intent)
+      });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create payment intent' });
+    }
+  }
+);
+
+app.get('/api/payments/intents/:id', authMiddleware, async (req, res) => {
+  try {
+    const intent = await prisma.paymentIntent.findUnique({ where: { id: req.params.id } });
+    if (!intent) return res.status(404).json({ error: 'Payment intent not found' });
+    if (req.user.role !== 'ADMIN' && intent.customerId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    return res.json({
+      intent,
+      action: buildPaymentAction(intent)
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch payment intent' });
+  }
+});
+
+app.post('/api/payments/intents/:id/reconcile', authMiddleware, async (req, res) => {
+  try {
+    const intent = await prisma.paymentIntent.findUnique({ where: { id: req.params.id } });
+    if (!intent) {
+      return res.status(404).json({ error: 'Payment intent not found' });
+    }
+
+    if (req.user.role !== 'ADMIN' && intent.customerId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const reconciledIntent = await reconcilePaymentIntent(intent);
+    return res.json({
+      intent: reconciledIntent,
+      action: buildPaymentAction(reconciledIntent)
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Failed to reconcile payment intent' });
+  }
+});
+
+app.post('/api/payments/intents/:id/retry', authMiddleware, roleMiddleware('CUSTOMER'), async (req, res) => {
+  try {
+    const existingIntent = await prisma.paymentIntent.findUnique({ where: { id: req.params.id } });
+    if (!existingIntent) {
+      return res.status(404).json({ error: 'Payment intent not found' });
+    }
+
+    if (existingIntent.customerId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (existingIntent.status === PAYMENT_INTENT_STATUS.SUCCEEDED) {
+      return res.status(409).json({ error: 'Payment is already completed for this intent' });
+    }
+
+    if ([PAYMENT_INTENT_STATUS.REQUIRES_ACTION, PAYMENT_INTENT_STATUS.PROCESSING].includes(existingIntent.status)) {
+      const refreshedIntent = await reconcilePaymentIntent(existingIntent).catch(() => existingIntent);
+      return res.json({
+        intent: refreshedIntent,
+        action: buildPaymentAction(refreshedIntent)
+      });
+    }
+
+    const customer = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, email: true, phone: true, name: true }
+    });
+
+    let linkedOrder = null;
+    if (existingIntent.orderId) {
+      linkedOrder = await prisma.order.findUnique({
+        where: { id: existingIntent.orderId },
+        include: {
+          store: {
+            select: { id: true, name: true }
+          }
+        }
+      });
+
+      if (!linkedOrder || linkedOrder.customerId !== req.user.id) {
+        return res.status(404).json({ error: 'Linked order not found' });
+      }
+
+      if (String(linkedOrder.paymentStatus || '').toUpperCase() === 'PAID') {
+        return res.status(409).json({ error: 'Order payment is already settled' });
+      }
+    }
+
+    const existingMetadata = parsePaymentMetadata(existingIntent.metadata);
+    const seedIntent = await prisma.paymentIntent.create({
+      data: {
+        customerId: existingIntent.customerId,
+        provider: existingIntent.provider,
+        providerRef: null,
+        status: PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+        amount: existingIntent.amount,
+        currency: existingIntent.currency,
+        metadata: stringifyJsonField({
+          ...existingMetadata,
+          retriedFromIntentId: existingIntent.id,
+          retriedAt: new Date().toISOString()
+        })
+      }
+    });
+
+    const providerResult = await createProviderPayment({
+      req,
+      intent: seedIntent,
+      customer,
+      phoneNumber: req.body.phoneNumber || existingMetadata.phoneNumber || customer?.phone || null,
+      description: req.body.description
+        || existingMetadata.description
+        || (linkedOrder ? `Retry payment for order ${linkedOrder.orderNumber || linkedOrder.id.slice(-6).toUpperCase()} at ${linkedOrder.store?.name || 'Fikisha'}` : null)
+    });
+
+    const retriedIntent = await prisma.paymentIntent.update({
+      where: { id: seedIntent.id },
+      data: {
+        provider: providerResult.provider || existingIntent.provider,
+        providerRef: providerResult.providerRef || null,
+        status: providerResult.status || PAYMENT_INTENT_STATUS.REQUIRES_ACTION,
+        metadata: stringifyJsonField({
+          ...parsePaymentMetadata(seedIntent.metadata),
+          ...providerResult.metadata,
+          amount: existingIntent.amount,
+            currency: existingIntent.currency,
+            retryCount: Number(existingMetadata.retryCount || 0) + 1
+        })
+      }
+    });
+
+    if (linkedOrder) {
+      await prisma.paymentIntent.update({
+        where: { id: existingIntent.id },
+        data: { orderId: null }
+      }).catch(() => {});
+
+      await prisma.paymentIntent.update({
+        where: { id: retriedIntent.id },
+        data: { orderId: linkedOrder.id }
+      }).catch(() => {});
+
+      await prisma.order.update({
+        where: { id: linkedOrder.id },
+        data: {
+          paymentStatus: paymentIntentToOrderPaymentStatus(retriedIntent.status),
+          paymentProvider: retriedIntent.provider,
+          paymentIntentRef: retriedIntent.id
+        }
+      }).catch(() => {});
+    }
+
+    return res.status(201).json({
+      intent: {
+        ...retriedIntent,
+        orderId: linkedOrder?.id || retriedIntent.orderId || null
+      },
+      action: providerResult.action || buildPaymentAction(retriedIntent)
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message || 'Failed to retry payment intent' });
+  }
+});
+
+app.post('/api/payments/webhooks/:provider', async (req, res) => {
+  try {
+    const provider = normalizePaymentProvider(req.params.provider);
+    const webhook = verifyAndParseWebhook(provider, req);
+    const providerEventId = webhook.providerEventId;
+    const eventType = webhook.eventType;
+    const status = webhook.status;
+
+    if (!providerEventId) {
+      return res.status(400).json({ error: 'providerEventId is required' });
+    }
+
+    try {
+      await prisma.paymentEvent.create({
+        data: {
+          provider,
+          providerEventId,
+          eventType,
+          payload: stringifyJsonField(webhook.payload || {}),
+        }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return res.json({ received: true, duplicate: true });
+      }
+      throw error;
+    }
+
+    const nextStatus = Object.values(PAYMENT_INTENT_STATUS).includes(status)
+      ? status
+      : PAYMENT_INTENT_STATUS.PROCESSING;
+
+    let intent = null;
+    if (webhook.intentId) {
+      intent = await prisma.paymentIntent.findUnique({ where: { id: webhook.intentId } });
+    }
+
+    if (!intent && webhook.providerRef) {
+      intent = await prisma.paymentIntent.findFirst({
+        where: {
+          provider,
+          providerRef: webhook.providerRef
+        }
+      });
+    }
+
+    if (intent) {
+      const updatedIntent = await updateIntentStatus(intent, nextStatus, {
+        providerRef: webhook.providerRef || intent.providerRef,
+        metadata: {
+          ...parsePaymentMetadata(intent.metadata),
+          ...(webhook.metadata || {}),
+          lastWebhookEventAt: new Date().toISOString(),
+          lastWebhookEventType: eventType
+        }
+      });
+
+      if (nextStatus === PAYMENT_INTENT_STATUS.PROCESSING) {
+        await reconcilePaymentIntent(updatedIntent).catch(() => {});
+      }
+    }
+
+    return res.json({ received: true });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ error: error.message || 'Failed to process payment webhook' });
+  }
+});
+
 // Store and product routes serve public catalog browsing plus admin and merchant store management.
 app.get('/api/stores', async (req, res) => {
   try {
@@ -2392,6 +3477,15 @@ app.get('/api/accounting/payouts',
   async (req, res) => {
     try {
       const { cycleKey } = req.query;
+      const dbRows = await prisma.payoutLedger.findMany({
+        where: cycleKey ? { cycleKey: String(cycleKey) } : undefined,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (dbRows.length > 0) {
+        return res.json(dbRows);
+      }
+
       const ledger = await readAccountingPayoutLedger();
       const filtered = cycleKey
         ? ledger.filter((entry) => entry.cycleKey === cycleKey)
@@ -2432,6 +3526,24 @@ app.post('/api/accounting/payouts',
 
       ledger.push(record);
       await writeAccountingPayoutLedger(ledger);
+
+      await prisma.payoutLedger.create({
+        data: {
+          type: SETTLEMENT_TYPE.MERCHANT,
+          orderId: null,
+          storeId,
+          storeName,
+          driverId: null,
+          driverName: null,
+          cycleKey: cycleKey || null,
+          amount: Number(amount),
+          note: note || 'Settled merchant balance',
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+          source: 'MANUAL'
+        }
+      }).catch(() => {});
+
       res.status(201).json(record);
     } catch (error) {
       res.status(500).json({ error: 'Failed to record payout' });
@@ -2451,6 +3563,13 @@ app.delete('/api/accounting/payouts',
         : [];
 
       await writeAccountingPayoutLedger(nextLedger);
+
+      await prisma.payoutLedger.deleteMany({
+        where: cycleKey
+          ? { cycleKey: String(cycleKey) }
+          : {}
+      }).catch(() => {});
+
       res.json({
         message: cycleKey
           ? `Payout ledger reset for cycle ${cycleKey}`
@@ -2641,7 +3760,7 @@ app.get('/api/orders/:id', authMiddleware, async (req, res) => {
 
 app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, res) => {
   try {
-    const { storeId, items, customerInfo, deliveryAddress } = req.body;
+    const { storeId, items, customerInfo, deliveryAddress, paymentIntentId } = req.body;
 
     // Calculate total
     let total = 0;
@@ -2685,6 +3804,22 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
       }
     };
 
+    let paymentIntent = null;
+    if (paymentIntentId) {
+      paymentIntent = await prisma.paymentIntent.findUnique({ where: { id: String(paymentIntentId) } });
+      if (!paymentIntent || paymentIntent.customerId !== req.user.id) {
+        return res.status(400).json({ error: 'Invalid payment intent' });
+      }
+
+      if ([PAYMENT_INTENT_STATUS.FAILED, PAYMENT_INTENT_STATUS.CANCELLED].includes(paymentIntent.status)) {
+        return res.status(409).json({ error: 'Payment intent is no longer payable. Start checkout again.' });
+      }
+
+      if (paymentIntent.orderId) {
+        return res.status(409).json({ error: 'Payment intent already linked to an order' });
+      }
+    }
+
     const { storeCode, nextSequence } = await generateNextOrderNumber(store);
     let order = null;
 
@@ -2701,6 +3836,11 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
             deliveryFee: store.deliveryFee,
             customerInfo: JSON.stringify(customerInfo),
             deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
+            paymentStatus: paymentIntent
+              ? (paymentIntent.status === PAYMENT_INTENT_STATUS.SUCCEEDED ? 'PAID' : 'PENDING')
+              : 'UNPAID',
+            paymentProvider: paymentIntent?.provider || null,
+            paymentIntentRef: paymentIntent?.id || null,
             items: {
               create: orderItems
             }
@@ -2722,6 +3862,13 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
 
     if (!order) {
       return res.status(500).json({ error: 'Failed to allocate order number. Please try again.' });
+    }
+
+    if (paymentIntent?.id) {
+      await prisma.paymentIntent.update({
+        where: { id: paymentIntent.id },
+        data: { orderId: order.id }
+      }).catch(() => {});
     }
 
     res.status(201).json(serializeOrder(order));
@@ -3030,6 +4177,267 @@ app.get('/api/admin/dashboard', authMiddleware, roleMiddleware('ADMIN'), async (
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/payments/intents', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { page = 1, limit = 40 } = req.query;
+    const take = Math.min(Math.max(parseInt(limit, 10) || 40, 1), 100);
+    const currentPage = Math.max(parseInt(page, 10) || 1, 1);
+    const skip = (currentPage - 1) * take;
+    const where = buildPaymentIntentAdminWhere(req.query);
+
+    const [items, total, aggregates, groupedByStatus, groupedByProvider] = await Promise.all([
+      prisma.paymentIntent.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: { select: { id: true, name: true, phone: true, email: true } },
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              paymentStatus: true,
+              status: true,
+              total: true,
+              createdAt: true,
+              store: { select: { id: true, name: true } }
+            }
+          }
+        }
+      }),
+      prisma.paymentIntent.count({ where }),
+      prisma.paymentIntent.aggregate({ where, _sum: { amount: true }, _count: { id: true } }),
+      prisma.paymentIntent.groupBy({ by: ['status'], where, _count: { id: true } }),
+      prisma.paymentIntent.groupBy({ by: ['provider'], where, _count: { id: true }, _sum: { amount: true } })
+    ]);
+
+    return res.json({
+      summary: {
+        totalIntents: aggregates._count.id,
+        totalVolume: Number(aggregates._sum.amount || 0),
+        byStatus: groupedByStatus.reduce((acc, row) => {
+          acc[row.status] = row._count.id;
+          return acc;
+        }, {}),
+        byProvider: groupedByProvider.reduce((acc, row) => {
+          acc[row.provider] = {
+            count: row._count.id,
+            volume: Number(row._sum.amount || 0)
+          };
+          return acc;
+        }, {})
+      },
+      items: items.map(serializePaymentIntentForAdmin),
+      total,
+      pages: Math.ceil(total / take),
+      page: currentPage
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to load payment intents' });
+  }
+});
+
+app.get('/api/admin/payments/intents/export', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const where = buildPaymentIntentAdminWhere(req.query);
+    const intents = await prisma.paymentIntent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            paymentStatus: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            store: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+
+    const rows = intents.map((intent) => {
+      const serialized = serializePaymentIntentForAdmin(intent);
+      return [
+        serialized.id,
+        serialized.createdAt,
+        serialized.provider,
+        serialized.status,
+        serialized.amount,
+        serialized.currency,
+        serialized.providerRef,
+        serialized.linkedOrderNumber || serialized.orderId || '',
+        serialized.customerName || '',
+        serialized.customerPhone || '',
+        serialized.storeName || '',
+        serialized.retrySourceIntentId || '',
+        serialized.retryCount || 0,
+        serialized.adminNotes.map((note) => `${note.createdAt || ''} ${note.authorName || note.adminId || ''}: ${note.note || ''}`).join(' | ')
+      ].map(escapeCsvValue).join(',');
+    });
+
+    const header = [
+      'intentId',
+      'createdAt',
+      'provider',
+      'status',
+      'amount',
+      'currency',
+      'providerRef',
+      'orderReference',
+      'customerName',
+      'customerPhone',
+      'storeName',
+      'retrySourceIntentId',
+      'retryCount',
+      'adminNotes'
+    ].join(',');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="payment-intents-${Date.now()}.csv"`);
+    return res.status(200).send([header, ...rows].join('\n'));
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to export payment intents' });
+  }
+});
+
+app.post('/api/admin/payments/intents/:id/notes', authMiddleware, roleMiddleware('ADMIN'), body('note').trim().isLength({ min: 2, max: 1000 }), validate, async (req, res) => {
+  try {
+    const intent = await prisma.paymentIntent.findUnique({
+      where: { id: req.params.id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            paymentStatus: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            store: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+    if (!intent) {
+      return res.status(404).json({ error: 'Payment intent not found' });
+    }
+
+    const metadata = parsePaymentMetadata(intent.metadata);
+    const adminNotes = Array.isArray(metadata.adminNotes) ? metadata.adminNotes : [];
+    const nextNote = {
+      id: randomUUID(),
+      note: req.body.note.trim(),
+      adminId: req.user.id,
+      authorName: req.user.name || req.user.username || 'Admin',
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = await prisma.paymentIntent.update({
+      where: { id: intent.id },
+      data: {
+        metadata: stringifyJsonField({
+          ...metadata,
+          adminNotes: [nextNote, ...adminNotes].slice(0, 20)
+        })
+      },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            paymentStatus: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            store: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'PAYMENT_INTENT_NOTE_ADDED',
+      entityType: 'PAYMENT_INTENT',
+      entityId: intent.id,
+      before: { notesCount: adminNotes.length },
+      after: { notesCount: adminNotes.length + 1 },
+      note: req.body.note.trim(),
+      req
+    });
+
+    return res.status(201).json({ intent: serializePaymentIntentForAdmin(updated) });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to add payment note' });
+  }
+});
+
+app.post('/api/admin/payments/intents/:id/reconcile', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const intent = await prisma.paymentIntent.findUnique({
+      where: { id: req.params.id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            paymentStatus: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            store: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+    if (!intent) {
+      return res.status(404).json({ error: 'Payment intent not found' });
+    }
+
+    const reconciled = await reconcilePaymentIntent(intent);
+    const refreshed = await prisma.paymentIntent.findUnique({
+      where: { id: reconciled.id },
+      include: {
+        customer: { select: { id: true, name: true, phone: true, email: true } },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            paymentStatus: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            store: { select: { id: true, name: true } }
+          }
+        }
+      }
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'PAYMENT_INTENT_RECONCILED',
+      entityType: 'PAYMENT_INTENT',
+      entityId: intent.id,
+      before: { status: intent.status, providerRef: intent.providerRef },
+      after: { status: refreshed?.status || reconciled.status, providerRef: refreshed?.providerRef || reconciled.providerRef },
+      note: `Admin reconciled payment intent ${intent.id}`,
+      req
+    });
+
+    return res.json({ intent: serializePaymentIntentForAdmin(refreshed || reconciled) });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to reconcile payment intent' });
   }
 });
 
@@ -3878,6 +5286,27 @@ app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), asy
     const storeId = await resolveMerchantStoreIdForUser(req.user);
     if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
 
+    const dbRows = await prisma.payoutLedger.findMany({
+      where: {
+        type: SETTLEMENT_TYPE.MERCHANT,
+        storeId,
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (dbRows.length > 0) {
+      const summaryFromDb = {
+        grossSales: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+        netEarnings: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+        commissions: 0,
+        discounts: 0,
+        refunds: 0,
+        payoutDue: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      };
+
+      return res.json({ summary: summaryFromDb, settlements: dbRows });
+    }
+
     const ledger = await readAccountingPayoutLedger();
     const merchantRows = ledger
       .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
@@ -4086,6 +5515,7 @@ app.put('/api/merchant/notifications/:id/read', authMiddleware, roleMiddleware('
 const startServer = async () => {
   try {
     await initDB();
+    startPaymentReconciliationLoop();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

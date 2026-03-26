@@ -10,6 +10,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import PersonIcon from '@mui/icons-material/Person';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
 import PeopleIcon from '@mui/icons-material/People';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
@@ -24,6 +25,7 @@ import Stores from './pages/Stores';
 import StoreLogs from './pages/StoreLogs';
 import DriverManager from './pages/DriverManager';
 import Accounting from './pages/Accounting';
+import Payments from './pages/Payments';
 import Customers from './pages/Customers';
 import Promotions from './pages/Promotions';
 import Orders from './pages/Orders';
@@ -52,6 +54,7 @@ const navSections = [
     label: 'Finance',
     items: [
       { text: 'Accounting',  icon: <AccountBalanceWalletIcon />,  link: '/accounting'},
+      { text: 'Payments',    icon: <CreditCardIcon />,            link: '/payments'  },
       { text: 'Reports',     icon: <BarChartIcon />,              link: '/reports'   },
     ],
   },
@@ -155,6 +158,7 @@ function App() {
           <Route path="/promotions" element={<Promotions />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/accounting" element={<Accounting />} />
+          <Route path="/payments"   element={<Payments />} />
           <Route path="/reports"    element={<Reports />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/store-logs" element={<StoreLogs />} />

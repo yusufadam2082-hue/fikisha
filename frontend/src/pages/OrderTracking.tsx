@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useLocation as useRouterLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -36,11 +36,23 @@ export function OrderTracking() {
   const { showToast } = useToast();
   const stateOrderId = (routerLocation.state as any)?.orderId as string | undefined;
   const queryOrderId = searchParams.get('orderId') || undefined;
+  const paymentIntentId = searchParams.get('payment_intent') || undefined;
+  const paymentStatusHint = searchParams.get('payment_status') || undefined;
   const orderId = params.orderId || queryOrderId || stateOrderId;
+  const handledPaymentNoticeRef = useRef<string | null>(null);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [order, setOrder] = useState<any>(null);
   const [etaEstimate, setEtaEstimate] = useState<{ etaMinutes: number; minEta: number; maxEta: number; confidence: number } | null>(null);
+  const [resolvedOrderId, setResolvedOrderId] = useState<string | undefined>(orderId);
+  const [paymentIntentSummary, setPaymentIntentSummary] = useState<{
+    id: string;
+    status: string;
+    provider?: string | null;
+    action?: { type?: string; url?: string; message?: string } | null;
+    orderId?: string | null;
+  } | null>(null);
+  const [isPaymentActionBusy, setIsPaymentActionBusy] = useState(false);
   const totalSteps = 5;
 
   const steps = [
@@ -52,7 +64,99 @@ export function OrderTracking() {
   ];
 
   useEffect(() => {
-    if (!orderId) {
+    setResolvedOrderId(orderId);
+  }, [orderId]);
+
+  const loadPaymentIntent = async (intentId: string, options?: { reconcile?: boolean; silent?: boolean }) => {
+    const endpoint = options?.reconcile
+      ? `/api/payments/intents/${encodeURIComponent(intentId)}/reconcile`
+      : `/api/payments/intents/${encodeURIComponent(intentId)}`;
+    const res = await fetch(endpoint, {
+      method: options?.reconcile ? 'POST' : 'GET',
+      headers: getAuthHeaders()
+    });
+
+    if (!res.ok) {
+      if (!options?.silent) {
+        throw new Error('Failed to load payment intent');
+      }
+      return null;
+    }
+
+    const payload = await res.json();
+    const intent = payload.intent || payload;
+    if (!intent) {
+      return null;
+    }
+
+    setPaymentIntentSummary({
+      id: intent.id,
+      status: intent.status,
+      provider: intent.provider || null,
+      action: payload.action || null,
+      orderId: intent.orderId || null
+    });
+
+    if (intent.orderId) {
+      setResolvedOrderId(intent.orderId);
+    }
+
+    return intent;
+  };
+
+  useEffect(() => {
+    if (!paymentIntentId) {
+      return;
+    }
+
+    let active = true;
+
+    const fetchPaymentIntent = async () => {
+      try {
+        const intent = await loadPaymentIntent(paymentIntentId, { reconcile: Boolean(paymentStatusHint), silent: true });
+        if (!active || !intent) {
+          return;
+        }
+
+        const noticeKey = `${paymentIntentId}:${paymentStatusHint || intent.status}`;
+        if (handledPaymentNoticeRef.current === noticeKey) {
+          return;
+        }
+
+        handledPaymentNoticeRef.current = noticeKey;
+        if (paymentStatusHint === 'success' || intent.status === 'SUCCEEDED') {
+          showToast('Payment confirmed. Your order is now being processed.', 'success');
+        } else if (paymentStatusHint === 'cancelled' || intent.status === 'CANCELLED') {
+          showToast('Payment was not completed. You can retry from the tracking page if needed.', 'info');
+        } else if (intent.status === 'PROCESSING' || intent.status === 'REQUIRES_ACTION') {
+          showToast('Payment is still pending confirmation.', 'info');
+        }
+      } catch {
+        // Ignore transient payment lookup failures.
+      }
+    };
+
+    fetchPaymentIntent();
+    return () => {
+      active = false;
+    };
+  }, [paymentIntentId, paymentStatusHint, showToast]);
+
+  useEffect(() => {
+    if (!order?.paymentIntentRef || paymentIntentId) {
+      return;
+    }
+
+    loadPaymentIntent(order.paymentIntentRef, { silent: true }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.paymentIntentRef, paymentIntentId]);
+
+  useEffect(() => {
+    if (!resolvedOrderId) {
+      if (paymentIntentId) {
+        return;
+      }
+
       // Issue 13: demo simulation when no real orderId
       if (currentStep < totalSteps) {
         const timer = setTimeout(() => setCurrentStep(prev => prev + 1), 5000);
@@ -64,7 +168,7 @@ export function OrderTracking() {
     // Issue 13: poll the API for real order status every 10 s
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { headers: getAuthHeaders() });
+        const res = await fetch(`/api/orders/${encodeURIComponent(resolvedOrderId)}`, { headers: getAuthHeaders() });
         if (res.ok) {
           const data = await res.json();
           setOrder(data);
@@ -95,10 +199,78 @@ export function OrderTracking() {
     const interval = setInterval(fetchOrder, 10000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [paymentIntentId, resolvedOrderId]);
 
   // Issue 12: correct ETA â€” show 0 / "Delivered!" when at step 4
   const etaMinutes = etaEstimate ? etaEstimate.etaMinutes : Math.max(0, 15 - currentStep * 3);
+
+  const handleRefreshPayment = async () => {
+    if (!paymentIntentSummary?.id || isPaymentActionBusy) {
+      return;
+    }
+
+    setIsPaymentActionBusy(true);
+    try {
+      const intent = await loadPaymentIntent(paymentIntentSummary.id, { reconcile: true });
+      if (intent?.status === 'SUCCEEDED') {
+        showToast('Payment confirmed.', 'success');
+      } else {
+        showToast('Payment status refreshed.', 'info');
+      }
+    } catch {
+      showToast('Could not refresh payment status.', 'error');
+    } finally {
+      setIsPaymentActionBusy(false);
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!paymentIntentSummary?.id || isPaymentActionBusy) {
+      return;
+    }
+
+    setIsPaymentActionBusy(true);
+    try {
+      const res = await fetch(`/api/payments/intents/${encodeURIComponent(paymentIntentSummary.id)}/retry`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      const payload = await res.json().catch(() => ({ error: 'Failed to retry payment' }));
+      if (!res.ok) {
+        showToast(payload.error || 'Failed to retry payment', 'error');
+        return;
+      }
+
+      const intent = payload.intent;
+      setPaymentIntentSummary({
+        id: intent.id,
+        status: intent.status,
+        provider: intent.provider || null,
+        action: payload.action || null,
+        orderId: intent.orderId || null
+      });
+
+      if (intent.orderId) {
+        setResolvedOrderId(intent.orderId);
+      }
+
+      if (payload.action?.type === 'REDIRECT' && payload.action.url) {
+        showToast(payload.action.message || 'Redirecting to complete payment.', 'info');
+        window.location.assign(payload.action.url);
+        return;
+      }
+
+      showToast(payload.action?.message || 'Payment retry started.', 'success');
+    } catch {
+      showToast('Could not retry payment.', 'error');
+    } finally {
+      setIsPaymentActionBusy(false);
+    }
+  };
+
+  const canRetryPayment = Boolean(paymentIntentSummary && ['FAILED', 'CANCELLED'].includes(paymentIntentSummary.status));
+  const canRefreshPayment = Boolean(paymentIntentSummary && ['REQUIRES_ACTION', 'PROCESSING', 'FAILED', 'CANCELLED'].includes(paymentIntentSummary.status));
+  const canResumePayment = Boolean(paymentIntentSummary?.action?.type === 'REDIRECT' && paymentIntentSummary.action.url && paymentIntentSummary.status === 'REQUIRES_ACTION');
 
   return (
     <div className="container animate-fade-in" style={{ maxWidth: '800px', padding: '0 24px' }}>
@@ -117,6 +289,35 @@ export function OrderTracking() {
           AI ETA range: {etaEstimate.minEta}-{etaEstimate.maxEta} mins ({etaEstimate.confidence}% confidence)
         </p>
       ) : null}
+
+      {paymentIntentSummary && (
+        <Card style={{ padding: '16px', marginBottom: '24px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.18)' }}>
+          <p className="text-sm text-muted" style={{ marginBottom: '4px' }}>Payment Status</p>
+          <p style={{ fontWeight: 700, marginBottom: '4px' }}>{paymentIntentSummary.status.replace(/_/g, ' ')}</p>
+          <p className="text-sm text-muted" style={{ marginBottom: 0 }}>
+            {paymentIntentSummary.provider ? `${paymentIntentSummary.provider} payment` : 'Payment'} linked to this order will keep updating automatically.
+          </p>
+          {(canResumePayment || canRefreshPayment || canRetryPayment) && (
+            <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
+              {canResumePayment && (
+                <Button size="sm" onClick={() => window.location.assign(paymentIntentSummary.action?.url || '')} disabled={isPaymentActionBusy}>
+                  Complete Payment
+                </Button>
+              )}
+              {canRefreshPayment && (
+                <Button variant="outline" size="sm" onClick={handleRefreshPayment} disabled={isPaymentActionBusy}>
+                  Refresh Status
+                </Button>
+              )}
+              {canRetryPayment && (
+                <Button variant="outline" size="sm" onClick={handleRetryPayment} disabled={isPaymentActionBusy}>
+                  Retry Payment
+                </Button>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Issue 11: order summary card when real order data is available */}
       {order && (
