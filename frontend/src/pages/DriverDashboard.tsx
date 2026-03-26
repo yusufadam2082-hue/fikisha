@@ -39,7 +39,7 @@ export function DriverDashboard() {
         setOtpVerified((prev) => {
           const next = { ...prev };
           data.forEach((order: any) => {
-            if (normalizeOrderStatus(order.status) === 'OUT_FOR_DELIVERY') {
+            if (['OUT_FOR_DELIVERY', 'DELIVERED'].includes(normalizeOrderStatus(order.status))) {
               next[order.id] = Boolean(order.deliveryOtpVerified);
             }
           });
@@ -68,10 +68,13 @@ export function DriverDashboard() {
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
+        if (newStatus === 'DRIVER_ACCEPTED') {
+          showToast('Assigned delivery accepted. Proceed to pickup.', 'info');
+        }
         if (newStatus === 'OUT_FOR_DELIVERY') {
           setOtpVerified((prev) => ({ ...prev, [id]: false }));
           setOtpInputs((prev) => ({ ...prev, [id]: '' }));
-          showToast('Delivery accepted. Ask customer for OTP before completing.', 'info');
+          showToast('Pickup confirmed. Ask customer for OTP at handoff.', 'info');
         }
         if (newStatus === 'DELIVERED') {
           showToast('Delivery completed successfully.', 'success');
@@ -124,9 +127,7 @@ export function DriverDashboard() {
     }
   };
 
-  const availableOrders = orders.filter(o => normalizeOrderStatus(o.status) === 'READY_FOR_PICKUP');
-  // Backend already scopes driver-visible orders. Avoid extra local driverId filtering,
-  // which can hide accepted orders when the auth payload lacks driverId.
+  const availableOrders = orders.filter(o => ['ASSIGNED', 'DRIVER_ACCEPTED', 'READY_FOR_PICKUP'].includes(normalizeOrderStatus(o.status)));
   const activeOrders = orders.filter(o => normalizeOrderStatus(o.status) === 'OUT_FOR_DELIVERY');
   const completedOrders = orders.filter(o => normalizeOrderStatus(o.status) === 'DELIVERED');
 
@@ -172,7 +173,7 @@ export function DriverDashboard() {
             fontWeight: 600 
           }}
         >
-          Available Pickups ({availableOrders.length})
+          Assigned Jobs ({availableOrders.length})
         </button>
         <button 
           onClick={() => setActiveTab('active')}
@@ -240,8 +241,8 @@ export function DriverDashboard() {
         {activeTab === 'available' && availableOrders.length === 0 && (
           <div className="flex-center" style={{ flexDirection: 'column', padding: '64px 0', color: 'var(--text-muted)' }}>
             <Navigation size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-            <p className="text-h3">No available orders</p>
-            <p>Merchants are still preparing food. Waiting for orders to be ready...</p>
+            <p className="text-h3">No assigned jobs</p>
+            <p>The system will assign your next delivery when a merchant finishes preparing an order.</p>
           </div>
         )}
 
@@ -299,11 +300,11 @@ export function DriverDashboard() {
               </div>
 
               <div className="flex-between" style={{ gap: '16px', marginTop: '8px' }}>
-                {normalizeOrderStatus(order.status) === 'READY_FOR_PICKUP' && (
-                  <>
-                    <Button variant="outline" fullWidth>Ignore</Button>
-                    <Button fullWidth onClick={() => updateOrderStatus(order.id, 'OUT_FOR_DELIVERY')} style={{ background: '#22c55e' }}>Accept Delivery</Button>
-                  </>
+                {(normalizeOrderStatus(order.status) === 'ASSIGNED' || normalizeOrderStatus(order.status) === 'READY_FOR_PICKUP') && (
+                  <Button fullWidth onClick={() => updateOrderStatus(order.id, 'DRIVER_ACCEPTED')} style={{ background: '#2563eb' }}>Accept Assigned Job</Button>
+                )}
+                {normalizeOrderStatus(order.status) === 'DRIVER_ACCEPTED' && (
+                  <Button fullWidth onClick={() => updateOrderStatus(order.id, 'OUT_FOR_DELIVERY')} style={{ background: '#22c55e' }}>Mark Picked Up</Button>
                 )}
                 {normalizeOrderStatus(order.status) === 'OUT_FOR_DELIVERY' && (
                   <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -340,10 +341,21 @@ export function DriverDashboard() {
                 )}
                 {normalizeOrderStatus(order.status) === 'DELIVERED' && (
                   <div style={{ width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'rgba(34, 197, 94, 0.08)', color: '#16a34a', fontWeight: 700, textAlign: 'center' }}>
-                    Completed • Platform payout: {formatKES(Number(order.deliveryFee || 0))}
+                    Completed{order.paymentSettled ? ' • Payout settled' : ''} • Platform payout: {formatKES(Number(order.deliveryFee || 0))}
                   </div>
                 )}
               </div>
+
+              {(order.pickedUpAt || order.deliveredAt) && (
+                <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
+                  {order.pickedUpAt && (
+                    <p className="text-sm text-muted">Picked up: {new Date(order.pickedUpAt).toLocaleString()}</p>
+                  )}
+                  {order.deliveredAt && (
+                    <p className="text-sm text-muted">Delivered: {new Date(order.deliveredAt).toLocaleString()}</p>
+                  )}
+                </div>
+              )}
             </Card>
           );
         })}

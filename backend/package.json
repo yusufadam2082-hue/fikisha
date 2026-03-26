@@ -41,5 +41,9 @@
     "uuid": "^13.0.0",
     "vitest": "^4.1.0",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "globals": "^17.4.0"
   }
 }

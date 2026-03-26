@@ -4,6 +4,10 @@ import { Button } from '../../components/ui/Button';
 import { User, Plus, Trash2, Edit2, Navigation } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
 
+function normalizeOrderStatus(status: string): string {
+  return String(status || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+}
+
 export function DriverManager() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,7 +86,7 @@ export function DriverManager() {
       const res = await fetch(`/api/orders?driverId=${driverId}`);
       if (res.ok && res.status !== 204) {
         const orders = await res.json();
-        setDriverOrders(orders.filter((o: any) => o.status === 'delivered')); // only show historical completed
+        setDriverOrders(orders.filter((o: any) => normalizeOrderStatus(o.status) === 'DELIVERED')); // only show historical completed
         setViewingOrdersFor(driverId);
       }
     } catch (e) {

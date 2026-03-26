@@ -40,16 +40,32 @@ const ORDER_STATUS = {
   PENDING: 'PENDING',
   CONFIRMED: 'CONFIRMED',
   PREPARING: 'PREPARING',
+  ASSIGNED: 'ASSIGNED',
+  DRIVER_ACCEPTED: 'DRIVER_ACCEPTED',
   READY_FOR_PICKUP: 'READY_FOR_PICKUP',
   OUT_FOR_DELIVERY: 'OUT_FOR_DELIVERY',
   DELIVERED: 'DELIVERED',
   CANCELLED: 'CANCELLED'
 };
 
+const ACTIVE_DRIVER_STATUSES = [
+  ORDER_STATUS.ASSIGNED,
+  ORDER_STATUS.DRIVER_ACCEPTED,
+  ORDER_STATUS.OUT_FOR_DELIVERY
+];
+
+const SETTLEMENT_TYPE = {
+  MERCHANT: 'MERCHANT_SETTLEMENT',
+  DRIVER: 'DRIVER_PAYOUT'
+};
+
 const ORDER_STATUS_ALIASES = {
   PENDING: ORDER_STATUS.PENDING,
   CONFIRMED: ORDER_STATUS.CONFIRMED,
   PREPARING: ORDER_STATUS.PREPARING,
+  ASSIGNED: ORDER_STATUS.ASSIGNED,
+  DRIVERACCEPTED: ORDER_STATUS.DRIVER_ACCEPTED,
+  DRIVER_ACCEPTED: ORDER_STATUS.DRIVER_ACCEPTED,
   READYFORPICKUP: ORDER_STATUS.READY_FOR_PICKUP,
   READY_FOR_PICKUP: ORDER_STATUS.READY_FOR_PICKUP,
   OUTFORDELIVERY: ORDER_STATUS.OUT_FOR_DELIVERY,
@@ -89,8 +105,10 @@ const estimateEtaFromSignals = ({ itemCount = 1, distanceKm = 3, status = ORDER_
   let statusAdjustment = 0;
   if (normalizedStatus === ORDER_STATUS.PREPARING) {
     statusAdjustment = -3;
-  } else if (normalizedStatus === ORDER_STATUS.READY_FOR_PICKUP) {
+  } else if (normalizedStatus === ORDER_STATUS.ASSIGNED || normalizedStatus === ORDER_STATUS.READY_FOR_PICKUP) {
     statusAdjustment = -9;
+  } else if (normalizedStatus === ORDER_STATUS.DRIVER_ACCEPTED) {
+    statusAdjustment = -11;
   } else if (normalizedStatus === ORDER_STATUS.OUT_FOR_DELIVERY) {
     statusAdjustment = -12;
   } else if (normalizedStatus === ORDER_STATUS.DELIVERED) {
@@ -265,7 +283,8 @@ const generateNextOrderNumber = async (store) => {
   };
 };
 
-const serializeOrder = (order) => {
+const serializeOrder = (order, options = {}) => {
+  const { paymentSettled = false } = options;
   const normalizedStatus = normalizeOrderStatus(order.status);
   const serialized = {
     ...order,
@@ -274,6 +293,9 @@ const serializeOrder = (order) => {
     deliveryAddress: parseJsonField(order.deliveryAddress, null),
     deliveryOtpRequired: normalizedStatus === ORDER_STATUS.OUT_FOR_DELIVERY,
     deliveryOtpVerified: Boolean(order.deliveryOtpVerifiedAt),
+    paymentSettled,
+    assignedDriverId: order.driverId || null,
+    assignedDriverName: order.driver?.name || null,
     items: order.items?.map((item) => ({
       ...item,
       name: item.product?.name ?? 'Unknown item'
@@ -420,6 +442,207 @@ const readAccountingPayoutLedger = async () => {
 const writeAccountingPayoutLedger = async (records) => {
   const safeRecords = Array.isArray(records) ? records : [];
   await writeFile(ACCOUNTING_PAYOUT_LEDGER_PATH, JSON.stringify(safeRecords, null, 2));
+};
+
+const getSettlementCycleKey = (order) => {
+  const referenceDate = new Date(order?.updatedAt || order?.createdAt || Date.now());
+  return referenceDate.toISOString().slice(0, 10);
+};
+
+const getSettledOrderIds = async (orderIds) => {
+  if (!Array.isArray(orderIds) || orderIds.length === 0) {
+    return new Set();
+  }
+
+  const ledger = await readAccountingPayoutLedger();
+  return new Set(
+    ledger
+      .filter((entry) => entry?.orderId && orderIds.includes(entry.orderId))
+      .map((entry) => entry.orderId)
+  );
+};
+
+const appendSettlementRecordsForOrder = async (order, actor = {}) => {
+  if (!order || normalizeOrderStatus(order.status) !== ORDER_STATUS.DELIVERED) {
+    return [];
+  }
+
+  const ledger = await readAccountingPayoutLedger();
+  const existingEntries = ledger.filter((entry) => entry?.orderId === order.id);
+  const nextEntries = [];
+  const cycleKey = getSettlementCycleKey(order);
+  const merchantAmount = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tax || 0));
+  const driverAmount = Math.max(0, Number(order.deliveryFee || 0));
+
+  if (!existingEntries.some((entry) => entry.type === SETTLEMENT_TYPE.MERCHANT) && merchantAmount > 0) {
+    nextEntries.push({
+      id: randomUUID(),
+      type: SETTLEMENT_TYPE.MERCHANT,
+      orderId: order.id,
+      storeId: order.storeId,
+      storeName: order.store?.name || 'Unknown store',
+      cycleKey,
+      amount: merchantAmount,
+      note: 'Auto-settled merchant balance after OTP-confirmed delivery',
+      actorUserId: actor.userId || null,
+      actorRole: actor.role || 'SYSTEM',
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  if (order.driverId && !existingEntries.some((entry) => entry.type === SETTLEMENT_TYPE.DRIVER) && driverAmount > 0) {
+    nextEntries.push({
+      id: randomUUID(),
+      type: SETTLEMENT_TYPE.DRIVER,
+      orderId: order.id,
+      storeId: order.storeId,
+      storeName: order.store?.name || 'Unknown store',
+      driverId: order.driverId,
+      driverName: order.driver?.name || 'Assigned driver',
+      cycleKey,
+      amount: driverAmount,
+      note: 'Auto-settled driver payout after successful delivery',
+      actorUserId: actor.userId || null,
+      actorRole: actor.role || 'SYSTEM',
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  if (nextEntries.length === 0) {
+    return existingEntries;
+  }
+
+  await writeAccountingPayoutLedger([...ledger, ...nextEntries]);
+  return [...existingEntries, ...nextEntries];
+};
+
+const parseCoordinatePair = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const match = value.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    if (!match) {
+      return null;
+    }
+
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
+      return { latitude, longitude };
+    }
+
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const directLat = Number(value.lat ?? value.latitude);
+    const directLng = Number(value.lng ?? value.longitude ?? value.lon);
+    if (Number.isFinite(directLat) && Number.isFinite(directLng) && Math.abs(directLat) <= 90 && Math.abs(directLng) <= 180) {
+      return { latitude: directLat, longitude: directLng };
+    }
+
+    const nested = value.coords || value.location || value.geometry || value.position;
+    if (nested) {
+      return parseCoordinatePair(nested);
+    }
+
+    return parseCoordinatePair(value.city || value.address || value.street || null);
+  }
+
+  return null;
+};
+
+const haversineKm = (a, b) => {
+  if (!a || !b) {
+    return null;
+  }
+
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(b.latitude - a.latitude);
+  const dLon = toRadians(b.longitude - a.longitude);
+
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+
+  const haversine =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const centralAngle = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return earthRadiusKm * centralAngle;
+};
+
+const extractOrderCoordinates = (order) => {
+  return (
+    parseCoordinatePair(parseOrderAddress(order))
+    || parseCoordinatePair(parseJsonField(order?.customerInfo, null))
+    || null
+  );
+};
+
+const findAssignableDriver = async (order) => {
+  const deliveryCoords = extractOrderCoordinates(order);
+
+  const candidates = await prisma.driver.findMany({
+    where: {
+      available: true,
+      user: {
+        banned: false
+      }
+    },
+    include: {
+      user: {
+        select: { id: true, name: true }
+      },
+      orders: {
+        select: {
+          id: true,
+          status: true,
+          updatedAt: true,
+          createdAt: true,
+          deliveryAddress: true,
+          customerInfo: true
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 30
+      }
+    }
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const now = Date.now();
+  const ranked = candidates
+    .map((driver) => {
+      const activeCount = driver.orders.filter((o) => ACTIVE_DRIVER_STATUSES.includes(normalizeOrderStatus(o.status))).length;
+      const recent24hCount = driver.orders.filter((o) => (now - new Date(o.updatedAt).getTime()) <= 24 * 60 * 60 * 1000).length;
+      const latestCoords = driver.orders.map(extractOrderCoordinates).find(Boolean) || null;
+      const distanceKm = deliveryCoords && latestCoords ? haversineKm(latestCoords, deliveryCoords) : null;
+      const latestActivity = driver.orders[0]?.updatedAt ? new Date(driver.orders[0].updatedAt).getTime() : new Date(driver.updatedAt).getTime();
+      const idleHours = Math.max(0, (now - latestActivity) / (1000 * 60 * 60));
+
+      const ratingScore = Number(driver.rating || 0) * 20;
+      const workloadPenalty = activeCount * 80 + recent24hCount * 4;
+      const distancePenalty = distanceKm != null ? distanceKm * 1.8 : 12;
+      const idleBonus = Math.min(16, idleHours * 0.8);
+      const score = ratingScore + idleBonus - workloadPenalty - distancePenalty;
+
+      return {
+        driver,
+        score,
+        distanceKm: distanceKm == null ? null : Number(distanceKm.toFixed(2)),
+        activeCount,
+        recent24hCount
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.driver || null;
 };
 
 // Security middleware hardens headers, CORS, JSON parsing, and request volume limits.
@@ -2322,15 +2545,7 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
         return res.json([]);
       }
 
-      where = {
-        OR: [
-          {
-            status: ORDER_STATUS.READY_FOR_PICKUP,
-            OR: [{ driverId: null }, { driverId }]
-          },
-          { driverId }
-        ]
-      };
+      where = { driverId };
     } else if (req.user.role === 'CUSTOMER') {
       where = { customerId: req.user.id };
     }
@@ -2350,8 +2565,12 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    const settledOrderIds = await getSettledOrderIds(orders.map((order) => order.id));
+
     res.json(orders.map((order) => {
-      const serialized = serializeOrder(order);
+      const serialized = serializeOrder(order, {
+        paymentSettled: settledOrderIds.has(order.id)
+      });
       if (req.user.role === 'CUSTOMER') {
         return {
           ...serialized,
@@ -2403,7 +2622,10 @@ app.get('/api/orders/:id', authMiddleware, async (req, res) => {
       }
     }
 
-    const serialized = serializeOrder(order);
+    const settledOrderIds = await getSettledOrderIds([order.id]);
+    const serialized = serializeOrder(order, {
+      paymentSettled: settledOrderIds.has(order.id)
+    });
     if (req.user.role === 'CUSTOMER') {
       return res.json({
         ...serialized,
@@ -2545,50 +2767,89 @@ app.put('/api/orders/:id/status',
         }
       }
 
+      const currentStatus = normalizeOrderStatus(existingOrder.status) || ORDER_STATUS.PENDING;
       let resolvedDriverId = existingOrder.driverId;
       const updateData = {
         status: normalizedStatus,
-        driverId: resolvedDriverId
+        driverId: resolvedDriverId,
+        pickedUpAt: undefined,
+        deliveredAt: undefined
       };
 
-      if (req.user.role === 'DRIVER') {
+      if (req.user.role === 'MERCHANT') {
+        if (normalizedStatus === ORDER_STATUS.ASSIGNED || normalizedStatus === ORDER_STATUS.READY_FOR_PICKUP) {
+          if (currentStatus !== ORDER_STATUS.PREPARING && currentStatus !== ORDER_STATUS.READY_FOR_PICKUP) {
+            return res.status(409).json({ error: 'Only prepared orders can be assigned to a driver.' });
+          }
+
+          const assignedDriver = await findAssignableDriver(existingOrder);
+          if (!assignedDriver) {
+            return res.status(409).json({ error: 'No available drivers can be assigned right now.' });
+          }
+
+          resolvedDriverId = assignedDriver.id;
+          updateData.status = ORDER_STATUS.ASSIGNED;
+          updateData.driverId = assignedDriver.id;
+
+          await prisma.driver.update({
+            where: { id: assignedDriver.id },
+            data: { available: false }
+          });
+        }
+
+        if (normalizedStatus === ORDER_STATUS.CANCELLED && existingOrder.driverId) {
+          await prisma.driver.update({
+            where: { id: existingOrder.driverId },
+            data: { available: true }
+          }).catch(() => {});
+        }
+      } else if (req.user.role === 'DRIVER') {
         const driverId = await resolveDriverIdForUser(req.user);
         if (!driverId) {
           return res.status(403).json({ error: 'Driver profile not found' });
         }
 
-        if (normalizedStatus === ORDER_STATUS.OUT_FOR_DELIVERY) {
-          const ownedByCurrentDriver = await isOrderOwnedByDriver({
-            orderDriverId: existingOrder.driverId,
-            driverId,
-            userId: req.user.id
-          });
+        const ownedByCurrentDriver = await isOrderOwnedByDriver({
+          orderDriverId: existingOrder.driverId,
+          driverId,
+          userId: req.user.id
+        });
 
-          if (existingOrder.driverId && !ownedByCurrentDriver) {
-            return res.status(403).json({ error: 'Order already assigned to another driver' });
+        if (!ownedByCurrentDriver) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (normalizedStatus === ORDER_STATUS.DRIVER_ACCEPTED) {
+          if (currentStatus !== ORDER_STATUS.ASSIGNED && currentStatus !== ORDER_STATUS.READY_FOR_PICKUP) {
+            return res.status(409).json({ error: 'Only assigned delivery jobs can be accepted.' });
           }
+
           resolvedDriverId = driverId;
           updateData.driverId = driverId;
-          // Generate a fresh 4-digit code when a driver accepts delivery.
+          updateData.status = ORDER_STATUS.DRIVER_ACCEPTED;
+        } else if (normalizedStatus === ORDER_STATUS.OUT_FOR_DELIVERY) {
+          if (currentStatus !== ORDER_STATUS.DRIVER_ACCEPTED) {
+            return res.status(409).json({ error: 'Driver must accept the job before pickup.' });
+          }
+
           updateData.deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
           updateData.deliveryOtpVerifiedAt = null;
+          updateData.status = ORDER_STATUS.OUT_FOR_DELIVERY;
+          updateData.pickedUpAt = new Date();
         } else if (normalizedStatus === ORDER_STATUS.DELIVERED) {
           if (!existingOrder.deliveryOtp) {
-            return res.status(409).json({ error: 'Delivery code not generated yet. Accept the order first.' });
+            return res.status(409).json({ error: 'Delivery code not generated yet. Mark pickup first.' });
           }
           if (!existingOrder.deliveryOtpVerifiedAt) {
             return res.status(423).json({ error: 'Complete Delivery is locked until OTP is verified.' });
           }
-        } else {
-          const ownedByCurrentDriver = await isOrderOwnedByDriver({
-            orderDriverId: existingOrder.driverId,
-            driverId,
-            userId: req.user.id
-          });
 
-          if (!ownedByCurrentDriver) {
-            return res.status(403).json({ error: 'Access denied' });
-          }
+          updateData.deliveredAt = new Date();
+
+          await prisma.driver.update({
+            where: { id: driverId },
+            data: { available: true }
+          }).catch(() => {});
         }
       } else if (req.body.driverId) {
         resolvedDriverId = req.body.driverId;
@@ -2612,7 +2873,17 @@ app.put('/api/orders/:id/status',
         }
       });
 
-      res.json(serializeOrder(updatedOrder));
+      if (normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.DELIVERED) {
+        await appendSettlementRecordsForOrder(updatedOrder, {
+          userId: req.user.id,
+          role: req.user.role
+        });
+      }
+
+      const settledOrderIds = await getSettledOrderIds([updatedOrder.id]);
+      res.json(serializeOrder(updatedOrder, {
+        paymentSettled: settledOrderIds.has(updatedOrder.id)
+      }));
     } catch (error) {
       res.status(500).json({ error: 'Failed to update order status' });
     }

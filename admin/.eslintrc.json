@@ -1,0 +1,15 @@
+{
+  "extends": "react-app",
+  "rules": {
+    "react-hooks/exhaustive-deps": "off",
+    "no-unused-vars": "off"
+  },
+  "overrides": [
+    {
+      "files": ["src/pages/Accounting.js", "src/pages/StoreLogs.js", "src/pages/Stores.js"],
+      "rules": {
+        "react-hooks/exhaustive-deps": "off"
+      }
+    }
+  ]
+}

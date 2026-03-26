@@ -126,6 +126,7 @@ function StoreLogs() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchStores();
   }, []);

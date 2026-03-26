@@ -16,13 +16,15 @@ function statusToStep(status: string): number {
     case 'PENDING':
     case 'CONFIRMED': return 1;
     case 'PREPARING': return 2;
+    case 'ASSIGNED':
     case 'READY_FOR_PICKUP':
-    case 'READYFORPICKUP':
+    case 'READYFORPICKUP': return 3;
+    case 'DRIVER_ACCEPTED':
     case 'IN_TRANSIT':
     case 'OUT_FOR_DELIVERY':
     case 'OUTFORDELIVERY':
-    case 'ON_THE_WAY': return 3;
-    case 'DELIVERED': return 4;
+    case 'ON_THE_WAY': return 4;
+    case 'DELIVERED': return 5;
     default: return 1;
   }
 }
@@ -39,13 +41,14 @@ export function OrderTracking() {
   const [currentStep, setCurrentStep] = useState(1);
   const [order, setOrder] = useState<any>(null);
   const [etaEstimate, setEtaEstimate] = useState<{ etaMinutes: number; minEta: number; maxEta: number; confidence: number } | null>(null);
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   const steps = [
-    { id: 1, title: 'Order Confirmed',  description: 'Store has received your order',      icon: CheckCircle },
-    { id: 2, title: 'Preparing',        description: 'Your items are being prepared',       icon: Package },
-    { id: 3, title: 'On the way',       description: 'Driver is heading to your location',  icon: Navigation },
-    { id: 4, title: 'Delivered',        description: 'Order arrived successfully',           icon: MapPin },
+    { id: 1, title: 'Order Placed',     description: 'Merchant received your order',        icon: CheckCircle },
+    { id: 2, title: 'Preparing',        description: 'Merchant is preparing your order',    icon: Package },
+    { id: 3, title: 'Driver Assigned',  description: 'The system assigned a courier',       icon: Navigation },
+    { id: 4, title: 'On The Way',       description: 'Driver picked up and is heading over', icon: Navigation },
+    { id: 5, title: 'Delivered',        description: 'OTP confirmed and order closed',      icon: MapPin },
   ];
 
   useEffect(() => {
@@ -104,12 +107,12 @@ export function OrderTracking() {
         <div style={{ background: 'var(--surface)', padding: '8px 16px', borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-sm)' }}>
           <Clock size={16} color="var(--primary)" />
           <span style={{ fontWeight: 600 }}>
-            {currentStep === 4 ? 'Delivered!' : `Arriving in ${etaMinutes} mins`}
+            {currentStep === 5 ? (order?.paymentSettled ? 'Delivered & settled' : 'Delivered!') : `Arriving in ${etaMinutes} mins`}
           </span>
         </div>
       </div>
 
-      {etaEstimate && currentStep !== 4 ? (
+      {etaEstimate && currentStep !== 5 ? (
         <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
           AI ETA range: {etaEstimate.minEta}-{etaEstimate.maxEta} mins ({etaEstimate.confidence}% confidence)
         </p>
@@ -130,7 +133,7 @@ export function OrderTracking() {
         </Card>
       )}
 
-      {order && statusToStep(order.status) === 3 && order.deliveryOtp && !order.deliveryOtpVerified && (
+      {order && statusToStep(order.status) === 4 && order.deliveryOtp && !order.deliveryOtpVerified && (
         <Card style={{ padding: '20px', marginBottom: '24px', background: 'rgba(59, 130, 246, 0.08)', border: '1px dashed #3b82f6' }}>
           <p className="text-sm text-muted" style={{ marginBottom: '6px' }}>Delivery Handshake Code</p>
           <p style={{ fontSize: '2rem', letterSpacing: '0.25rem', fontWeight: 800, color: '#1d4ed8', marginBottom: '8px' }}>
@@ -140,9 +143,30 @@ export function OrderTracking() {
         </Card>
       )}
 
-      {order && statusToStep(order.status) === 3 && order.deliveryOtpVerified && (
+      {order && statusToStep(order.status) === 4 && order.deliveryOtpVerified && (
         <Card style={{ padding: '16px', marginBottom: '24px', background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.35)' }}>
           <p style={{ fontWeight: 700, color: '#15803d' }}>Code verified with courier. Delivery completion is now unlocked.</p>
+        </Card>
+      )}
+
+      {order?.paymentSettled && currentStep === 5 && (
+        <Card style={{ padding: '16px', marginBottom: '24px', background: 'rgba(22, 163, 74, 0.08)', border: '1px solid rgba(22, 163, 74, 0.25)' }}>
+          <p style={{ fontWeight: 700, color: '#166534' }}>Order closed and payment settlement recorded successfully.</p>
+        </Card>
+      )}
+
+      {order && (order.pickedUpAt || order.deliveredAt) && (
+        <Card style={{ padding: '16px', marginBottom: '24px' }}>
+          {order.pickedUpAt && (
+            <p className="text-sm text-muted" style={{ marginBottom: '6px' }}>
+              Picked up at: <strong style={{ color: 'var(--text-main)' }}>{new Date(order.pickedUpAt).toLocaleString()}</strong>
+            </p>
+          )}
+          {order.deliveredAt && (
+            <p className="text-sm text-muted">
+              Delivered at: <strong style={{ color: 'var(--text-main)' }}>{new Date(order.deliveredAt).toLocaleString()}</strong>
+            </p>
+          )}
         </Card>
       )}
 
@@ -153,7 +177,7 @@ export function OrderTracking() {
           <div className="flex-center" style={{ flexDirection: 'column', color: 'var(--primary)', zIndex: 2 }}>
             <Navigation size={48} style={{ transform: 'rotate(45deg)' }} />
             <span className="text-sm" style={{ marginTop: '16px', background: 'var(--surface)', padding: '4px 12px', borderRadius: 'var(--radius-pill)', boxShadow: 'var(--shadow-sm)', fontWeight: 600 }}>
-              {currentStep === 4 ? 'Delivered!' : 'Driver is on the way'}
+              {currentStep === 5 ? 'Delivered!' : currentStep >= 4 ? 'Driver is on the way' : currentStep === 3 ? 'Driver assigned' : 'Order in progress'}
             </span>
           </div>
         </div>

@@ -88,6 +88,8 @@ model Order {
   tax           Float    @default(0)
   deliveryOtp   String?
   deliveryOtpVerifiedAt DateTime?
+  pickedUpAt    DateTime?
+  deliveredAt   DateTime?
   customerInfo  String   // JSON string instead of Json type
   deliveryAddress String? // JSON string instead of Json type
   items         OrderItem[]

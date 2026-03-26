@@ -43,6 +43,7 @@ function isPayableOrder(order) {
 
 function Accounting() {
   const [loading, setLoading] = useState(true);
+  // eslint-disable-next-line no-unused-vars
   const [stores, setStores] = useState([]);
   const [orders, setOrders] = useState([]);
   const [platformFeePercent, setPlatformFeePercent] = useState(DEFAULT_PLATFORM_FEE_PERCENT);
@@ -85,6 +86,7 @@ function Accounting() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchData();
   }, []);

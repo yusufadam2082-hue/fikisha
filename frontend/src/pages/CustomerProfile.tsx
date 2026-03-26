@@ -29,6 +29,7 @@ interface Order {
   id: string;
   orderNumber?: string;
   status: string;
+  paymentSettled?: boolean;
   total: number;
   createdAt: string;
   deliveryOtp?: string | null;
@@ -80,6 +81,8 @@ function getAuthHeaders(): HeadersInit {
 
 const STATUS_COLOR: Record<string, string> = {
   DELIVERED:        '#16a34a',
+  DRIVER_ACCEPTED:  '#4f46e5',
+  ASSIGNED:         '#2563eb',
   IN_TRANSIT:       'var(--primary)',
   ON_THE_WAY:       'var(--primary)',
   OUT_FOR_DELIVERY: 'var(--primary)',
@@ -632,7 +635,7 @@ export function CustomerProfile() {
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatKES(Number(order.total))}</p>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: STATUS_COLOR[order.status] || 'var(--text-muted)', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: 'var(--radius-pill)' }}>
-                        {order.status}
+                        {order.paymentSettled && order.status === 'DELIVERED' ? 'DELIVERED & SETTLED' : order.status.replace(/_/g, ' ')}
                       </span>
                     </div>
                   </div>

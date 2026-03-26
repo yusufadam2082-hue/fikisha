@@ -199,7 +199,7 @@ export function MerchantOrders() {
     const pending = normalized.filter((order) => order.normalizedStatus === 'PENDING');
     const cancelled = normalized.filter((order) => order.normalizedStatus === 'CANCELLED');
     const delivered = normalized.filter((order) => order.normalizedStatus === 'DELIVERED');
-    const active = normalized.filter((order) => ['PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY'].includes(order.normalizedStatus));
+    const active = normalized.filter((order) => ['PREPARING', 'READY_FOR_PICKUP', 'ASSIGNED', 'DRIVER_ACCEPTED', 'OUT_FOR_DELIVERY'].includes(order.normalizedStatus));
     const acceptedCount = normalized.filter((order) => order.normalizedStatus !== 'PENDING' && order.normalizedStatus !== 'CANCELLED').length;
     const decisions = acceptedCount + cancelled.length;
     const acceptanceRate = decisions > 0 ? Math.round((acceptedCount / decisions) * 100) : 0;
@@ -336,6 +336,10 @@ export function MerchantOrders() {
                       ? 'var(--bg-color)'
                       : normalizedStatus === 'PREPARING'
                         ? 'rgba(234, 179, 8, 0.1)'
+                        : normalizedStatus === 'ASSIGNED'
+                          ? 'rgba(59, 130, 246, 0.12)'
+                          : normalizedStatus === 'DRIVER_ACCEPTED'
+                            ? 'rgba(99, 102, 241, 0.12)'
                         : normalizedStatus === 'CANCELLED'
                           ? 'rgba(239, 68, 68, 0.1)'
                           : 'rgba(34, 197, 94, 0.1)',
@@ -343,11 +347,15 @@ export function MerchantOrders() {
                       ? 'var(--text-main)'
                       : normalizedStatus === 'PREPARING'
                         ? '#eab308'
+                        : normalizedStatus === 'ASSIGNED'
+                          ? '#2563eb'
+                          : normalizedStatus === 'DRIVER_ACCEPTED'
+                            ? '#4f46e5'
                         : normalizedStatus === 'CANCELLED'
                           ? '#ef4444'
                           : '#22c55e'
                   }}>
-                    {normalizedStatus}
+                    {normalizedStatus.replace(/_/g, ' ')}
                   </span>
                 </div>
               </div>
@@ -363,6 +371,11 @@ export function MerchantOrders() {
                 <p className="text-sm font-semibold text-muted" style={{ marginBottom: '8px' }}>Customer Details</p>
                 <p className="text-body">{order.customerInfo?.name}</p>
                 <p className="text-body text-muted">{order.customerInfo?.address}</p>
+                {order.assignedDriverName && (
+                  <p className="text-sm text-muted" style={{ marginTop: '8px' }}>
+                    Assigned driver: <strong style={{ color: 'var(--text-main)' }}>{order.assignedDriverName}</strong>
+                  </p>
+                )}
               </div>
 
               <div style={{ marginBottom: '24px' }}>
@@ -387,7 +400,31 @@ export function MerchantOrders() {
               )}
               
               {normalizedStatus === 'PREPARING' && (
-                <Button onClick={() => updateOrderStatus(order.id, 'READY_FOR_PICKUP')} style={{ width: '100%', background: '#22c55e' }}>Mark Ready for Driver Pickup</Button>
+                <Button onClick={() => updateOrderStatus(order.id, 'ASSIGNED')} style={{ width: '100%', background: '#22c55e' }}>Order Prepared, Assign Driver</Button>
+              )}
+
+              {(normalizedStatus === 'ASSIGNED' || normalizedStatus === 'READY_FOR_PICKUP') && (
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.08)', color: '#1d4ed8' }}>
+                  Driver assigned. Waiting for courier to accept the job.
+                </div>
+              )}
+
+              {normalizedStatus === 'DRIVER_ACCEPTED' && (
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(99, 102, 241, 0.08)', color: '#4338ca' }}>
+                  Driver accepted the job and is heading for pickup.
+                </div>
+              )}
+
+              {normalizedStatus === 'OUT_FOR_DELIVERY' && (
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(34, 197, 94, 0.08)', color: '#15803d' }}>
+                  Order picked up. Customer will confirm handoff using OTP on delivery.
+                </div>
+              )}
+
+              {normalizedStatus === 'DELIVERED' && order.paymentSettled && (
+                <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'rgba(22, 163, 74, 0.08)', color: '#166534' }}>
+                  Order closed and settlement recorded.
+                </div>
               )}
             </Card>
           );})}
