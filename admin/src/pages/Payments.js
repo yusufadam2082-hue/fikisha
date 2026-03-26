@@ -7,6 +7,8 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Divider,
+  Drawer,
   FormControl,
   InputLabel,
   MenuItem,
@@ -55,6 +57,9 @@ function Payments() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [busyIntentId, setBusyIntentId] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailData, setDetailData] = useState(null);
 
   const getAuthConfig = () => {
     const token = localStorage.getItem('token');
@@ -172,6 +177,26 @@ function Payments() {
     }
   };
 
+  const handleOpenDetail = async (intentId) => {
+    try {
+      setDetailLoading(true);
+      setDetailOpen(true);
+      setDetailData(null);
+      getAuthConfig();
+      const response = await apiClient.get(`/api/admin/payments/intents/${intentId}`);
+      setDetailData(response.data || null);
+    } catch (err) {
+      setDetailOpen(false);
+      showSnackbar(err?.response?.data?.error || 'Failed to load payment intent detail', 'error');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const detailIntent = detailData?.intent || null;
+  const detailRetryHistory = Array.isArray(detailData?.retryHistory) ? detailData.retryHistory : [];
+  const detailProviderEvents = Array.isArray(detailData?.providerEvents) ? detailData.providerEvents : [];
+
   return (
     <Box sx={{ p: 3 }}>
       <Snackbar open={snackbar.open} autoHideDuration={3500} onClose={() => setSnackbar({ ...snackbar, open: false })}>
@@ -232,96 +257,197 @@ function Payments() {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Created</TableCell>
-                <TableCell>Order / Customer</TableCell>
-                <TableCell>Provider</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Provider Ref</TableCell>
-                <TableCell>Retry Chain</TableCell>
-                <TableCell>Notes</TableCell>
-                <TableCell align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id} hover>
-                  <TableCell>
-                    <Typography variant="body2">{new Date(item.createdAt).toLocaleString()}</Typography>
-                    <Typography variant="caption" color="text.secondary">{item.id.slice(0, 8)}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={600}>{item.linkedOrderNumber || item.order?.orderNumber || 'Unlinked intent'}</Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">{item.customerName || item.customer?.name || 'Unknown customer'}</Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">{item.storeName || item.order?.store?.name || 'No store linked'}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" label={item.provider} />
-                  </TableCell>
-                  <TableCell>{formatKES(Number(item.amount || 0))}</TableCell>
-                  <TableCell>
-                    <Chip size="small" color={statusColor(item.status)} label={String(item.status || '').replace(/_/g, ' ')} />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption">{item.providerRef || 'Pending provider ref'}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    {item.retrySourceIntentId ? (
-                      <>
-                        <Typography variant="caption" display="block">Retried from {String(item.retrySourceIntentId).slice(0, 8)}</Typography>
-                        <Typography variant="caption" color="text.secondary">Retries: {item.retryCount || 1}</Typography>
-                      </>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">Original intent</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {Array.isArray(item.adminNotes) && item.adminNotes.length > 0 ? (
-                      <Stack spacing={0.5}>
-                        <Typography variant="caption" fontWeight={600}>{item.adminNotes[0].authorName || 'Admin'}</Typography>
-                        <Typography variant="caption" color="text.secondary">{item.adminNotes[0].note}</Typography>
-                        <Typography variant="caption" color="text.secondary">{new Date(item.adminNotes[0].createdAt).toLocaleString()}</Typography>
-                      </Stack>
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">No internal notes</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        disabled={busyIntentId === item.id || String(item.status || '').toUpperCase() === 'SUCCEEDED'}
-                        onClick={() => handleReconcile(item.id)}
-                      >
-                        {busyIntentId === item.id ? 'Reconciling...' : 'Reconcile'}
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        disabled={busyIntentId === item.id}
-                        onClick={() => handleAddNote(item)}
-                      >
-                        Note
-                      </Button>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {items.length === 0 && (
+        <>
+          <TableContainer component={Paper}>
+            <Table size="small">
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={9}>
-                    <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No payment intents matched the current filters.</Typography>
-                  </TableCell>
+                  <TableCell>Created</TableCell>
+                  <TableCell>Order / Customer</TableCell>
+                  <TableCell>Provider</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Provider Ref</TableCell>
+                  <TableCell>Retry Chain</TableCell>
+                  <TableCell>Notes</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {items.map((item) => (
+                  <TableRow key={item.id} hover>
+                    <TableCell>
+                      <Typography variant="body2">{new Date(item.createdAt).toLocaleString()}</Typography>
+                      <Typography variant="caption" color="text.secondary">{item.id.slice(0, 8)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={600}>{item.linkedOrderNumber || item.order?.orderNumber || 'Unlinked intent'}</Typography>
+                      <Typography variant="caption" display="block" color="text.secondary">{item.customerName || item.customer?.name || 'Unknown customer'}</Typography>
+                      <Typography variant="caption" display="block" color="text.secondary">{item.storeName || item.order?.store?.name || 'No store linked'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="small" label={item.provider} />
+                    </TableCell>
+                    <TableCell>{formatKES(Number(item.amount || 0))}</TableCell>
+                    <TableCell>
+                      <Chip size="small" color={statusColor(item.status)} label={String(item.status || '').replace(/_/g, ' ')} />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">{item.providerRef || 'Pending provider ref'}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {item.retrySourceIntentId ? (
+                        <>
+                          <Typography variant="caption" display="block">Retried from {String(item.retrySourceIntentId).slice(0, 8)}</Typography>
+                          <Typography variant="caption" color="text.secondary">Retries: {item.retryCount || 1}</Typography>
+                        </>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">Original intent</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {Array.isArray(item.adminNotes) && item.adminNotes.length > 0 ? (
+                        <Stack spacing={0.5}>
+                          <Typography variant="caption" fontWeight={600}>{item.adminNotes[0].authorName || 'Admin'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{item.adminNotes[0].note}</Typography>
+                          <Typography variant="caption" color="text.secondary">{new Date(item.adminNotes[0].createdAt).toLocaleString()}</Typography>
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">No internal notes</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => handleOpenDetail(item.id)}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={busyIntentId === item.id || String(item.status || '').toUpperCase() === 'SUCCEEDED'}
+                          onClick={() => handleReconcile(item.id)}
+                        >
+                          {busyIntentId === item.id ? 'Reconciling...' : 'Reconcile'}
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          disabled={busyIntentId === item.id}
+                          onClick={() => handleAddNote(item)}
+                        >
+                          Note
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9}>
+                      <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>No payment intents matched the current filters.</Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Drawer
+            anchor="right"
+            open={detailOpen}
+            onClose={() => setDetailOpen(false)}
+            PaperProps={{ sx: { width: { xs: '100%', sm: 520 }, p: 3 } }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Typography variant="h6">Payment Detail</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {detailIntent ? `${detailIntent.id.slice(0, 8)} · ${detailIntent.provider}` : 'Loading payment intent'}
+                </Typography>
+              </Box>
+              <Button size="small" variant="outlined" onClick={() => setDetailOpen(false)}>Close</Button>
+            </Box>
+
+            {detailLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+            ) : detailIntent ? (
+              <Stack spacing={2}>
+                <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                  <Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Status</Typography><Typography variant="body2" fontWeight={700}>{detailIntent.status}</Typography></CardContent></Card>
+                  <Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Amount</Typography><Typography variant="body2" fontWeight={700}>{formatKES(Number(detailIntent.amount || 0))}</Typography></CardContent></Card>
+                  <Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Customer</Typography><Typography variant="body2" fontWeight={700}>{detailIntent.customerName || 'Unknown customer'}</Typography><Typography variant="caption" color="text.secondary">{detailIntent.customerPhone || 'No phone on file'}</Typography></CardContent></Card>
+                  <Card variant="outlined"><CardContent><Typography variant="caption" color="text.secondary">Order</Typography><Typography variant="body2" fontWeight={700}>{detailIntent.linkedOrderNumber || 'Unlinked intent'}</Typography><Typography variant="caption" color="text.secondary">{detailIntent.storeName || 'No store linked'}</Typography></CardContent></Card>
+                </Box>
+
+                <Divider />
+
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Provider Action</Typography>
+                  <Paper variant="outlined" sx={{ p: 1.5 }}>
+                    <Typography variant="body2">{detailIntent.action?.type || 'No action type'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{detailIntent.action?.message || 'No provider action metadata recorded.'}</Typography>
+                    {detailIntent.providerRef && <Typography variant="caption" display="block" color="text.secondary">Provider ref: {detailIntent.providerRef}</Typography>}
+                  </Paper>
+                </Box>
+
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Retry History</Typography>
+                  {detailRetryHistory.length > 0 ? (
+                    <Stack spacing={1}>
+                      {detailRetryHistory.map((entry) => (
+                        <Paper key={entry.id} variant="outlined" sx={{ p: 1.5, borderColor: entry.isSelected ? 'primary.main' : 'divider' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                            <Box>
+                              <Typography variant="body2" fontWeight={700}>{entry.id.slice(0, 8)} {entry.isSelected ? '(selected)' : ''}</Typography>
+                              <Typography variant="caption" color="text.secondary">{new Date(entry.createdAt).toLocaleString()}</Typography>
+                            </Box>
+                            <Chip size="small" color={statusColor(entry.status)} label={String(entry.status || '').replace(/_/g, ' ')} />
+                          </Box>
+                          <Typography variant="caption" display="block" color="text.secondary">Depth: {entry.retryDepth || 0} · Retries: {entry.retryCount || 0}</Typography>
+                          <Typography variant="caption" display="block" color="text.secondary">Provider ref: {entry.providerRef || 'Pending provider ref'}</Typography>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No retry history recorded for this intent.</Typography>
+                  )}
+                </Box>
+
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Provider Events</Typography>
+                  {detailProviderEvents.length > 0 ? (
+                    <Stack spacing={1}>
+                      {detailProviderEvents.map((event) => (
+                        <Paper key={event.id} variant="outlined" sx={{ p: 1.5 }}>
+                          <Typography variant="body2" fontWeight={700}>{event.eventType}</Typography>
+                          <Typography variant="caption" display="block" color="text.secondary">{event.providerEventId}</Typography>
+                          <Typography variant="caption" display="block" color="text.secondary">Processed: {new Date(event.processedAt).toLocaleString()}</Typography>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No provider events recorded yet.</Typography>
+                  )}
+                </Box>
+
+                <Box>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>Metadata</Typography>
+                  <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: '#fafafa', overflowX: 'auto' }}>
+                    <Typography component="pre" variant="caption" sx={{ m: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {JSON.stringify(detailIntent.metadata || {}, null, 2)}
+                    </Typography>
+                  </Paper>
+                </Box>
+              </Stack>
+            ) : (
+              <Typography color="text.secondary">Payment detail is unavailable.</Typography>
+            )}
+          </Drawer>
+        </>
       )}
     </Box>
   );

@@ -17,6 +17,7 @@ interface StoredPaymentMethod {
   last4: string;
   expiry: string;
   isDefault: boolean;
+  phoneNumber?: string;
 }
 
 function getAuthHeaders(): HeadersInit {
@@ -54,9 +55,17 @@ export function CartModal() {
     ? null
     : paymentMethods.find((method) => method.id === selectedPaymentId) || null;
 
+  const isMpesaMethod = (method: StoredPaymentMethod | null) => {
+    const normalizedType = String(method?.type || '').toLowerCase();
+    return normalizedType.includes('mpesa') || normalizedType.includes('m-pesa') || normalizedType.includes('mobile money');
+  };
+
   const getPaymentLabel = () => {
     if (!selectedPayment) {
       return 'Cash on Delivery';
+    }
+    if (isMpesaMethod(selectedPayment)) {
+      return `M-Pesa ${selectedPayment.phoneNumber || `•••• ${selectedPayment.last4}`}`;
     }
     return `${selectedPayment.type} •••• ${selectedPayment.last4}`;
   };
@@ -401,7 +410,7 @@ export function CartModal() {
                           checked={selectedPaymentId === method.id}
                           onChange={() => setSelectedPaymentId(method.id)}
                         />
-                        <span className="text-sm">{method.type} - **** {method.last4}</span>
+                        <span className="text-sm">{isMpesaMethod(method) ? `M-Pesa - ${method.phoneNumber || `•••• ${method.last4}`}` : `${method.type} - **** ${method.last4}`}</span>
                       </label>
                     ))}
                   </div>

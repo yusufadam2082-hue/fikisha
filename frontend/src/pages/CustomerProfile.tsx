@@ -24,6 +24,7 @@ interface PaymentMethod {
   last4: string;
   expiry: string;
   isDefault: boolean;
+  phoneNumber?: string;
 }
 
 interface Order {
@@ -64,7 +65,7 @@ function readStoredPayments(): PaymentMethod[] {
   if (!raw) {
     return [
       { id: '1', type: 'Visa', last4: '4242', expiry: '12/26', isDefault: true },
-      { id: '2', type: 'Mastercard', last4: '8888', expiry: '09/25', isDefault: false }
+      { id: '2', type: 'M-Pesa', last4: '7123', expiry: 'Mobile Money', isDefault: false, phoneNumber: '254700123123' }
     ];
   }
 
@@ -143,7 +144,33 @@ export function CustomerProfile() {
   }, [profile]);
   const [newAddress, setNewAddress] = useState({ label: '', street: '', city: '' });
   // Issue 18: card number field instead of asking for last 4 directly
-  const [newPayment, setNewPayment] = useState({ type: 'Visa', cardNumber: '', expiry: '' });
+  const [newPayment, setNewPayment] = useState({ type: 'Visa', cardNumber: '', expiry: '', phoneNumber: '' });
+
+  const isMpesaPaymentType = (type: string) => {
+    const normalized = String(type || '').toLowerCase();
+    return normalized.includes('mpesa') || normalized.includes('m-pesa') || normalized.includes('mobile money');
+  };
+
+  const formatMpesaPhone = (value: string) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) {
+      return '';
+    }
+
+    if (digits.startsWith('254')) {
+      return digits;
+    }
+
+    if (digits.startsWith('0')) {
+      return `254${digits.slice(1)}`;
+    }
+
+    if (digits.length === 9) {
+      return `254${digits}`;
+    }
+
+    return digits;
+  };
 
   const formatAddress = (address: Pick<Address, 'street' | 'city'>) => `${address.street}, ${address.city}`;
 
@@ -337,6 +364,28 @@ export function CustomerProfile() {
 
   // Issue 18: extract last4 from full card number on save
   const handleAddPayment = () => {
+    if (isMpesaPaymentType(newPayment.type)) {
+      const normalizedPhone = formatMpesaPhone(newPayment.phoneNumber);
+      if (normalizedPhone.length < 12) {
+        showToast('Please enter a valid M-Pesa phone number', 'error');
+        return;
+      }
+
+      const pay: PaymentMethod = {
+        id: Date.now().toString(),
+        type: 'M-Pesa',
+        last4: normalizedPhone.slice(-4),
+        expiry: 'Mobile Money',
+        phoneNumber: normalizedPhone,
+        isDefault: payments.length === 0,
+      };
+      setPayments([...payments, pay]);
+      setNewPayment({ type: 'Visa', cardNumber: '', expiry: '', phoneNumber: '' });
+      setIsAddingPayment(false);
+      showToast('M-Pesa added', 'success');
+      return;
+    }
+
     const raw = newPayment.cardNumber.replace(/\s/g, '');
     if (raw.length < 4 || !newPayment.expiry) {
       showToast('Please enter a valid card number and expiry date', 'error');
@@ -350,7 +399,7 @@ export function CustomerProfile() {
       isDefault: payments.length === 0,
     };
     setPayments([...payments, pay]);
-    setNewPayment({ type: 'Visa', cardNumber: '', expiry: '' });
+    setNewPayment({ type: 'Visa', cardNumber: '', expiry: '', phoneNumber: '' });
     setIsAddingPayment(false);
     showToast('Card added', 'success');
   };
@@ -585,7 +634,7 @@ export function CustomerProfile() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 className="text-h2">Payment Methods</h2>
-                <Button size="sm" onClick={() => setIsAddingPayment(true)}><Plus size={16} /> Add Card</Button>
+                <Button size="sm" onClick={() => setIsAddingPayment(true)}><Plus size={16} /> Add Payment Method</Button>
               </div>
 
               {isAddingPayment && (
@@ -596,22 +645,34 @@ export function CustomerProfile() {
                       <option value="Visa">Visa</option>
                       <option value="Mastercard">Mastercard</option>
                       <option value="Amex">American Express</option>
+                      <option value="M-Pesa">M-Pesa</option>
                     </select>
-                    {/* Issue 18: full card number input; last4 extracted on save */}
-                    <input
-                      className="input-field"
-                      placeholder="Card number"
-                      maxLength={19}
-                      value={newPayment.cardNumber}
-                      onChange={e => {
-                        const v = e.target.value.replace(/\D/g, '').slice(0, 16);
-                        setNewPayment({ ...newPayment, cardNumber: v.match(/.{1,4}/g)?.join(' ') || v });
-                      }}
-                    />
-                    <input className="input-field" placeholder="Expiry (MM/YY)" maxLength={5} value={newPayment.expiry} onChange={e => setNewPayment({ ...newPayment, expiry: e.target.value })} />
+                    {isMpesaPaymentType(newPayment.type) ? (
+                      <input
+                        className="input-field"
+                        placeholder="M-Pesa phone number"
+                        maxLength={12}
+                        value={newPayment.phoneNumber}
+                        onChange={e => setNewPayment({ ...newPayment, phoneNumber: formatMpesaPhone(e.target.value).slice(0, 12) })}
+                      />
+                    ) : (
+                      <>
+                        <input
+                          className="input-field"
+                          placeholder="Card number"
+                          maxLength={19}
+                          value={newPayment.cardNumber}
+                          onChange={e => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 16);
+                            setNewPayment({ ...newPayment, cardNumber: v.match(/.{1,4}/g)?.join(' ') || v });
+                          }}
+                        />
+                        <input className="input-field" placeholder="Expiry (MM/YY)" maxLength={5} value={newPayment.expiry} onChange={e => setNewPayment({ ...newPayment, expiry: e.target.value })} />
+                      </>
+                    )}
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <Button variant="outline" onClick={() => setIsAddingPayment(false)}>Cancel</Button>
-                      <Button onClick={handleAddPayment}>Save Card</Button>
+                      <Button onClick={handleAddPayment}>{isMpesaPaymentType(newPayment.type) ? 'Save M-Pesa' : 'Save Card'}</Button>
                     </div>
                   </div>
                 </Card>
@@ -627,8 +688,10 @@ export function CustomerProfile() {
                       {pay.type}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <h3 className="text-h3" style={{ marginBottom: '4px' }}>•••• •••• •••• {pay.last4}</h3>
-                      <p className="text-muted">Expires {pay.expiry}</p>
+                      <h3 className="text-h3" style={{ marginBottom: '4px' }}>
+                        {isMpesaPaymentType(pay.type) ? `M-Pesa ${pay.phoneNumber || `•••• ${pay.last4}`}` : `•••• •••• •••• ${pay.last4}`}
+                      </h3>
+                      <p className="text-muted">{isMpesaPaymentType(pay.type) ? 'Pay via mobile money STK push' : `Expires ${pay.expiry}`}</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>

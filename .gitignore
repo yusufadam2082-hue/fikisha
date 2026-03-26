@@ -13,6 +13,7 @@ build/
 .next/
 out/
 .cache/
+*.db
 *.db-journal
 *.db-wal
 *.db-shm

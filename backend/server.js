@@ -385,6 +385,21 @@ const buildPaymentAction = (intent) => {
   return resolvePaymentAction(provider, intent);
 };
 
+const adminPaymentIntentInclude = {
+  customer: { select: { id: true, name: true, phone: true, email: true } },
+  order: {
+    select: {
+      id: true,
+      orderNumber: true,
+      paymentStatus: true,
+      status: true,
+      total: true,
+      createdAt: true,
+      store: { select: { id: true, name: true } }
+    }
+  }
+};
+
 const serializePaymentIntentForAdmin = (intent) => {
   if (!intent) {
     return null;
@@ -404,6 +419,90 @@ const serializePaymentIntentForAdmin = (intent) => {
     customerPhone: intent.customer?.phone || null,
     storeName: intent.order?.store?.name || null
   };
+};
+
+const loadAdminPaymentIntentById = (id) => {
+  return prisma.paymentIntent.findUnique({
+    where: { id },
+    include: adminPaymentIntentInclude
+  });
+};
+
+const buildAdminPaymentRetryHistory = async (intent) => {
+  if (!intent) {
+    return [];
+  }
+
+  const candidates = await prisma.paymentIntent.findMany({
+    where: {
+      customerId: intent.customerId,
+      amount: intent.amount,
+      currency: intent.currency
+    },
+    orderBy: { createdAt: 'asc' },
+    include: adminPaymentIntentInclude
+  });
+
+  const serializedCandidates = candidates.map(serializePaymentIntentForAdmin);
+  const itemsById = new Map(serializedCandidates.map((entry) => [entry.id, entry]));
+  const childIdsByParent = new Map();
+
+  serializedCandidates.forEach((entry) => {
+    if (!entry.retrySourceIntentId) {
+      return;
+    }
+
+    if (!childIdsByParent.has(entry.retrySourceIntentId)) {
+      childIdsByParent.set(entry.retrySourceIntentId, []);
+    }
+    childIdsByParent.get(entry.retrySourceIntentId).push(entry.id);
+  });
+
+  let rootId = intent.id;
+  const upwardSeen = new Set();
+  while (itemsById.has(rootId) && itemsById.get(rootId)?.retrySourceIntentId && !upwardSeen.has(rootId)) {
+    upwardSeen.add(rootId);
+    const parentId = itemsById.get(rootId).retrySourceIntentId;
+    if (!itemsById.has(parentId)) {
+      break;
+    }
+    rootId = parentId;
+  }
+
+  const ordered = [];
+  const walk = (intentId, depth = 0, lineageSeen = new Set()) => {
+    if (!itemsById.has(intentId) || lineageSeen.has(intentId)) {
+      return;
+    }
+
+    lineageSeen.add(intentId);
+    const current = itemsById.get(intentId);
+    ordered.push({
+      ...current,
+      retryDepth: depth,
+      isSelected: current.id === intent.id
+    });
+
+    const childIds = (childIdsByParent.get(intentId) || []).sort((leftId, rightId) => {
+      const left = itemsById.get(leftId);
+      const right = itemsById.get(rightId);
+      return new Date(left?.createdAt || 0).getTime() - new Date(right?.createdAt || 0).getTime();
+    });
+
+    childIds.forEach((childId) => walk(childId, depth + 1, new Set(lineageSeen)));
+  };
+
+  walk(rootId);
+
+  if (!ordered.some((entry) => entry.id === intent.id)) {
+    ordered.push({
+      ...serializePaymentIntentForAdmin(intent),
+      retryDepth: 0,
+      isSelected: true
+    });
+  }
+
+  return ordered;
 };
 
 const escapeCsvValue = (value) => {
@@ -4194,20 +4293,7 @@ app.get('/api/admin/payments/intents', authMiddleware, roleMiddleware('ADMIN'), 
         skip,
         take,
         orderBy: { createdAt: 'desc' },
-        include: {
-          customer: { select: { id: true, name: true, phone: true, email: true } },
-          order: {
-            select: {
-              id: true,
-              orderNumber: true,
-              paymentStatus: true,
-              status: true,
-              total: true,
-              createdAt: true,
-              store: { select: { id: true, name: true } }
-            }
-          }
-        }
+        include: adminPaymentIntentInclude
       }),
       prisma.paymentIntent.count({ where }),
       prisma.paymentIntent.aggregate({ where, _sum: { amount: true }, _count: { id: true } }),
@@ -4241,26 +4327,61 @@ app.get('/api/admin/payments/intents', authMiddleware, roleMiddleware('ADMIN'), 
   }
 });
 
+app.get('/api/admin/payments/intents/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const intent = await loadAdminPaymentIntentById(req.params.id);
+    if (!intent) {
+      return res.status(404).json({ error: 'Payment intent not found' });
+    }
+
+    const eventWhere = {
+      provider: intent.provider,
+      ...(intent.providerRef
+        ? {
+            OR: [
+              { providerEventId: intent.providerRef },
+              { payload: { contains: intent.id } },
+              { payload: { contains: intent.providerRef } }
+            ]
+          }
+        : {
+            payload: { contains: intent.id }
+          })
+    };
+
+    const [retryHistory, providerEvents] = await Promise.all([
+      buildAdminPaymentRetryHistory(intent),
+      prisma.paymentEvent.findMany({
+        where: eventWhere,
+        orderBy: { createdAt: 'desc' },
+        take: 20
+      })
+    ]);
+
+    return res.json({
+      intent: serializePaymentIntentForAdmin(intent),
+      retryHistory,
+      providerEvents: providerEvents.map((event) => ({
+        id: event.id,
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+        eventType: event.eventType,
+        processedAt: event.processedAt,
+        createdAt: event.createdAt
+      }))
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to load payment intent detail' });
+  }
+});
+
 app.get('/api/admin/payments/intents/export', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
     const where = buildPaymentIntentAdminWhere(req.query);
     const intents = await prisma.paymentIntent.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            paymentStatus: true,
-            status: true,
-            total: true,
-            createdAt: true,
-            store: { select: { id: true, name: true } }
-          }
-        }
-      }
+      include: adminPaymentIntentInclude
     });
 
     const rows = intents.map((intent) => {
@@ -4310,23 +4431,7 @@ app.get('/api/admin/payments/intents/export', authMiddleware, roleMiddleware('AD
 
 app.post('/api/admin/payments/intents/:id/notes', authMiddleware, roleMiddleware('ADMIN'), body('note').trim().isLength({ min: 2, max: 1000 }), validate, async (req, res) => {
   try {
-    const intent = await prisma.paymentIntent.findUnique({
-      where: { id: req.params.id },
-      include: {
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            paymentStatus: true,
-            status: true,
-            total: true,
-            createdAt: true,
-            store: { select: { id: true, name: true } }
-          }
-        }
-      }
-    });
+    const intent = await loadAdminPaymentIntentById(req.params.id);
     if (!intent) {
       return res.status(404).json({ error: 'Payment intent not found' });
     }
@@ -4349,20 +4454,7 @@ app.post('/api/admin/payments/intents/:id/notes', authMiddleware, roleMiddleware
           adminNotes: [nextNote, ...adminNotes].slice(0, 20)
         })
       },
-      include: {
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            paymentStatus: true,
-            status: true,
-            total: true,
-            createdAt: true,
-            store: { select: { id: true, name: true } }
-          }
-        }
-      }
+      include: adminPaymentIntentInclude
     });
 
     await auditLog({
@@ -4384,45 +4476,13 @@ app.post('/api/admin/payments/intents/:id/notes', authMiddleware, roleMiddleware
 
 app.post('/api/admin/payments/intents/:id/reconcile', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
-    const intent = await prisma.paymentIntent.findUnique({
-      where: { id: req.params.id },
-      include: {
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            paymentStatus: true,
-            status: true,
-            total: true,
-            createdAt: true,
-            store: { select: { id: true, name: true } }
-          }
-        }
-      }
-    });
+    const intent = await loadAdminPaymentIntentById(req.params.id);
     if (!intent) {
       return res.status(404).json({ error: 'Payment intent not found' });
     }
 
     const reconciled = await reconcilePaymentIntent(intent);
-    const refreshed = await prisma.paymentIntent.findUnique({
-      where: { id: reconciled.id },
-      include: {
-        customer: { select: { id: true, name: true, phone: true, email: true } },
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-            paymentStatus: true,
-            status: true,
-            total: true,
-            createdAt: true,
-            store: { select: { id: true, name: true } }
-          }
-        }
-      }
-    });
+    const refreshed = await loadAdminPaymentIntentById(reconciled.id);
 
     await auditLog({
       adminId: req.user.id,
