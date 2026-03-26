@@ -54,6 +54,12 @@ model Store {
   products    Product[]
   orders      Order[]
   zoneLinks   DeliveryZoneStore[]
+  promotions  Promotion[]
+  supportTickets SupportTicket[]
+  pausedOrders Boolean @default(false)
+  busyMode    Boolean @default(false)
+  prepDelayMinutes Int?
+  operatingHours String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -104,6 +110,11 @@ model Product {
   image       String
   category    String?
   available   Boolean  @default(true)
+  quantityAvailable Int?
+  lowStockThreshold Int?
+  prepTimeOverride Int?
+  maxQuantityPerOrder Int?
+  sku         String?
   storeId     String
   store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
   orderItems  OrderItem[]
@@ -137,6 +148,9 @@ model Order {
   refundedAt          DateTime?
   refundAmount        Float?
   refundReason        String?
+  rating              Float?
+  ratingComment       String?
+  merchantResponse    String?
   items         OrderItem[]
   notes         OrderNote[]
   createdAt     DateTime @default(now())
@@ -198,11 +212,42 @@ model Promotion {
   ctaLink   String?
   bgColor   String    @default("#FF5A5F")
   image     String?
+  discountType String?
+  discountValue Float?
+  minOrderValue Float?
+  usageLimit Int?
+  usageCount Int @default(0)
+  storeId   String?
+  store     Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
   active    Boolean   @default(true)
   startsAt  DateTime?
   endsAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([storeId])
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  storeId      String?
+  store        Store?  @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  merchantId   String?
+  subject      String
+  description  String
+  category     String   @default("GENERAL")
+  priority     String   @default("NORMAL")
+  status       String   @default("OPEN")
+  adminResponse String?
+  attachmentUrls String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([storeId])
+  @@index([merchantId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model BroadcastCampaign {

@@ -1,6 +1,18 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ShoppingBag, Package, Store as StoreIcon, LogOut } from 'lucide-react';
+import {
+  BarChart3,
+  CircleDollarSign,
+  LayoutDashboard,
+  LogOut,
+  Megaphone,
+  Package,
+  Settings,
+  ShoppingBag,
+  Star,
+  Store as StoreIcon,
+  Wrench,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useStoreContext } from '../../context/StoreContext';
 
@@ -16,8 +28,16 @@ export function MerchantLayout({ children }: MerchantLayoutProps) {
   const store = stores.find(s => s.id === user?.storeId);
 
   const navItems = [
-    { name: 'Incoming Orders', path: '/merchant', icon: ShoppingBag },
-    { name: 'My Products', path: '/merchant/products', icon: Package },
+    { name: 'Dashboard', path: '/merchant/dashboard', icon: LayoutDashboard },
+    { name: 'Orders', path: '/merchant/orders', icon: ShoppingBag },
+    { name: 'Catalog', path: '/merchant/products', icon: Package },
+    { name: 'Inventory', path: '/merchant/inventory', icon: Package },
+    { name: 'Promotions', path: '/merchant/promotions', icon: Megaphone },
+    { name: 'Reports', path: '/merchant/reports', icon: BarChart3 },
+    { name: 'Payouts', path: '/merchant/payouts', icon: CircleDollarSign },
+    { name: 'Reviews', path: '/merchant/reviews', icon: Star },
+    { name: 'Support', path: '/merchant/support', icon: Wrench },
+    { name: 'Settings', path: '/merchant/settings', icon: Settings },
     { name: 'Store Profile', path: '/merchant/profile', icon: StoreIcon },
   ];
 
@@ -40,7 +60,8 @@ export function MerchantLayout({ children }: MerchantLayoutProps) {
         <nav style={{ padding: '24px 16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {navItems.map(item => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== '/merchant');
+            const isOrdersRoot = item.path === '/merchant/orders' && location.pathname === '/merchant';
+            const isActive = isOrdersRoot || location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
             
             return (
               <Link 

@@ -3629,6 +3629,460 @@ app.post('/api/admin/notifications/broadcast', authMiddleware, roleMiddleware('A
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// MERCHANT PORTAL UPGRADE ENDPOINTS (additive + backward-compatible)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [
+      store,
+      allOrders,
+      todaysOrders,
+      deliveredToday,
+      cancelledToday,
+      products,
+    ] = await Promise.all([
+      prisma.store.findUnique({ where: { id: storeId } }),
+      prisma.order.findMany({ where: { storeId }, select: { id: true, status: true, total: true, createdAt: true } }),
+      prisma.order.findMany({ where: { storeId, createdAt: { gte: dayStart } }, select: { id: true, status: true, total: true, createdAt: true } }),
+      prisma.order.findMany({ where: { storeId, status: ORDER_STATUS.DELIVERED, createdAt: { gte: dayStart } }, select: { total: true, createdAt: true, pickedUpAt: true } }),
+      prisma.order.count({ where: { storeId, status: ORDER_STATUS.CANCELLED, createdAt: { gte: dayStart } } }),
+      prisma.product.findMany({ where: { storeId }, select: { id: true, name: true, available: true, quantityAvailable: true, lowStockThreshold: true } }),
+    ]);
+
+    const statusCount = {
+      pending: 0,
+      accepted: 0,
+      preparing: 0,
+      readyForPickup: 0,
+      pickedUp: 0,
+      completed: 0,
+      cancelled: 0,
+      rejected: 0,
+    };
+
+    for (const o of allOrders) {
+      const s = normalizeOrderStatus(o.status);
+      if (s === ORDER_STATUS.PENDING || s === ORDER_STATUS.CONFIRMED) statusCount.pending += 1;
+      if (s === ORDER_STATUS.PREPARING) { statusCount.accepted += 1; statusCount.preparing += 1; }
+      if (s === ORDER_STATUS.ASSIGNED || s === ORDER_STATUS.READY_FOR_PICKUP) statusCount.readyForPickup += 1;
+      if (s === ORDER_STATUS.DRIVER_ACCEPTED || s === ORDER_STATUS.OUT_FOR_DELIVERY) statusCount.pickedUp += 1;
+      if (s === ORDER_STATUS.DELIVERED) statusCount.completed += 1;
+      if (s === ORDER_STATUS.CANCELLED) { statusCount.cancelled += 1; statusCount.rejected += 1; }
+    }
+
+    const todaysRevenue = deliveredToday.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+    const lowStock = products.filter((p) => {
+      if (p.quantityAvailable === null || p.quantityAvailable === undefined) return false;
+      const threshold = p.lowStockThreshold ?? 5;
+      return p.quantityAvailable <= threshold;
+    });
+
+    res.json({
+      store: {
+        id: store?.id,
+        name: store?.name,
+        isOpen: store?.isOpen,
+        isActive: store?.isActive,
+        pausedOrders: !!store?.pausedOrders,
+        busyMode: !!store?.busyMode,
+      },
+      kpis: {
+        pendingOrders: statusCount.pending,
+        acceptedInProgress: statusCount.accepted + statusCount.readyForPickup,
+        readyForPickup: statusCount.readyForPickup,
+        completedToday: statusCount.completed,
+        cancelledToday,
+        todaysRevenue,
+        averagePrepTimeMinutes: null,
+      },
+      statuses: statusCount,
+      lowStockAlerts: lowStock,
+      todayOrderCount: todaysOrders.length,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/inventory', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { search = '', category = '', availability = '' } = req.query;
+    const where = { storeId };
+    if (category) where.category = category;
+    if (availability === 'in') where.available = true;
+    if (availability === 'out') where.available = false;
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { description: { contains: search } },
+        { sku: { contains: search } },
+      ];
+    }
+
+    const products = await prisma.product.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true, name: true, category: true, price: true, image: true,
+        available: true, quantityAvailable: true, lowStockThreshold: true,
+        prepTimeOverride: true, maxQuantityPerOrder: true, sku: true, updatedAt: true,
+      },
+    });
+
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/merchant/inventory/bulk', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { productIds = [], updates = {} } = req.body;
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ error: 'productIds is required' });
+    }
+
+    const data = {};
+    if (updates.available !== undefined) data.available = !!updates.available;
+    if (updates.quantityAvailable !== undefined) data.quantityAvailable = updates.quantityAvailable === '' ? null : Number(updates.quantityAvailable);
+    if (updates.lowStockThreshold !== undefined) data.lowStockThreshold = updates.lowStockThreshold === '' ? null : Number(updates.lowStockThreshold);
+    if (updates.price !== undefined) data.price = Number(updates.price);
+
+    const result = await prisma.product.updateMany({
+      where: { id: { in: productIds }, storeId },
+      data,
+    });
+
+    res.json({ updated: result.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/promotions', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const promotions = await prisma.promotion.findMany({
+      where: { storeId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(promotions);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/merchant/promotions', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const payload = req.body || {};
+    if (!payload.title?.trim() || !payload.subtitle?.trim()) {
+      return res.status(400).json({ error: 'title and subtitle are required' });
+    }
+
+    const created = await prisma.promotion.create({
+      data: {
+        storeId,
+        title: payload.title.trim(),
+        subtitle: payload.subtitle.trim(),
+        ctaText: payload.ctaText || 'Order now',
+        ctaLink: payload.ctaLink || null,
+        bgColor: payload.bgColor || '#FF5A5F',
+        image: payload.image || null,
+        discountType: payload.discountType || null,
+        discountValue: payload.discountValue === '' || payload.discountValue === undefined ? null : Number(payload.discountValue),
+        minOrderValue: payload.minOrderValue === '' || payload.minOrderValue === undefined ? null : Number(payload.minOrderValue),
+        usageLimit: payload.usageLimit === '' || payload.usageLimit === undefined ? null : Number(payload.usageLimit),
+        active: payload.active !== undefined ? !!payload.active : true,
+        startsAt: payload.startsAt ? new Date(payload.startsAt) : null,
+        endsAt: payload.endsAt ? new Date(payload.endsAt) : null,
+      },
+    });
+
+    res.status(201).json(created);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/merchant/promotions/:id', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const promo = await prisma.promotion.findUnique({ where: { id: req.params.id } });
+    if (!promo || promo.storeId !== storeId) return res.status(404).json({ error: 'Promotion not found' });
+
+    const payload = req.body || {};
+    const updated = await prisma.promotion.update({
+      where: { id: req.params.id },
+      data: {
+        title: payload.title,
+        subtitle: payload.subtitle,
+        ctaText: payload.ctaText,
+        ctaLink: payload.ctaLink,
+        bgColor: payload.bgColor,
+        image: payload.image,
+        discountType: payload.discountType,
+        discountValue: payload.discountValue === '' ? null : (payload.discountValue === undefined ? undefined : Number(payload.discountValue)),
+        minOrderValue: payload.minOrderValue === '' ? null : (payload.minOrderValue === undefined ? undefined : Number(payload.minOrderValue)),
+        usageLimit: payload.usageLimit === '' ? null : (payload.usageLimit === undefined ? undefined : Number(payload.usageLimit)),
+        active: payload.active,
+        startsAt: payload.startsAt === undefined ? undefined : (payload.startsAt ? new Date(payload.startsAt) : null),
+        endsAt: payload.endsAt === undefined ? undefined : (payload.endsAt ? new Date(payload.endsAt) : null),
+      },
+    });
+
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/merchant/promotions/:id', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const promo = await prisma.promotion.findUnique({ where: { id: req.params.id } });
+    if (!promo || promo.storeId !== storeId) return res.status(404).json({ error: 'Promotion not found' });
+
+    await prisma.promotion.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const ledger = await readAccountingPayoutLedger();
+    const merchantRows = ledger
+      .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const summary = {
+      grossSales: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      netEarnings: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      commissions: 0,
+      discounts: 0,
+      refunds: 0,
+      payoutDue: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+    };
+
+    res.json({ summary, settlements: merchantRows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { from, to } = req.query;
+    const where = { storeId };
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    }
+
+    const orders = await prisma.order.findMany({ where, include: { items: { include: { product: true } } } });
+    const delivered = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.DELIVERED);
+    const cancelled = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
+    const grossSales = delivered.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const avgOrderValue = delivered.length ? grossSales / delivered.length : 0;
+
+    const productPerfMap = {};
+    for (const order of delivered) {
+      for (const item of order.items || []) {
+        const key = item.product?.name || item.productId;
+        if (!productPerfMap[key]) productPerfMap[key] = { name: key, qty: 0, revenue: 0 };
+        productPerfMap[key].qty += Number(item.quantity || 0);
+        productPerfMap[key].revenue += Number(item.price || 0) * Number(item.quantity || 0);
+      }
+    }
+
+    const dailyMap = {};
+    for (const order of delivered) {
+      const day = new Date(order.createdAt).toISOString().slice(0, 10);
+      dailyMap[day] = (dailyMap[day] || 0) + Number(order.total || 0);
+    }
+
+    res.json({
+      summary: {
+        totalOrders: orders.length,
+        deliveredOrders: delivered.length,
+        cancelledOrders: cancelled.length,
+        acceptanceRate: orders.length ? (((orders.length - cancelled.length) / orders.length) * 100).toFixed(1) : '0',
+        cancellationRate: orders.length ? ((cancelled.length / orders.length) * 100).toFixed(1) : '0',
+        grossSales,
+        avgOrderValue,
+      },
+      salesOverTime: Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total })),
+      topProducts: Object.values(productPerfMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/reviews', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { rating, from, to } = req.query;
+    const where = {
+      storeId,
+      rating: { not: null },
+    };
+    if (rating) where.rating = Number(rating);
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    }
+
+    const reviews = await prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderNumber: true,
+        rating: true,
+        ratingComment: true,
+        merchantResponse: true,
+        createdAt: true,
+        customer: { select: { name: true } },
+      },
+    });
+
+    res.json(reviews);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/merchant/reviews/:orderId/respond', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { response } = req.body;
+    if (!response?.trim()) return res.status(400).json({ error: 'response is required' });
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.orderId } });
+    if (!order || order.storeId !== storeId) return res.status(404).json({ error: 'Review not found' });
+
+    const updated = await prisma.order.update({
+      where: { id: req.params.orderId },
+      data: { merchantResponse: response.trim() },
+      select: { id: true, merchantResponse: true },
+    });
+
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/support-tickets', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const tickets = await prisma.supportTicket.findMany({
+      where: { storeId },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(tickets);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/merchant/support-tickets', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const storeId = await resolveMerchantStoreIdForUser(req.user);
+    if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
+
+    const { subject, description, category = 'GENERAL', priority = 'NORMAL', attachmentUrls } = req.body;
+    if (!subject?.trim() || !description?.trim()) {
+      return res.status(400).json({ error: 'subject and description are required' });
+    }
+
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        storeId,
+        merchantId: req.user.id,
+        subject: subject.trim(),
+        description: description.trim(),
+        category,
+        priority,
+        status: 'OPEN',
+        attachmentUrls: attachmentUrls ? JSON.stringify(attachmentUrls) : null,
+      },
+    });
+
+    res.status(201).json(ticket);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/merchant/notifications', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const notifications = await prisma.notification.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    res.json(notifications);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/merchant/notifications/:id/read', authMiddleware, roleMiddleware('MERCHANT'), async (req, res) => {
+  try {
+    const existing = await prisma.notification.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.userId !== req.user.id) return res.status(404).json({ error: 'Notification not found' });
+
+    const updated = await prisma.notification.update({
+      where: { id: req.params.id },
+      data: { readAt: new Date() },
+    });
+    res.json(updated);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const startServer = async () => {
   try {
     await initDB();

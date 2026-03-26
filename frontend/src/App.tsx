@@ -20,9 +20,17 @@ import { Login } from './pages/Login';
 import { CustomerLogin } from './pages/CustomerLogin';
 import { MerchantLogin } from './pages/MerchantLogin';
 import { MerchantLayout } from './components/layout/MerchantLayout';
+import { MerchantDashboard } from './pages/merchant/MerchantDashboard';
 import { MerchantOrders } from './pages/merchant/MerchantOrders';
 import { MerchantProducts } from './pages/merchant/MerchantProducts';
 import { MerchantProfile } from './pages/merchant/MerchantProfile';
+import { MerchantInventory } from './pages/merchant/MerchantInventory';
+import { MerchantPromotions } from './pages/merchant/MerchantPromotions';
+import { MerchantReports } from './pages/merchant/MerchantReports';
+import { MerchantPayouts } from './pages/merchant/MerchantPayouts';
+import { MerchantReviews } from './pages/merchant/MerchantReviews';
+import { MerchantSupport } from './pages/merchant/MerchantSupport';
+import { MerchantSettings } from './pages/merchant/MerchantSettings';
 import { CustomerProfile } from './pages/CustomerProfile';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './context/ToastContext';
@@ -139,9 +147,54 @@ function App() {
                   <MerchantLayout><MerchantOrders /></MerchantLayout>
                 </ProtectedRoute>
               } />
+              <Route path="/merchant/dashboard" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantDashboard /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/orders" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantOrders /></MerchantLayout>
+                </ProtectedRoute>
+              } />
               <Route path="/merchant/products" element={
                 <ProtectedRoute allowedRoles={['MERCHANT']}>
                   <MerchantLayout><MerchantProducts /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/inventory" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantInventory /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/promotions" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantPromotions /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/reports" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantReports /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/payouts" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantPayouts /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/reviews" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantReviews /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/support" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantSupport /></MerchantLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/merchant/settings" element={
+                <ProtectedRoute allowedRoles={['MERCHANT']}>
+                  <MerchantLayout><MerchantSettings /></MerchantLayout>
                 </ProtectedRoute>
               } />
               <Route path="/merchant/profile" element={
