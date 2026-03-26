@@ -29,6 +29,8 @@ model User {
   driver      Driver?
   auditLogs   AdminAuditLog[] @relation("AdminAuditLogs")
   orderNotes  OrderNote[]     @relation("OrderNoteAdmin")
+  notifications Notification[]
+  broadcastsSent BroadcastCampaign[] @relation("BroadcastCreatedBy")
 
   @@index([storeId])
   @@index([role])
@@ -51,11 +53,47 @@ model Store {
   owner       User      @relation("StoreOwner", fields: [ownerId], references: [id])
   products    Product[]
   orders      Order[]
+  zoneLinks   DeliveryZoneStore[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([ownerId])
   @@index([category])
+}
+
+model DeliveryZone {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String?
+  isActive            Boolean  @default(true)
+  priority            Int      @default(100)
+  minOrderValue       Float?
+  baseDeliveryFee     Float    @default(0)
+  perKmFee            Float?
+  maxRadiusKm         Float?
+  estimatedMinMinutes Int?
+  estimatedMaxMinutes Int?
+  polygon             String?  // JSON coordinates array
+  metadata            String?  // JSON object with extra rule fields
+  stores              DeliveryZoneStore[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([priority])
+}
+
+model DeliveryZoneStore {
+  id        String       @id @default(uuid())
+  zoneId    String
+  storeId   String
+  zone      DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  store     Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([zoneId, storeId])
+  @@index([zoneId])
+  @@index([storeId])
 }
 
 model Product {
@@ -165,6 +203,45 @@ model Promotion {
   endsAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+model BroadcastCampaign {
+  id            String         @id @default(uuid())
+  createdById   String
+  title         String
+  message       String
+  channel       String         @default("IN_APP")
+  audience      String         // ALL | CUSTOMERS | MERCHANTS | DRIVERS | USER_IDS
+  audienceMeta  String?        // JSON metadata (filters / selected ids)
+  status        String         @default("SENT")
+  sentCount     Int            @default(0)
+  failedCount   Int            @default(0)
+  createdBy     User           @relation("BroadcastCreatedBy", fields: [createdById], references: [id])
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+
+  @@index([createdById])
+  @@index([audience])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String            @id @default(uuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    BroadcastCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  title       String
+  message     String
+  channel     String            @default("IN_APP")
+  status      String            @default("SENT")
+  readAt      DateTime?
+  metadata    String?           // JSON string
+  createdAt   DateTime          @default(now())
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([createdAt])
 }
 
 // ─── Admin Audit Log ─────────────────────────────────────────────────────────

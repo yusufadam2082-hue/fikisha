@@ -3297,6 +3297,338 @@ app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), 
   }
 });
 
+// ── Admin: Delivery zones & rule controls ───────────────────────────────────
+app.get('/api/admin/zones', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const zones = await prisma.deliveryZone.findMany({
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+      include: {
+        stores: {
+          include: {
+            store: { select: { id: true, name: true, category: true, isActive: true, isOpen: true } },
+          },
+        },
+      },
+    });
+    res.json(zones);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/zones', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      isActive = true,
+      priority = 100,
+      minOrderValue,
+      baseDeliveryFee = 0,
+      perKmFee,
+      maxRadiusKm,
+      estimatedMinMinutes,
+      estimatedMaxMinutes,
+      polygon,
+      metadata,
+      storeIds = [],
+    } = req.body;
+
+    if (!name?.trim()) return res.status(400).json({ error: 'Zone name is required' });
+
+    const zone = await prisma.deliveryZone.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null,
+        isActive: !!isActive,
+        priority: Number(priority) || 100,
+        minOrderValue: minOrderValue === undefined || minOrderValue === null || minOrderValue === '' ? null : Number(minOrderValue),
+        baseDeliveryFee: Number(baseDeliveryFee) || 0,
+        perKmFee: perKmFee === undefined || perKmFee === null || perKmFee === '' ? null : Number(perKmFee),
+        maxRadiusKm: maxRadiusKm === undefined || maxRadiusKm === null || maxRadiusKm === '' ? null : Number(maxRadiusKm),
+        estimatedMinMinutes: estimatedMinMinutes ? Number(estimatedMinMinutes) : null,
+        estimatedMaxMinutes: estimatedMaxMinutes ? Number(estimatedMaxMinutes) : null,
+        polygon: polygon ? JSON.stringify(polygon) : null,
+        metadata: metadata ? JSON.stringify(metadata) : null,
+      },
+    });
+
+    if (Array.isArray(storeIds) && storeIds.length > 0) {
+      await prisma.deliveryZoneStore.createMany({
+        data: storeIds.map(storeId => ({ zoneId: zone.id, storeId })),
+      });
+    }
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'ZONE_CREATED',
+      entityType: 'SYSTEM',
+      entityId: zone.id,
+      after: { name: zone.name, priority: zone.priority, storeCount: storeIds.length },
+      note: `Zone created: ${zone.name}`,
+      req,
+    });
+
+    const fresh = await prisma.deliveryZone.findUnique({
+      where: { id: zone.id },
+      include: {
+        stores: {
+          include: { store: { select: { id: true, name: true, category: true, isActive: true, isOpen: true } } },
+        },
+      },
+    });
+
+    res.status(201).json(fresh);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/zones/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const zoneId = req.params.id;
+    const existing = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
+    if (!existing) return res.status(404).json({ error: 'Zone not found' });
+
+    const {
+      name,
+      description,
+      isActive,
+      priority,
+      minOrderValue,
+      baseDeliveryFee,
+      perKmFee,
+      maxRadiusKm,
+      estimatedMinMinutes,
+      estimatedMaxMinutes,
+      polygon,
+      metadata,
+    } = req.body;
+
+    const updated = await prisma.deliveryZone.update({
+      where: { id: zoneId },
+      data: {
+        name: name === undefined ? existing.name : (name?.trim() || existing.name),
+        description: description === undefined ? existing.description : (description?.trim() || null),
+        isActive: isActive === undefined ? existing.isActive : !!isActive,
+        priority: priority === undefined ? existing.priority : Number(priority),
+        minOrderValue: minOrderValue === undefined ? existing.minOrderValue : (minOrderValue === '' || minOrderValue === null ? null : Number(minOrderValue)),
+        baseDeliveryFee: baseDeliveryFee === undefined ? existing.baseDeliveryFee : Number(baseDeliveryFee),
+        perKmFee: perKmFee === undefined ? existing.perKmFee : (perKmFee === '' || perKmFee === null ? null : Number(perKmFee)),
+        maxRadiusKm: maxRadiusKm === undefined ? existing.maxRadiusKm : (maxRadiusKm === '' || maxRadiusKm === null ? null : Number(maxRadiusKm)),
+        estimatedMinMinutes: estimatedMinMinutes === undefined ? existing.estimatedMinMinutes : (estimatedMinMinutes ? Number(estimatedMinMinutes) : null),
+        estimatedMaxMinutes: estimatedMaxMinutes === undefined ? existing.estimatedMaxMinutes : (estimatedMaxMinutes ? Number(estimatedMaxMinutes) : null),
+        polygon: polygon === undefined ? existing.polygon : (polygon ? JSON.stringify(polygon) : null),
+        metadata: metadata === undefined ? existing.metadata : (metadata ? JSON.stringify(metadata) : null),
+      },
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'ZONE_UPDATED',
+      entityType: 'SYSTEM',
+      entityId: zoneId,
+      before: { name: existing.name, isActive: existing.isActive, priority: existing.priority },
+      after: { name: updated.name, isActive: updated.isActive, priority: updated.priority },
+      note: `Zone updated: ${updated.name}`,
+      req,
+    });
+
+    const fresh = await prisma.deliveryZone.findUnique({
+      where: { id: zoneId },
+      include: {
+        stores: {
+          include: { store: { select: { id: true, name: true, category: true, isActive: true, isOpen: true } } },
+        },
+      },
+    });
+    res.json(fresh);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/zones/:id/stores', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const zoneId = req.params.id;
+    const { storeIds = [] } = req.body;
+    const zone = await prisma.deliveryZone.findUnique({ where: { id: zoneId } });
+    if (!zone) return res.status(404).json({ error: 'Zone not found' });
+    if (!Array.isArray(storeIds)) return res.status(400).json({ error: 'storeIds must be an array' });
+
+    await prisma.$transaction([
+      prisma.deliveryZoneStore.deleteMany({ where: { zoneId } }),
+      ...(storeIds.length > 0 ? [prisma.deliveryZoneStore.createMany({ data: storeIds.map(storeId => ({ zoneId, storeId })) })] : []),
+    ]);
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'ZONE_STORES_UPDATED',
+      entityType: 'SYSTEM',
+      entityId: zoneId,
+      after: { storeCount: storeIds.length },
+      note: `Zone stores updated: ${zone.name}`,
+      req,
+    });
+
+    const fresh = await prisma.deliveryZone.findUnique({
+      where: { id: zoneId },
+      include: {
+        stores: {
+          include: { store: { select: { id: true, name: true, category: true, isActive: true, isOpen: true } } },
+        },
+      },
+    });
+
+    res.json(fresh);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/zones/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const zone = await prisma.deliveryZone.findUnique({ where: { id: req.params.id } });
+    if (!zone) return res.status(404).json({ error: 'Zone not found' });
+
+    await prisma.deliveryZone.delete({ where: { id: req.params.id } });
+    await auditLog({
+      adminId: req.user.id,
+      action: 'ZONE_DELETED',
+      entityType: 'SYSTEM',
+      entityId: zone.id,
+      before: { name: zone.name, isActive: zone.isActive },
+      note: `Zone deleted: ${zone.name}`,
+      req,
+    });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Admin: Broadcast notifications ───────────────────────────────────────────
+app.get('/api/admin/notifications/audience-stats', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const [customers, stores, drivers, totalUsers] = await Promise.all([
+      prisma.user.count({ where: { role: 'CUSTOMER', banned: false } }),
+      prisma.user.count({ where: { role: 'MERCHANT', banned: false } }),
+      prisma.user.count({ where: { role: 'DRIVER', banned: false } }),
+      prisma.user.count({ where: { banned: false } }),
+    ]);
+    res.json({ customers, stores, drivers, totalUsers });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/notifications/campaigns', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { page = 1, limit = 30 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [campaigns, total] = await Promise.all([
+      prisma.broadcastCampaign.findMany({
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          createdBy: { select: { id: true, name: true, username: true } },
+          _count: { select: { notifications: true } },
+        },
+      }),
+      prisma.broadcastCampaign.count(),
+    ]);
+
+    res.json({ campaigns, total, pages: Math.ceil(total / parseInt(limit)), page: parseInt(page) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/notifications/broadcast', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const {
+      title,
+      message,
+      audience = 'ALL',
+      channel = 'IN_APP',
+      userIds = [],
+      storeIds = [],
+      metadata,
+    } = req.body;
+
+    if (!title?.trim() || !message?.trim()) {
+      return res.status(400).json({ error: 'title and message are required' });
+    }
+
+    let where = { banned: false };
+    if (audience === 'CUSTOMERS') where = { ...where, role: 'CUSTOMER' };
+    if (audience === 'STORES') where = { ...where, role: 'MERCHANT' };
+    if (audience === 'DRIVERS') where = { ...where, role: 'DRIVER' };
+    if (audience === 'USER_IDS') where = { ...where, id: { in: Array.isArray(userIds) ? userIds : [] } };
+    if (audience === 'STORE_IDS') where = { ...where, role: 'MERCHANT', storeId: { in: Array.isArray(storeIds) ? storeIds : [] } };
+
+    const recipients = await prisma.user.findMany({
+      where,
+      select: { id: true, role: true, name: true, username: true },
+    });
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ error: 'No recipients matched the selected audience' });
+    }
+
+    const campaign = await prisma.broadcastCampaign.create({
+      data: {
+        createdById: req.user.id,
+        title: title.trim(),
+        message: message.trim(),
+        channel,
+        audience,
+        audienceMeta: JSON.stringify({ userIds, storeIds }),
+        status: 'SENT',
+      },
+    });
+
+    await prisma.notification.createMany({
+      data: recipients.map(r => ({
+        userId: r.id,
+        campaignId: campaign.id,
+        title: title.trim(),
+        message: message.trim(),
+        channel,
+        status: 'SENT',
+        metadata: metadata ? JSON.stringify(metadata) : null,
+      })),
+    });
+
+    await prisma.broadcastCampaign.update({
+      where: { id: campaign.id },
+      data: { sentCount: recipients.length, failedCount: 0 },
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'BROADCAST_SENT',
+      entityType: 'SYSTEM',
+      entityId: campaign.id,
+      after: { audience, sentCount: recipients.length, channel },
+      note: `Broadcast sent: ${title.trim()}`,
+      req,
+    });
+
+    res.status(201).json({
+      campaignId: campaign.id,
+      sentCount: recipients.length,
+      audience,
+      sampleRecipients: recipients.slice(0, 5),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const startServer = async () => {
   try {
     await initDB();

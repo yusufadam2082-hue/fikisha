@@ -16,6 +16,8 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
+import MapIcon from '@mui/icons-material/Map';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Stores from './pages/Stores';
@@ -28,6 +30,8 @@ import Orders from './pages/Orders';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
 import Settings from './pages/Settings';
+import Zones from './pages/Zones';
+import Notifications from './pages/Notifications';
 import { useAuth } from './context/AuthContext';
 
 const DRAWER_WIDTH = 240;
@@ -41,6 +45,7 @@ const navSections = [
       { text: 'Stores',      icon: <StoreIcon />,                 link: '/stores'    },
       { text: 'Drivers',     icon: <DirectionsCarIcon />,         link: '/drivers'   },
       { text: 'Customers',   icon: <PeopleIcon />,                link: '/customers' },
+      { text: 'Zones',       icon: <MapIcon />,                   link: '/zones'     },
     ],
   },
   {
@@ -54,6 +59,7 @@ const navSections = [
     label: 'Marketing',
     items: [
       { text: 'Promotions',  icon: <CampaignIcon />,              link: '/promotions'},
+      { text: 'Broadcasts',  icon: <NotificationsIcon />,         link: '/notifications'},
     ],
   },
   {
@@ -145,7 +151,9 @@ function App() {
           <Route path="/stores"     element={<Stores />} />
           <Route path="/customers"  element={<Customers />} />
           <Route path="/drivers"    element={<DriverManager />} />
+          <Route path="/zones"      element={<Zones />} />
           <Route path="/promotions" element={<Promotions />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/accounting" element={<Accounting />} />
           <Route path="/reports"    element={<Reports />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
