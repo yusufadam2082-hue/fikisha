@@ -5097,6 +5097,57 @@ app.post('/api/admin/notifications/broadcast', authMiddleware, roleMiddleware('A
   }
 });
 
+app.get('/api/admin/support-tickets', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+    const status = String(req.query.status || '').trim().toUpperCase();
+
+    const where = {};
+    if (status && status !== 'ALL') where.status = status;
+
+    const [total, tickets] = await Promise.all([
+      prisma.supportTicket.count({ where }),
+      prisma.supportTicket.findMany({
+        where,
+        include: {
+          store: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const merchantIds = [...new Set(tickets.map((t) => t.merchantId).filter(Boolean))];
+    const merchants = merchantIds.length
+      ? await prisma.user.findMany({
+        where: { id: { in: merchantIds } },
+        select: { id: true, name: true, username: true },
+      })
+      : [];
+    const merchantMap = merchants.reduce((acc, merchant) => {
+      acc[merchant.id] = merchant;
+      return acc;
+    }, {});
+
+    const enriched = tickets.map((ticket) => ({
+      ...ticket,
+      merchant: ticket.merchantId ? (merchantMap[ticket.merchantId] || null) : null,
+    }));
+
+    res.json({
+      tickets: enriched,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      total,
+      limit,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MERCHANT PORTAL UPGRADE ENDPOINTS (additive + backward-compatible)
 // ═══════════════════════════════════════════════════════════════════════════════
