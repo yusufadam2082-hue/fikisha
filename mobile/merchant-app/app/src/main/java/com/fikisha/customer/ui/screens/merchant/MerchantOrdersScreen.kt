@@ -223,8 +223,8 @@ fun MerchantOrdersScreen(
     }
 
     LaunchedEffect(message) {
-        if (!message.isNullOrBlank()) {
-            snackbarHostState.showSnackbar(message!!)
+        message?.takeIf { it.isNotBlank() }?.let {
+            snackbarHostState.showSnackbar(it)
             viewModel.clearMessage()
         }
     }

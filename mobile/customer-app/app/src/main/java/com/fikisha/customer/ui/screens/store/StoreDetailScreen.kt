@@ -95,6 +95,7 @@ fun StoreDetailScreen(
     onCartClick: () -> Unit
 ) {
     val store by viewModel.store.collectAsState()
+    val currentStore = store
     val cartItems by viewModel.cartItems.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val cartCount = viewModel.getCartCount()
@@ -147,7 +148,7 @@ fun StoreDetailScreen(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (store != null) {
+        } else if (currentStore != null) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -161,8 +162,8 @@ fun StoreDetailScreen(
                             .height(200.dp)
                     ) {
                         AsyncImage(
-                            model = store!!.image,
-                            contentDescription = store!!.name,
+                            model = currentStore.image,
+                            contentDescription = currentStore.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
@@ -175,7 +176,7 @@ fun StoreDetailScreen(
                                 modifier = Modifier.align(Alignment.BottomStart)
                             ) {
                                 Text(
-                                    text = store!!.name,
+                                    text = currentStore.name,
                                     style = MaterialTheme.typography.headlineMedium,
                                     color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold
@@ -189,12 +190,12 @@ fun StoreDetailScreen(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "${store!!.rating}",
+                                        text = "${currentStore.rating}",
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Text(
-                                        text = store!!.time,
+                                        text = currentStore.time,
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
@@ -206,7 +207,7 @@ fun StoreDetailScreen(
                 item {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = store!!.description,
+                            text = currentStore.description,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -221,18 +222,18 @@ fun StoreDetailScreen(
                     }
                 }
 
-                items(store!!.products.filter { it.available }) { product ->
+                items(currentStore.products.filter { it.available }) { product ->
                     ProductCard(
                         product = product,
                         quantity = viewModel.getCartQuantity(product.id),
                         onAdd = {
                             val currentStoreId = cartItems.firstOrNull()?.storeId
-                            val targetStoreId = product.storeId ?: store!!.id
+                            val targetStoreId = product.storeId ?: currentStore.id
 
                             if (currentStoreId != null && currentStoreId != targetStoreId) {
                                 pendingCrossStoreProduct = product
                             } else {
-                                viewModel.addToCart(product, store!!.id)
+                                viewModel.addToCart(product, currentStore.id)
                             }
                         },
                         onRemove = { viewModel.removeFromCart(product.id) }
@@ -253,9 +254,9 @@ fun StoreDetailScreen(
                         onClick = {
                             val product = pendingCrossStoreProduct
                             pendingCrossStoreProduct = null
-                            if (product != null && store != null) {
+                            if (product != null && currentStore != null) {
                                 viewModel.clearCart()
-                                viewModel.addToCart(product, store!!.id)
+                                viewModel.addToCart(product, currentStore.id)
                             }
                         }
                     ) {

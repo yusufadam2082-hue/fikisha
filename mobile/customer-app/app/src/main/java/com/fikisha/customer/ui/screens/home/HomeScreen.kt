@@ -404,7 +404,7 @@ fun HomeScreen(
                 // Active order banner
                 if (activeOrder != null) {
                     item {
-                        val order = activeOrder!!
+                        val order = activeOrder ?: return@item
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
