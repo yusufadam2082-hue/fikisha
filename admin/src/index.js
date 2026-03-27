@@ -7,7 +7,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
 
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
 
 const theme = createTheme({
   palette: {
