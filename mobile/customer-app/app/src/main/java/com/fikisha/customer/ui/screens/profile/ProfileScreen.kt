@@ -28,6 +28,11 @@ import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -102,6 +107,8 @@ class ProfileViewModel : ViewModel() {
 fun ProfileScreen(
     viewModel: ProfileViewModel = viewModel(),
     onBackClick: () -> Unit,
+    onHomeClick: () -> Unit = {},
+    onOrdersClick: () -> Unit = {},
     onEditProfileClick: () -> Unit,
     onAddressesClick: () -> Unit,
     onPaymentsClick: () -> Unit,
@@ -151,6 +158,41 @@ fun ProfileScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp
+            ) {
+                val itemColors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                    label = { Text("Home") },
+                    selected = false,
+                    onClick = onHomeClick,
+                    colors = itemColors
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Receipt, contentDescription = "Orders") },
+                    label = { Text("Orders") },
+                    selected = false,
+                    onClick = onOrdersClick,
+                    colors = itemColors
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") },
+                    selected = true,
+                    onClick = {},
+                    colors = itemColors
+                )
+            }
         }
     ) { padding ->
         LazyColumn(

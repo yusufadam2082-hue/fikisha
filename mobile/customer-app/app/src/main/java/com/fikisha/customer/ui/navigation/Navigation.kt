@@ -26,12 +26,14 @@ import com.fikisha.customer.ui.screens.info.PrivacyScreen
 import com.fikisha.customer.ui.screens.info.SavedAddressesScreen
 import com.fikisha.customer.ui.screens.info.TermsScreen
 import com.fikisha.customer.ui.screens.login.LoginScreen
+import com.fikisha.customer.ui.screens.location.LocationSelectorScreen
 import com.fikisha.customer.ui.screens.order.OrderReceiptScreen
 import com.fikisha.customer.ui.screens.order.OrderTrackingScreen
 import com.fikisha.customer.ui.screens.orders.OrdersScreen
 import com.fikisha.customer.ui.screens.profile.ProfileScreen
 import com.fikisha.customer.ui.screens.store.StoreDetailScreen
 import com.fikisha.customer.ui.viewmodel.AuthViewModel
+import com.fikisha.customer.ui.viewmodel.LocationViewModel
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -40,6 +42,7 @@ sealed class Screen(val route: String) {
         fun createRoute(storeId: String) = "store/$storeId"
     }
     object Cart : Screen("cart")
+    object LocationSelector : Screen("location-selector")
     object OrderTracking : Screen("order/{orderId}") {
         fun createRoute(orderId: String) = "order/$orderId"
     }
@@ -62,6 +65,7 @@ sealed class Screen(val route: String) {
 fun FikishaNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val locationViewModel: LocationViewModel = viewModel()
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
     val isCheckingAuth by authViewModel.isCheckingAuth.collectAsState()
 
@@ -98,6 +102,7 @@ fun FikishaNavigation() {
 
         composable(Screen.Home.route) {
             HomeScreen(
+                locationViewModel = locationViewModel,
                 onStoreClick = { storeId ->
                     navController.navigate(Screen.StoreDetail.createRoute(storeId))
                 },
@@ -109,6 +114,22 @@ fun FikishaNavigation() {
                 },
                 onProfileClick = {
                     navController.navigate(Screen.Profile.route)
+                },
+                onLocationClick = {
+                    navController.navigate(Screen.LocationSelector.route)
+                },
+                onActiveOrderClick = { orderId ->
+                    navController.navigate(Screen.OrderTracking.createRoute(orderId))
+                }
+            )
+        }
+
+        composable(Screen.LocationSelector.route) {
+            LocationSelectorScreen(
+                viewModel = locationViewModel,
+                onBackClick = { navController.popBackStack() },
+                onLocationConfirmed = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -178,6 +199,9 @@ fun FikishaNavigation() {
                 },
                 onReceiptClick = { orderId ->
                     navController.navigate(Screen.OrderReceipt.createRoute(orderId))
+                },
+                onCartClick = {
+                    navController.navigate(Screen.Cart.route)
                 }
             )
         }
@@ -196,6 +220,16 @@ fun FikishaNavigation() {
         composable(Screen.Profile.route) {
             ProfileScreen(
                 onBackClick = { navController.popBackStack() },
+                onHomeClick = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onOrdersClick = {
+                    navController.navigate(Screen.Orders.route) {
+                        popUpTo(Screen.Orders.route) { inclusive = true }
+                    }
+                },
                 onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
                 onAddressesClick = { navController.navigate(Screen.SavedAddresses.route) },
                 onPaymentsClick = { navController.navigate(Screen.PaymentMethods.route) },

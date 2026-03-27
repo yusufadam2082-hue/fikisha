@@ -14,6 +14,7 @@ data class Store(
     @SerializedName("address") val address: String?,
     @SerializedName("phone") val phone: String?,
     @SerializedName("isOpen") val isOpen: Boolean,
+    @SerializedName("isActive") val isActive: Boolean = true,
     @SerializedName("products") val products: List<Product> = emptyList()
 )
 
@@ -89,7 +90,10 @@ data class DeliveryAddress(
     @SerializedName("label") val label: String? = null,
     @SerializedName("address") val address: String? = null,
     @SerializedName("street") val street: String? = null,
-    @SerializedName("city") val city: String? = null
+    @SerializedName("city") val city: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("source") val source: String? = null
 )
 
 data class OrderItem(
@@ -130,8 +134,24 @@ data class LoginResponse(
 data class CreateOrderRequest(
     val storeId: String,
     val items: List<CartItemRequest>,
-    val deliveryAddress: String,
-    val customerInfo: String
+    val deliveryAddress: CreateOrderDeliveryAddress? = null,
+    val customerInfo: CreateOrderCustomerInfo,
+    val notes: String? = null
+)
+
+data class CreateOrderCustomerInfo(
+    val name: String,
+    val phone: String? = null,
+    val address: String? = null,
+    val paymentMethod: String? = null
+)
+
+data class CreateOrderDeliveryAddress(
+    val address: String,
+    val label: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val source: String? = null
 )
 
 data class CartItemRequest(

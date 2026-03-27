@@ -26,6 +26,14 @@ interface ApiService {
     @GET("api/products/store/{storeId}")
     suspend fun getProductsByStore(@Path("storeId") storeId: String): Response<List<Product>>
 
+    @GET("api/delivery/quote")
+    suspend fun getDeliveryQuote(
+        @Query("storeId") storeId: String,
+        @Query("lat") latitude: Double,
+        @Query("lng") longitude: Double,
+        @Query("orderTotal") orderTotal: Double
+    ): Response<DeliveryQuote>
+
     @POST("api/orders")
     suspend fun createOrder(@Body request: CreateOrderRequest): Response<Order>
 

@@ -1,13 +1,15 @@
-import { Search, ShoppingBag, LogOut, User } from 'lucide-react';
+import { Search, ShoppingBag, LogOut, User, MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSearch } from '../../context/SearchContext';
+import { useLocation } from '../../context/LocationContext';
 
 export function Navbar() {
   const { items, setIsCartOpen } = useCart();
   const { user, logout } = useAuth();
   const { searchQuery, setSearchQuery, searchInputRef } = useSearch();
+  const { activeLocation, openLocationSelector } = useLocation();
   const navigate = useNavigate();
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const homeByRole = user?.role === 'ADMIN'
@@ -32,10 +34,33 @@ export function Navbar() {
   return (
     <nav className="glass hidden-scroll" style={{ position: 'sticky', top: 0, zIndex: 100, borderBottom: '1px solid var(--border)' }}>
       <div className="container flex-between nav-header-mobile" style={{ height: '72px' }}>
-        <div className="flex-center" style={{ gap: '24px' }}>
+        <div className="flex-center" style={{ gap: '16px' }}>
           <Link to={homeByRole} className="text-h2" style={{ color: 'var(--primary)', letterSpacing: '-1px', fontSize: '2.0rem' }}>
             fikisha.
           </Link>
+          {user?.role === 'CUSTOMER' && (
+            <button
+              type="button"
+              onClick={openLocationSelector}
+              title="Set delivery location"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '6px 12px', borderRadius: 'var(--radius-pill)',
+                border: '1px solid var(--border)', background: 'var(--surface)',
+                color: activeLocation ? 'var(--primary)' : 'var(--text-muted)',
+                fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
+                maxWidth: '200px', overflow: 'hidden',
+                transition: 'border-color 0.2s, color 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+            >
+              <MapPin size={14} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeLocation ? activeLocation.label : 'Set location'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Mobile-only top-row actions: shown only on small screens */}

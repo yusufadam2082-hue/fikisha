@@ -4765,6 +4765,183 @@ app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), 
   }
 });
 
+const normalizePolygonCoordinates = (rawPolygon) => {
+  if (!rawPolygon) return [];
+
+  const parsed = typeof rawPolygon === 'string' ? parseJsonField(rawPolygon, null) : rawPolygon;
+  if (!parsed) return [];
+
+  const source = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed.coordinates) ? parsed.coordinates : []);
+
+  return source
+    .map((point) => {
+      if (Array.isArray(point) && point.length >= 2) {
+        const lat = Number(point[0]);
+        const lng = Number(point[1]);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          return { latitude: lat, longitude: lng };
+        }
+      }
+
+      return parseCoordinatePair(point);
+    })
+    .filter(Boolean);
+};
+
+const pointInPolygon = (point, polygon) => {
+  if (!point || !Array.isArray(polygon) || polygon.length < 3) {
+    return false;
+  }
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].longitude;
+    const yi = polygon[i].latitude;
+    const xj = polygon[j].longitude;
+    const yj = polygon[j].latitude;
+
+    const intersects = ((yi > point.latitude) !== (yj > point.latitude))
+      && (point.longitude < ((xj - xi) * (point.latitude - yi)) / ((yj - yi) || 1e-9) + xi);
+
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+};
+
+const resolveStoreCoordinatesFromZone = (store, zone) => {
+  const parsed = parseJsonField(zone?.metadata, null) || {};
+  const map = parsed.storeCoordinates || parsed.storeCoords || {};
+  return (
+    parseCoordinatePair(map?.[store.id])
+    || parseCoordinatePair(store?.address)
+    || null
+  );
+};
+
+app.get('/api/delivery/quote', async (req, res) => {
+  try {
+    const storeId = String(req.query.storeId || '').trim();
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const orderTotal = Number(req.query.orderTotal || 0);
+
+    if (!storeId) {
+      return res.status(400).json({ error: 'storeId is required' });
+    }
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      return res.status(400).json({ error: 'Valid lat and lng are required' });
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      include: {
+        zoneLinks: {
+          include: {
+            zone: true
+          }
+        }
+      }
+    });
+
+    if (!store) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    const customerPoint = { latitude: lat, longitude: lng };
+    const activeLinks = (store.zoneLinks || [])
+      .filter((link) => link.zone?.isActive)
+      .sort((a, b) => (a.zone.priority || 100) - (b.zone.priority || 100));
+
+    if (activeLinks.length === 0) {
+      const estimate = estimateEtaFromSignals({ distanceKm: 3, itemCount: 1, status: ORDER_STATUS.PENDING });
+      return res.json({
+        serviceable: true,
+        reason: 'NO_ZONE_RULES',
+        storeId: store.id,
+        zoneId: null,
+        zoneName: null,
+        deliveryFee: Number(store.deliveryFee || 0),
+        etaMinutes: estimate.etaMinutes,
+        etaMinMinutes: estimate.minEta,
+        etaMaxMinutes: estimate.maxEta,
+        distanceKm: null,
+        withinRadius: null,
+        withinPolygon: null,
+        minOrderValue: null,
+        orderValueValid: true
+      });
+    }
+
+    const evaluations = activeLinks.map((link) => {
+      const zone = link.zone;
+      const polygon = normalizePolygonCoordinates(zone.polygon);
+      const zoneStoreCoords = resolveStoreCoordinatesFromZone(store, zone);
+      const distanceKm = zoneStoreCoords ? haversineKm(zoneStoreCoords, customerPoint) : null;
+      const withinPolygon = polygon.length >= 3 ? pointInPolygon(customerPoint, polygon) : null;
+      const withinRadius = zone.maxRadiusKm != null && distanceKm != null
+        ? distanceKm <= Number(zone.maxRadiusKm)
+        : null;
+      const orderValueValid = zone.minOrderValue != null
+        ? orderTotal >= Number(zone.minOrderValue)
+        : true;
+
+      const isServiceable =
+        (withinPolygon == null || withinPolygon === true)
+        && (withinRadius == null || withinRadius === true)
+        && orderValueValid;
+
+      const feeBase = Number(zone.baseDeliveryFee ?? 0);
+      const feePerKm = Number(zone.perKmFee ?? 0);
+      const computedFee = feeBase + (distanceKm != null ? feePerKm * distanceKm : 0);
+
+      let etaMin = zone.estimatedMinMinutes != null ? Number(zone.estimatedMinMinutes) : null;
+      let etaMax = zone.estimatedMaxMinutes != null ? Number(zone.estimatedMaxMinutes) : null;
+      if (etaMin == null || etaMax == null) {
+        const estimate = estimateEtaFromSignals({ distanceKm: distanceKm ?? 3, itemCount: 1, status: ORDER_STATUS.PENDING });
+        etaMin = estimate.minEta;
+        etaMax = estimate.maxEta;
+      }
+
+      return {
+        zone,
+        serviceable: isServiceable,
+        distanceKm,
+        withinPolygon,
+        withinRadius,
+        orderValueValid,
+        deliveryFee: Math.max(0, Number.isFinite(computedFee) ? computedFee : Number(store.deliveryFee || 0)),
+        etaMin,
+        etaMax
+      };
+    });
+
+    const winning = evaluations.find((item) => item.serviceable) || evaluations[0];
+
+    return res.json({
+      serviceable: Boolean(winning.serviceable),
+      reason: winning.serviceable ? 'OK' : 'OUTSIDE_DELIVERY_ZONE',
+      storeId: store.id,
+      zoneId: winning.zone.id,
+      zoneName: winning.zone.name,
+      deliveryFee: Number(winning.deliveryFee.toFixed(2)),
+      etaMinutes: Math.round((Number(winning.etaMin) + Number(winning.etaMax)) / 2),
+      etaMinMinutes: Number(winning.etaMin),
+      etaMaxMinutes: Number(winning.etaMax),
+      distanceKm: winning.distanceKm != null ? Number(winning.distanceKm.toFixed(2)) : null,
+      withinRadius: winning.withinRadius,
+      withinPolygon: winning.withinPolygon,
+      minOrderValue: winning.zone.minOrderValue != null ? Number(winning.zone.minOrderValue) : null,
+      orderValueValid: Boolean(winning.orderValueValid)
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to compute delivery quote' });
+  }
+});
+
 // ── Admin: Delivery zones & rule controls ───────────────────────────────────
 app.get('/api/admin/zones', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {

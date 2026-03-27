@@ -4,12 +4,12 @@ import { useLocation } from '../../context/LocationContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from './Button';
-import { X, Minus, Plus, ShoppingBag, MapPin } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, MapPin, Clock, Navigation } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 
-const DELIVERY_FEE = 1.99;
+const FALLBACK_DELIVERY_FEE = 1.99;
 
 interface StoredPaymentMethod {
   id: string;
@@ -26,7 +26,16 @@ function getAuthHeaders(): HeadersInit {
 
 export function CartModal() {
   const { items, isCartOpen, setIsCartOpen, updateQuantity, total, clearCart } = useCart();
-  const { deliveryAddress, setDeliveryAddress } = useLocation();
+  const {
+    deliveryAddress,
+    setDeliveryAddress,
+    activeLocation,
+    openLocationSelector,
+    deliveryQuote,
+    isFetchingQuote,
+    fetchDeliveryQuote,
+    clearDeliveryQuote,
+  } = useLocation();
   const { user, logout } = useAuth();
   // Issue 25: replace alert() with toast notifications
   const { showToast } = useToast();
@@ -37,19 +46,30 @@ export function CartModal() {
   const [selectedPaymentId, setSelectedPaymentId] = useState('cod');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
+  const deliveryFee = deliveryQuote?.deliveryFee ?? FALLBACK_DELIVERY_FEE;
+
   useEffect(() => {
     if (!isCartOpen) {
       setShowCheckoutConfirm(false);
+      clearDeliveryQuote();
       return;
     }
 
-    setConfirmedAddress(deliveryAddress || '');
+    setConfirmedAddress(activeLocation?.address || deliveryAddress || '');
     const storedPaymentMethods = JSON.parse(localStorage.getItem('fikisha_payment_methods') || '[]') as StoredPaymentMethod[];
     const validStored = Array.isArray(storedPaymentMethods) ? storedPaymentMethods : [];
     setPaymentMethods(validStored);
     const defaultPayment = validStored.find((method) => method.isDefault) || validStored[0];
     setSelectedPaymentId(defaultPayment?.id || 'cod');
-  }, [isCartOpen, deliveryAddress]);
+  }, [isCartOpen, deliveryAddress, activeLocation?.address, clearDeliveryQuote]);
+
+  // Fetch delivery quote when cart opens with an active location and items
+  useEffect(() => {
+    if (!isCartOpen || !activeLocation || items.length === 0) return;
+    const storeId = items[0].storeId;
+    if (!storeId) return;
+    fetchDeliveryQuote(storeId, total).catch(() => {});
+  }, [isCartOpen, activeLocation, total, items, fetchDeliveryQuote]);
 
   const selectedPayment = selectedPaymentId === 'cod'
     ? null
@@ -130,6 +150,13 @@ export function CartModal() {
       return;
     }
 
+    if (!activeLocation) {
+      showToast('Please set a delivery location before placing the order.', 'error');
+      openLocationSelector();
+      setIsCartOpen(false);
+      return;
+    }
+
     if (!confirmedAddress.trim()) {
       showToast('Please confirm your delivery address before placing the order.', 'error');
       return;
@@ -148,7 +175,7 @@ export function CartModal() {
     setDeliveryAddress(confirmedAddress.trim());
 
     const storeId = items[0].storeId;
-    const checkoutTotal = total + DELIVERY_FEE;
+    const checkoutTotal = total + deliveryFee;
     const paymentProvider = getSelectedPaymentProvider();
     let paymentIntentId: string | null = null;
     let paymentAction: { type?: string; url?: string; message?: string } | null = null;
@@ -194,11 +221,32 @@ export function CartModal() {
         }
       }
 
+      // Validate serviceability via delivery quote before submitting
+      if (activeLocation) {
+        const liveQuote = await fetchDeliveryQuote(storeId, total);
+        if (liveQuote && !liveQuote.serviceable) {
+          showToast(
+            liveQuote.minOrderValue && !liveQuote.orderValueValid
+              ? `Minimum order for this zone is ${formatKES(liveQuote.minOrderValue)}.`
+              : 'This store does not deliver to your selected location.',
+            'error'
+          );
+          setIsSubmittingOrder(false);
+          return;
+        }
+      }
+
       const orderData = {
         storeId,
         items,
         total: checkoutTotal,
         paymentIntentId,
+        deliveryAddress: activeLocation ? {
+          address: confirmedAddress.trim(),
+          latitude: activeLocation.latitude,
+          longitude: activeLocation.longitude,
+          source: activeLocation.source,
+        } : undefined,
         customerInfo: {
           name: user.name || user.username || 'Customer',
           address: confirmedAddress.trim(),
@@ -269,12 +317,13 @@ export function CartModal() {
       return;
     }
 
-    if (!deliveryAddress) {
-      showToast('Please add a delivery address in Profile -> Addresses', 'error');
+    if (!activeLocation && !deliveryAddress) {
+      openLocationSelector();
+      setIsCartOpen(false);
       return;
     }
 
-    setConfirmedAddress(deliveryAddress);
+    setConfirmedAddress(activeLocation?.address || deliveryAddress);
     setShowCheckoutConfirm(true);
   };
 
@@ -356,14 +405,60 @@ export function CartModal() {
 
         {items.length > 0 && (
           <div style={{ padding: '24px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+            {/* Location chip */}
+            {!activeLocation ? (
+              <button
+                type="button"
+                onClick={() => { setIsCartOpen(false); openLocationSelector(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                  padding: '10px 14px', marginBottom: '12px',
+                  background: 'rgba(255,90,95,0.06)', border: '1px dashed var(--primary)',
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'var(--primary)',
+                  fontSize: '0.875rem', fontWeight: 500,
+                }}
+              >
+                <Navigation size={15} />
+                Set delivery location to see accurate fee &amp; ETA
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setIsCartOpen(false); openLocationSelector(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                  padding: '8px 12px', marginBottom: '12px',
+                  background: 'var(--surface-hover)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer', textAlign: 'left',
+                  fontSize: '0.8rem',
+                }}
+              >
+                <MapPin size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: 'var(--text-main)' }}>
+                  {activeLocation.label}
+                </span>
+                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Change</span>
+              </button>
+            )}
+
             <div className="flex-between" style={{ marginBottom: '8px' }}>
               <span className="text-body text-muted">Subtotal</span>
               <span className="text-body">{formatKES(total)}</span>
             </div>
-            <div className="flex-between" style={{ marginBottom: '24px' }}>
-              <span className="text-body text-muted">Delivery Fee</span>
-              <span className="text-body">{formatKES(DELIVERY_FEE)}</span>
+            <div className="flex-between" style={{ marginBottom: deliveryQuote?.etaMinutes ? '4px' : '24px' }}>
+              <span className="text-body text-muted">
+                Delivery Fee {isFetchingQuote ? '...' : ''}
+              </span>
+              <span className="text-body">{formatKES(deliveryFee)}</span>
             </div>
+            {deliveryQuote?.etaMinutes && (
+              <div className="flex-between" style={{ marginBottom: '24px' }}>
+                <span className="text-body text-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Clock size={14} /> ETA
+                </span>
+                <span className="text-body">{deliveryQuote.etaMinMinutes}–{deliveryQuote.etaMaxMinutes} min</span>
+              </div>
+            )}
             {!showCheckoutConfirm ? (
               <Button
                 fullWidth
@@ -372,7 +467,7 @@ export function CartModal() {
                 onClick={handleCheckout}
                 disabled={isSubmittingOrder}
               >
-                Checkout - {formatKES(total + DELIVERY_FEE)}
+                Checkout - {formatKES(total + deliveryFee)}
               </Button>
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>

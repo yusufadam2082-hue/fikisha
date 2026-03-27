@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Navbar } from './Navbar';
 import { CartModal } from '../ui/CartModal';
 import { AiAssistant } from '../ui/AiAssistant';
+import { LocationSelector } from '../ui/LocationSelector';
 import { Link } from 'react-router-dom';
 import { MobileNav } from './MobileNav';
 
@@ -15,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
       <Navbar />
       <MobileNav />
       <CartModal />
+      <LocationSelector />
       <AiAssistant />
       <main style={{ flex: 1, padding: '32px 0' }} className="animate-fade-in">
         {children}

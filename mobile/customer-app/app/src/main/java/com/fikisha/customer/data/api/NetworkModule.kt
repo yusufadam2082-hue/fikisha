@@ -1,9 +1,8 @@
 package com.fikisha.customer.data.api
 
-import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
+import com.fikisha.customer.BuildConfig
 import com.fikisha.customer.FikishaApplication
 import com.fikisha.customer.dataStore
 import okhttp3.Interceptor
@@ -14,7 +13,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
-    private const val BASE_URL = "http://10.0.2.2:3002/"
+    private val BASE_URL: String
+        get() = BuildConfig.API_BASE_URL.ensureTrailingSlash()
 
     private var authToken: String? = null
 
@@ -23,6 +23,10 @@ object NetworkModule {
 
     fun setAuthToken(token: String?) {
         authToken = token
+    }
+
+    fun hasAuthToken(): Boolean {
+        return !authToken.isNullOrBlank()
     }
 
     private val authInterceptor = Interceptor { chain ->
@@ -54,4 +58,8 @@ object NetworkModule {
     val apiService: ApiService by lazy {
         retrofit.create(ApiService::class.java)
     }
+}
+
+private fun String.ensureTrailingSlash(): String {
+    return if (endsWith('/')) this else "$this/"
 }

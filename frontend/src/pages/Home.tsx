@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Card } from '../components/ui/Card';
-import { ArrowRight, Clock, Star, X, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowRight, Clock, Star, X, Package, ChevronLeft, ChevronRight, MapPin, Navigation } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useStoreContext } from '../context/StoreContext';
 import { useSearch } from '../context/SearchContext';
 import { formatKES } from '../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
+import { useLocation, type DeliveryQuote } from '../context/LocationContext';
 
 interface Promotion {
   id: string;
@@ -34,11 +35,13 @@ function getAuthHeaders(): HeadersInit {
 export function Home() {
   const { categories, stores } = useStoreContext();
   const { searchQuery } = useSearch();
+  const { activeLocation, openLocationSelector } = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [aiRecommendations, setAiRecommendations] = useState<AiRecommendation[]>([]);
   const [loadingAiRecommendations, setLoadingAiRecommendations] = useState(false);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
   const storesRef = useRef<HTMLElement>(null);
   const heroTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -56,6 +59,38 @@ export function Home() {
     heroTimerRef.current = setInterval(nextSlide, 5000);
     return () => { if (heroTimerRef.current) clearInterval(heroTimerRef.current); };
   }, [promotions.length, nextSlide]);
+
+  // Fetch delivery quotes for visible stores when active location changes
+  useEffect(() => {
+    if (!activeLocation || stores.length === 0) {
+      setStoreQuotes({});
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchAll = async () => {
+      const results: Record<string, DeliveryQuote> = {};
+      await Promise.allSettled(
+        stores.map(async (store) => {
+          try {
+            const params = new URLSearchParams({
+              storeId: store.id,
+              lat: activeLocation.latitude.toString(),
+              lng: activeLocation.longitude.toString(),
+              orderTotal: '0',
+            });
+            const res = await fetch(`/api/delivery/quote?${params}`, { signal: controller.signal });
+            if (res.ok) {
+              results[store.id] = (await res.json()) as DeliveryQuote;
+            }
+          } catch { /* per-store failures are soft */ }
+        })
+      );
+      if (!controller.signal.aborted) setStoreQuotes(results);
+    };
+    fetchAll();
+    return () => controller.abort();
+  }, [activeLocation, stores]);
 
   // Fetch active promotions from the public endpoint.
   useEffect(() => {
@@ -115,11 +150,16 @@ export function Home() {
       )
     : stores;
 
-  // Issue 5: sort by rating descending
+  // Issue 5: sort by rating descending; issue 38: filter by serviceability when location is set
   const filteredStores = (selectedCategory
     ? filteredBySearch.filter(store => store.category === selectedCategory)
     : filteredBySearch
-  ).slice().sort((a, b) => b.rating - a.rating);
+  ).slice().sort((a, b) => b.rating - a.rating).filter(store => {
+    if (!activeLocation || Object.keys(storeQuotes).length === 0) return true;
+    const quote = storeQuotes[store.id];
+    if (!quote) return true; // no quote yet → show store
+    return quote.serviceable;
+  });
 
   return (
     <div className="container" style={{ padding: '0 24px' }}>
@@ -335,6 +375,24 @@ export function Home() {
               </button>
             )}
           </div>
+          {/* Location chip */}
+          <button
+            type="button"
+            onClick={openLocationSelector}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 14px', borderRadius: 'var(--radius-pill)',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: activeLocation ? 'var(--primary)' : 'var(--text-muted)',
+              fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
+              maxWidth: '200px', overflow: 'hidden', flexShrink: 0,
+            }}
+          >
+            {activeLocation ? <MapPin size={14} /> : <Navigation size={14} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeLocation ? activeLocation.label : 'Set location'}
+            </span>
+          </button>
         </div>
 
         {/* Issue 4: empty state */}

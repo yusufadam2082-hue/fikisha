@@ -16,16 +16,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.fikisha.customer.data.api.NetworkModule
+import com.fikisha.customer.data.location.LocationStore
+import com.fikisha.customer.data.model.AppLocation
 import com.fikisha.customer.data.model.CartItem
+import com.fikisha.customer.data.model.DeliveryQuote
 import com.fikisha.customer.data.repository.CartStore
 import com.fikisha.customer.data.repository.Repository
+import com.fikisha.customer.data.session.SessionStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.datastore.preferences.core.edit
 
 class CartViewModel : ViewModel() {
     private val repository = Repository()
@@ -50,6 +57,36 @@ class CartViewModel : ViewModel() {
     private val _orderId = MutableStateFlow<String?>(null)
     val orderId: StateFlow<String?> = _orderId.asStateFlow()
 
+    private val _orderNotes = MutableStateFlow("")
+    val orderNotes: StateFlow<String> = _orderNotes.asStateFlow()
+
+    private val _activeLocation = MutableStateFlow<AppLocation?>(null)
+    val activeLocation: StateFlow<AppLocation?> = _activeLocation.asStateFlow()
+
+    private val _deliveryQuote = MutableStateFlow<DeliveryQuote?>(null)
+    val deliveryQuote: StateFlow<DeliveryQuote?> = _deliveryQuote.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                val prefs = NetworkModule.dataStore.data.first()
+                val user = SessionStore.deserializeUser(prefs[SessionStore.userKey])
+                val location = LocationStore.getActiveLocation()
+                if (user != null) {
+                    if (_customerName.value.isBlank()) _customerName.value = user.name
+                    if (_customerPhone.value.isBlank()) _customerPhone.value = user.phone.orEmpty()
+                }
+                if (location != null) {
+                    _activeLocation.value = location
+                    if (_deliveryAddress.value.isBlank()) {
+                        _deliveryAddress.value = location.address
+                    }
+                }
+                refreshDeliveryQuote()
+            } catch (_: Exception) { }
+        }
+    }
+
     fun updateDeliveryAddress(address: String) {
         _deliveryAddress.value = address
     }
@@ -62,8 +99,13 @@ class CartViewModel : ViewModel() {
         _customerPhone.value = phone
     }
 
+    fun updateOrderNotes(notes: String) {
+        _orderNotes.value = notes
+    }
+
     fun updateQuantity(itemId: String, newQuantity: Int) {
         CartStore.updateQuantity(itemId, newQuantity)
+        refreshDeliveryQuote()
     }
 
     fun getSubtotal(): Double {
@@ -71,22 +113,52 @@ class CartViewModel : ViewModel() {
     }
 
     fun getDeliveryFee(): Double {
-        return if (cartItems.value.isNotEmpty()) 2.99 else 0.0
+        if (cartItems.value.isEmpty()) return 0.0
+        return _deliveryQuote.value?.deliveryFee ?: 2.99
     }
 
     fun getTotal(): Double {
         return getSubtotal() + getDeliveryFee()
     }
 
+    fun refreshDeliveryQuote() {
+        val location = _activeLocation.value ?: return
+        val storeId = cartItems.value.firstOrNull()?.storeId ?: return
+
+        viewModelScope.launch {
+            repository.getDeliveryQuote(
+                storeId = storeId,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                orderTotal = getSubtotal()
+            ).onSuccess { quote ->
+                _deliveryQuote.value = quote
+                if (!quote.serviceable) {
+                    _error.value = "Selected location is outside the store delivery zone. Choose another location."
+                }
+            }.onFailure { _deliveryQuote.value = null }
+        }
+    }
+
     fun placeOrder(onSuccess: (String) -> Unit) {
+        if (!NetworkModule.hasAuthToken()) {
+            _error.value = "Please sign in with a customer account to place an order"
+            return
+        }
+
         if (cartItems.value.isEmpty()) {
             _error.value = "Cart is empty"
             return
         }
         
-        if (_deliveryAddress.value.isBlank()) {
-            _error.value = "Please enter delivery address"
+        val location = _activeLocation.value
+        if (location == null) {
+            _error.value = "Please choose a delivery location first"
             return
+        }
+
+        if (_deliveryAddress.value.isBlank()) {
+            _deliveryAddress.value = location.address
         }
         
         if (_customerName.value.isBlank() || _customerPhone.value.isBlank()) {
@@ -99,23 +171,72 @@ class CartViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+
+            val quote = repository.getDeliveryQuote(
+                storeId = storeId,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                orderTotal = getSubtotal()
+            ).getOrNull()
+            if (quote != null) {
+                _deliveryQuote.value = quote
+                if (!quote.serviceable) {
+                    _isLoading.value = false
+                    _error.value = "Store does not deliver to selected location"
+                    return@launch
+                }
+
+                if (!quote.orderValueValid) {
+                    _isLoading.value = false
+                    _error.value = "Order value does not meet zone minimum"
+                    return@launch
+                }
+            }
             
             repository.createOrder(
                 storeId = storeId,
                 items = cartItems.value,
                 deliveryAddress = _deliveryAddress.value,
                 customerName = _customerName.value,
-                customerPhone = _customerPhone.value
+                customerPhone = _customerPhone.value,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                locationSource = location.source,
+                notes = _orderNotes.value.takeIf { it.isNotBlank() }
             ).onSuccess { order ->
                 _orderId.value = order.id
                 CartStore.clear()
                 onSuccess(order.id)
             }.onFailure { e ->
-                _error.value = e.message ?: "Failed to place order"
+                val rawMessage = e.message ?: "Failed to place order"
+                val lower = rawMessage.lowercase()
+                val authFailure = lower.contains("token")
+                    || lower.contains("unauthorized")
+                    || lower.contains("access denied")
+                    || lower.contains("invalid credentials")
+
+                if (authFailure) {
+                    clearSessionForReLogin()
+                    _error.value = "Session expired. Please sign in again as customer."
+                } else {
+                    _error.value = rawMessage
+                }
             }
             
             _isLoading.value = false
         }
+    }
+
+    private suspend fun clearSessionForReLogin() {
+        try {
+            NetworkModule.dataStore.edit { prefs ->
+                prefs.remove(SessionStore.tokenKey)
+                prefs.remove(SessionStore.userKey)
+                prefs.remove(SessionStore.rememberMeKey)
+            }
+        } catch (_: Exception) { }
+
+        NetworkModule.setAuthToken(null)
     }
 
     fun clearError() {
@@ -134,11 +255,18 @@ fun CartScreen(
     val deliveryAddress by viewModel.deliveryAddress.collectAsState()
     val customerName by viewModel.customerName.collectAsState()
     val customerPhone by viewModel.customerPhone.collectAsState()
+    val orderNotes by viewModel.orderNotes.collectAsState()
+    val activeLocation by viewModel.activeLocation.collectAsState()
+    val deliveryQuote by viewModel.deliveryQuote.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val subtotal = viewModel.getSubtotal()
     val deliveryFee = viewModel.getDeliveryFee()
     val total = viewModel.getTotal()
+
+    LaunchedEffect(cartItems, activeLocation) {
+        viewModel.refreshDeliveryQuote()
+    }
 
     Scaffold(
         topBar = {
@@ -192,6 +320,15 @@ fun CartScreen(
                         ) {
                             Text("Delivery Fee", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("KSh ${String.format("%.2f", deliveryFee)}")
+                        }
+                        if (deliveryQuote?.etaMinutes != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("ETA", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${deliveryQuote?.etaMinMinutes}-${deliveryQuote?.etaMaxMinutes} min")
+                            }
                         }
                         Divider(modifier = Modifier.padding(vertical = 2.dp))
                         Row(
@@ -356,6 +493,16 @@ fun CartScreen(
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Your phone number") },
                         leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = orderNotes,
+                        onValueChange = { viewModel.updateOrderNotes(it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Special instructions (optional)") },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        maxLines = 3,
+                        minLines = 1
                     )
                 }
 

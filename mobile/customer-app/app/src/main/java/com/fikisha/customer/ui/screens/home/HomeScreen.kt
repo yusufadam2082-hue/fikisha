@@ -25,18 +25,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.fikisha.customer.data.model.AiRecommendation
+import com.fikisha.customer.data.model.DeliveryQuote
+import com.fikisha.customer.data.model.Order
 import com.fikisha.customer.data.model.Promotion
 import com.fikisha.customer.data.model.Store
 import com.fikisha.customer.data.repository.Repository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fikisha.customer.ui.viewmodel.LocationViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+
+private val HOME_ACTIVE_STATUSES = setOf(
+    "PENDING", "CONFIRMED", "PREPARING",
+    "READY_FOR_PICKUP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "ON_THE_WAY"
+)
 
 private fun formatKes(value: Double): String {
     return try {
@@ -75,6 +83,9 @@ class HomeViewModel : ViewModel() {
     private val _loadingHighlights = MutableStateFlow(false)
     val loadingHighlights: StateFlow<Boolean> = _loadingHighlights.asStateFlow()
 
+    private val _activeOrder = MutableStateFlow<Order?>(null)
+    val activeOrder: StateFlow<Order?> = _activeOrder.asStateFlow()
+
     init {
         refreshHome()
     }
@@ -82,6 +93,7 @@ class HomeViewModel : ViewModel() {
     fun refreshHome() {
         loadStores()
         loadHighlights()
+        loadActiveOrder()
     }
 
     fun loadStores() {
@@ -112,16 +124,31 @@ class HomeViewModel : ViewModel() {
             _loadingHighlights.value = false
         }
     }
+
+    fun loadActiveOrder() {
+        viewModelScope.launch {
+            repository.getCustomerOrders()
+                .onSuccess { orders ->
+                    _activeOrder.value = orders.firstOrNull {
+                        it.status.uppercase() in HOME_ACTIVE_STATUSES
+                    }
+                }
+                .onFailure { _activeOrder.value = null }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
+    locationViewModel: LocationViewModel,
     onStoreClick: (String) -> Unit,
     onCartClick: () -> Unit,
     onOrdersClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onLocationClick: () -> Unit,
+    onActiveOrderClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -132,9 +159,26 @@ fun HomeScreen(
     val promotions by viewModel.promotions.collectAsState()
     val aiRecommendations by viewModel.aiRecommendations.collectAsState()
     val loadingHighlights by viewModel.loadingHighlights.collectAsState()
+    val activeOrder by viewModel.activeOrder.collectAsState()
+    val activeLocation by locationViewModel.activeLocation.collectAsState()
     var showPromotionsDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var deliveryQuotes by remember { mutableStateOf<Map<String, DeliveryQuote>>(emptyMap()) }
+
+    LaunchedEffect(stores, activeLocation) {
+        if (activeLocation == null || stores.isEmpty()) {
+            deliveryQuotes = emptyMap()
+            return@LaunchedEffect
+        }
+
+        val quoteMap = mutableMapOf<String, DeliveryQuote>()
+        stores.forEach { store ->
+            locationViewModel.getDeliveryQuote(store.id, orderTotal = 0.0)
+                .onSuccess { quoteMap[store.id] = it }
+        }
+        deliveryQuotes = quoteMap
+    }
 
     val categories = remember(stores) {
         stores.map { it.category }
@@ -154,7 +198,8 @@ fun HomeScreen(
                         store.products.any { it.name.lowercase().contains(query) }
 
                 val matchesCategory = selectedCategory == null || store.category == selectedCategory
-                matchesSearch && matchesCategory
+                val isServiceable = activeLocation == null || (deliveryQuotes[store.id]?.serviceable != false)
+                matchesSearch && matchesCategory && isServiceable
             }
             .sortedByDescending { it.rating }
     }
@@ -177,6 +222,16 @@ fun HomeScreen(
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 ),
                 actions = {
+                    IconButton(
+                        onClick = onLocationClick
+                    ) {
+                        Icon(
+                            Icons.Default.Place,
+                            contentDescription = "Location",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     IconButton(
                         onClick = {
                             if (promotions.isEmpty()) {
@@ -292,7 +347,11 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "${filteredStores.size} places ready to deliver",
+                                    text = if (activeLocation != null) {
+                                        "${filteredStores.size} stores near selected location"
+                                    } else {
+                                        "${filteredStores.size} places ready to deliver"
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                                 )
@@ -340,6 +399,72 @@ fun HomeScreen(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
+                }
+
+                // Active order banner
+                if (activeOrder != null) {
+                    item {
+                        val order = activeOrder!!
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onActiveOrderClick(order.id) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.LocalShipping,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            "Active Order",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Text(
+                                            order.store?.name ?: (order.orderNumber ?: "#${order.id.takeLast(6).uppercase()}"),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        homeStatusLabel(order.status),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (categories.isNotEmpty()) {
@@ -668,6 +793,15 @@ fun HomeScreen(
             }
         )
     }
+}
+
+private fun homeStatusLabel(status: String): String = when (status.uppercase()) {
+    "PENDING" -> "Pending"
+    "CONFIRMED" -> "Confirmed"
+    "PREPARING" -> "Preparing..."
+    "READY_FOR_PICKUP" -> "Ready for Pickup"
+    "IN_TRANSIT", "OUT_FOR_DELIVERY", "ON_THE_WAY" -> "On the way"
+    else -> status.replace("_", " ")
 }
 
 @Composable

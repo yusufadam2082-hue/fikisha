@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fikisha.customer.data.model.Order
+import com.fikisha.customer.data.model.CartItem
+import com.fikisha.customer.data.repository.CartStore
 import com.fikisha.customer.data.repository.Repository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -52,20 +58,43 @@ class OrdersViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
+
+    fun reorder(order: Order) {
+        CartStore.clear()
+        order.items?.forEach { item ->
+            val productId = item.productId ?: item.id ?: return@forEach
+            if (productId.isBlank()) return@forEach
+            CartStore.addItem(
+                CartItem(
+                    id = productId,
+                    name = item.product?.name ?: item.name ?: "Item",
+                    price = item.price,
+                    quantity = item.quantity,
+                    image = item.product?.image ?: "",
+                    storeId = order.storeId
+                )
+            )
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun OrdersScreen(
     viewModel: OrdersViewModel = viewModel(),
     onHomeClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onOrderClick: (String) -> Unit,
-    onReceiptClick: (String) -> Unit
+    onReceiptClick: (String) -> Unit,
+    onCartClick: () -> Unit = {}
 ) {
     val orders by viewModel.orders.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isLoading,
+        onRefresh = { viewModel.loadOrders() }
+    )
 
     val activeOrders = remember(orders) { orders.filter { it.status.uppercase() in ACTIVE_STATUSES } }
     val historyOrders = remember(orders) { orders.filter { it.status.uppercase() !in ACTIVE_STATUSES } }
@@ -132,12 +161,14 @@ fun OrdersScreen(
             }
         }
     ) { padding ->
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (orders.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .pullRefresh(pullRefreshState)
+        ) {
+        if (orders.isEmpty() && !isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(
                         Icons.Default.Receipt,
@@ -154,7 +185,7 @@ fun OrdersScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -176,10 +207,24 @@ fun OrdersScreen(
                         SectionHeader(title = "Order History", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     items(historyOrders) { order ->
-                        OrderCard(order = order, isActive = false, onClick = { onReceiptClick(order.id) })
+                        OrderCard(
+                            order = order,
+                            isActive = false,
+                            onClick = { onReceiptClick(order.id) },
+                            onReorder = if (order.status.uppercase() == "DELIVERED") {{
+                                viewModel.reorder(order)
+                                onCartClick()
+                            }} else null
+                        )
                     }
                 }
             }
+        }
+        PullRefreshIndicator(
+            refreshing = isLoading,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
         }
     }
 }
@@ -196,7 +241,7 @@ private fun SectionHeader(title: String, color: androidx.compose.ui.graphics.Col
 }
 
 @Composable
-private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit) {
+private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit, onReorder: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,6 +315,21 @@ private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit) {
                         modifier = Modifier.size(16.dp),
                         tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            if (onReorder != null) {
+                Divider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+                TextButton(
+                    onClick = onReorder,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Reorder", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
