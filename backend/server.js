@@ -5325,6 +5325,57 @@ app.get('/api/admin/support-tickets', authMiddleware, roleMiddleware('ADMIN'), a
   }
 });
 
+app.put('/api/admin/support-tickets/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const allowedStatuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+    const status = String(req.body?.status || '').trim().toUpperCase();
+    const adminResponseInput = req.body?.adminResponse;
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Allowed: ${allowedStatuses.join(', ')}` });
+    }
+
+    const existing = await prisma.supportTicket.findUnique({ where: { id: req.params.id } });
+    if (!existing) return res.status(404).json({ error: 'Support ticket not found' });
+
+    const updateData = { status };
+    if (status === 'RESOLVED' || status === 'CLOSED') {
+      updateData.resolvedAt = existing.resolvedAt || new Date();
+    } else {
+      updateData.resolvedAt = null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'adminResponse')) {
+      updateData.adminResponse = adminResponseInput == null || String(adminResponseInput).trim() === ''
+        ? null
+        : String(adminResponseInput).trim();
+    }
+
+    const ticket = await prisma.supportTicket.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        store: { select: { id: true, name: true } },
+      },
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'SUPPORT_TICKET_STATUS_UPDATED',
+      entityType: 'SUPPORT_TICKET',
+      entityId: ticket.id,
+      before: { status: existing.status, resolvedAt: existing.resolvedAt, adminResponse: existing.adminResponse },
+      after: { status: ticket.status, resolvedAt: ticket.resolvedAt, adminResponse: ticket.adminResponse },
+      note: `Support ticket ${ticket.id} status set to ${ticket.status}`,
+      req,
+    });
+
+    res.json({ ticket });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MERCHANT PORTAL UPGRADE ENDPOINTS (additive + backward-compatible)
 // ═══════════════════════════════════════════════════════════════════════════════
