@@ -15,6 +15,16 @@ const STATUS_COLOR = {
   CLOSED: 'default',
 };
 
+function resolveErrorMessage(error) {
+  const status = error?.response?.status;
+  const apiError = error?.response?.data?.error;
+  if (apiError) return apiError;
+  if (status === 401) return 'Session expired or unauthorized. Please log in again.';
+  if (status === 404) return 'Support ticket endpoint not found on the active API server.';
+  if (status) return `Failed to load support tickets (HTTP ${status})`;
+  return 'Failed to load support tickets. Check API connectivity.';
+}
+
 export default function SupportTickets() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +49,7 @@ export default function SupportTickets() {
       setTotalPages(res.data.pages || 1);
       setTotal(res.data.total || 0);
     } catch (e) {
-      setError(e.response?.data?.error || 'Failed to load support tickets');
+      setError(resolveErrorMessage(e));
     } finally {
       setLoading(false);
     }

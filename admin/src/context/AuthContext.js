@@ -4,7 +4,9 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 // Allow the admin portal to target either the deployed API URL or the local backend.
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+const DEFAULT_REMOTE_API_URL = 'https://fikisha-sut2.onrender.com';
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const API_BASE_URL = process.env.REACT_APP_API_URL || (isLocalhost ? '' : DEFAULT_REMOTE_API_URL);
 
 // A dedicated client keeps admin API configuration in one place.
 const apiClient = axios.create({
