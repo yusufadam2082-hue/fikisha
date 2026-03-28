@@ -18,6 +18,11 @@ model User {
   name      String
   email     String?
   phone     String?
+  country   String?
+  referralCode String?
+  dateOfBirth DateTime?
+  gender    String?
+  address   String?
   storeId   String?
   banned    Boolean  @default(false)
   createdAt DateTime @default(now())

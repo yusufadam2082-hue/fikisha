@@ -31,6 +31,11 @@ object SessionStore {
                     role = parts.getOrElse(3) { "CUSTOMER" },
                     email = null,
                     phone = null,
+                    country = null,
+                    referralCode = null,
+                    dateOfBirth = null,
+                    gender = null,
+                    address = null,
                     storeId = null
                 )
             } else {

@@ -43,11 +43,26 @@ fun LoginScreen(
     var isRegisterView by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var fullName by remember { mutableStateOf("") }
+    var emailAddress by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf("") }
+    var referralCode by remember { mutableStateOf("") }
+    var dateOfBirth by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var formError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(true) }
     var showForgotDialog by remember { mutableStateOf(false) }
     var forgotIdentifier by remember { mutableStateOf("") }
     var forgotResult by remember { mutableStateOf<String?>(null) }
+    var countryExpanded by remember { mutableStateOf(false) }
+    var genderExpanded by remember { mutableStateOf(false) }
+
+    val countryOptions = listOf("Kenya", "Tanzania", "Uganda", "Rwanda", "Burundi", "South Sudan", "Other")
+    val genderOptions = listOf("Male", "Female", "Other", "Prefer not to say")
 
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -172,14 +187,85 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                if (portalMode == AuthViewModel.PortalMode.CUSTOMER && isRegisterView) {
+                    OutlinedTextField(
+                        value = fullName,
+                        onValueChange = {
+                            fullName = it
+                            viewModel.clearError()
+                            formError = null
+                        },
+                        label = { Text("Full Name *") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = emailAddress,
+                        onValueChange = {
+                            emailAddress = it
+                            viewModel.clearError()
+                            formError = null
+                        },
+                        label = { Text("Email Address *") },
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = {
+                            phoneNumber = it
+                            viewModel.clearError()
+                            formError = null
+                        },
+                        label = { Text("Phone Number (+country code) *") },
+                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+
                 OutlinedTextField(
                     value = username,
                     onValueChange = {
                         username = it
                         viewModel.clearError()
+                        formError = null
                     },
-                    label = { Text(if (portalMode == AuthViewModel.PortalMode.MERCHANT) "Merchant Username" else "Username") },
-                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                    label = { Text(if (portalMode == AuthViewModel.PortalMode.MERCHANT) "Merchant Username" else "Username *") },
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(999.dp),
@@ -198,8 +284,9 @@ fun LoginScreen(
                     onValueChange = {
                         password = it
                         viewModel.clearError()
+                        formError = null
                     },
-                    label = { Text("Password") },
+                    label = { Text("Password *") },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -223,6 +310,125 @@ fun LoginScreen(
                         unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
+
+                if (portalMode == AuthViewModel.PortalMode.CUSTOMER && isRegisterView) {
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = {
+                            confirmPassword = it
+                            viewModel.clearError()
+                            formError = null
+                        },
+                        label = { Text("Confirm Password *") },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    ExposedDropdownMenuBox(expanded = countryExpanded, onExpandedChange = { countryExpanded = !countryExpanded }) {
+                        OutlinedTextField(
+                            value = country,
+                            onValueChange = {
+                                country = it
+                                formError = null
+                            },
+                            label = { Text("Country / Location") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = countryExpanded) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(999.dp)
+                        )
+                        ExposedDropdownMenu(expanded = countryExpanded, onDismissRequest = { countryExpanded = false }) {
+                            countryOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        country = option
+                                        countryExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = referralCode,
+                        onValueChange = {
+                            referralCode = it
+                            formError = null
+                        },
+                        label = { Text("Referral Code") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = dateOfBirth,
+                        onValueChange = {
+                            dateOfBirth = it
+                            formError = null
+                        },
+                        label = { Text("Date of Birth (YYYY-MM-DD)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(999.dp)
+                    )
+
+                    ExposedDropdownMenuBox(expanded = genderExpanded, onExpandedChange = { genderExpanded = !genderExpanded }) {
+                        OutlinedTextField(
+                            value = gender,
+                            onValueChange = {
+                                gender = it
+                                formError = null
+                            },
+                            label = { Text("Gender") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderExpanded) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(999.dp)
+                        )
+                        ExposedDropdownMenu(expanded = genderExpanded, onDismissRequest = { genderExpanded = false }) {
+                            genderOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        gender = option
+                                        genderExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = address,
+                        onValueChange = {
+                            address = it
+                            formError = null
+                        },
+                        label = { Text("Address") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -248,7 +454,14 @@ fun LoginScreen(
                     }
                 }
 
-                if (error != null) {
+                if (formError != null) {
+                    Text(
+                        text = formError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else if (error != null) {
                     Text(
                         text = error!!,
                         color = MaterialTheme.colorScheme.error,
@@ -268,8 +481,39 @@ fun LoginScreen(
                 Button(
                     onClick = {
                         if (portalMode == AuthViewModel.PortalMode.CUSTOMER && isRegisterView) {
-                            viewModel.register(username, password, rememberMe, onLoginSuccess)
+                            val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")
+                            val phoneRegex = Regex("^\\+[1-9]\\d{7,14}$")
+
+                            when {
+                                fullName.isBlank() -> formError = "Full Name is required"
+                                emailAddress.isBlank() || !emailRegex.matches(emailAddress.trim()) -> formError = "Enter a valid email address"
+                                phoneNumber.isBlank() || !phoneRegex.matches(phoneNumber.replace(" ", "")) -> formError = "Enter phone in international format (e.g. +255700000000)"
+                                username.isBlank() -> formError = "Username is required"
+                                password.isBlank() -> formError = "Password is required"
+                                confirmPassword.isBlank() -> formError = "Confirm Password is required"
+                                password != confirmPassword -> formError = "Passwords do not match"
+                                dateOfBirth.isNotBlank() && !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(dateOfBirth.trim()) -> formError = "Date of Birth must use YYYY-MM-DD"
+                                else -> {
+                                    formError = null
+                                    viewModel.register(
+                                        fullName = fullName.trim(),
+                                        email = emailAddress.trim(),
+                                        phone = phoneNumber.replace(" ", "").trim(),
+                                        username = username.trim(),
+                                        password = password,
+                                        confirmPassword = confirmPassword,
+                                        country = country.trim().ifBlank { null },
+                                        referralCode = referralCode.trim().ifBlank { null },
+                                        dateOfBirth = dateOfBirth.trim().ifBlank { null },
+                                        gender = gender.trim().ifBlank { null },
+                                        address = address.trim().ifBlank { null },
+                                        rememberMe = rememberMe,
+                                        onSuccess = onLoginSuccess
+                                    )
+                                }
+                            }
                         } else {
+                            formError = null
                             viewModel.login(username, password, rememberMe, portalMode, onLoginSuccess)
                         }
                     },

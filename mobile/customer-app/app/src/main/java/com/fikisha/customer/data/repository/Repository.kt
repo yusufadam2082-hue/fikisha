@@ -43,9 +43,35 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
         }
     }
 
-    suspend fun register(username: String, password: String): Result<LoginResponse> {
+    suspend fun register(
+        fullName: String,
+        email: String,
+        phone: String,
+        username: String,
+        password: String,
+        confirmPassword: String,
+        country: String? = null,
+        referralCode: String? = null,
+        dateOfBirth: String? = null,
+        gender: String? = null,
+        address: String? = null,
+    ): Result<LoginResponse> {
         return try {
-            val response = apiService.register(RegisterRequest(username, password))
+            val response = apiService.register(
+                RegisterRequest(
+                    fullName = fullName,
+                    email = email,
+                    phone = phone,
+                    username = username,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    country = country,
+                    referralCode = referralCode,
+                    dateOfBirth = dateOfBirth,
+                    gender = gender,
+                    address = address,
+                )
+            )
             if (response.isSuccessful && response.body() != null) {
                 NetworkModule.setAuthToken(response.body()!!.token)
                 Result.success(response.body()!!)

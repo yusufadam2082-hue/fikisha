@@ -1176,6 +1176,11 @@ const publicUserFields = {
   name: true,
   email: true,
   phone: true,
+  country: true,
+  referralCode: true,
+  dateOfBirth: true,
+  gender: true,
+  address: true,
   storeId: true,
   createdAt: true,
   updatedAt: true
@@ -1600,6 +1605,7 @@ const authLimiter = rateLimit({
 
 app.use('/api/', limiter);
 app.post('/api/auth/login', authLimiter);
+app.post('/api/auth/register', authLimiter);
 app.post('/api/drivers/login', authLimiter);
 
 // Authentication middleware resolves the bearer token once and attaches the decoded user to the request.
@@ -2762,6 +2768,90 @@ app.post('/api/auth/login',
   }
 );
 
+app.post('/api/auth/register',
+  body('fullName').trim().notEmpty(),
+  body('email').isEmail().normalizeEmail(),
+  body('phone').trim().notEmpty(),
+  body('password').isLength({ min: 6 }),
+  body('confirmPassword').notEmpty(),
+  body('username').trim().notEmpty(),
+  body('country').optional({ nullable: true }).trim(),
+  body('referralCode').optional({ nullable: true }).trim(),
+  body('dateOfBirth').optional({ nullable: true }).isISO8601(),
+  body('gender').optional({ nullable: true }).trim(),
+  body('address').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const {
+        username,
+        fullName,
+        email,
+        phone,
+        password,
+        confirmPassword,
+        country,
+        referralCode,
+        dateOfBirth,
+        gender,
+        address,
+      } = req.body;
+
+      if (password !== confirmPassword) {
+        return res.status(400).json({ error: 'Passwords do not match' });
+      }
+
+      const normalizedPhone = String(phone || '').replace(/[\s\-()]/g, '');
+      if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+        return res.status(400).json({ error: 'Phone number must be in international format (e.g. +255700000000)' });
+      }
+
+      const existingByUsername = await prisma.user.findUnique({ where: { username: username.trim() } });
+      if (existingByUsername) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+
+      const existingByEmail = await prisma.user.findFirst({ where: { email: String(email).toLowerCase() } });
+      if (existingByEmail) {
+        return res.status(409).json({ error: 'Email already exists' });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const user = await prisma.user.create({
+        data: {
+          username: username.trim(),
+          password: hashedPassword,
+          role: 'CUSTOMER',
+          name: fullName.trim(),
+          email: String(email).toLowerCase(),
+          phone: normalizedPhone,
+          country: country?.trim() || null,
+          referralCode: referralCode?.trim() || null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          gender: gender?.trim() || null,
+          address: address?.trim() || null,
+        },
+        select: publicUserFields,
+      });
+
+      const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role, storeId: user.storeId },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.status(201).json({ token, user });
+    } catch (error) {
+      console.error('[auth/register] Failed register request:', {
+        username: req.body?.username,
+        message: error?.message,
+        stack: error?.stack
+      });
+      res.status(500).json({ error: 'Registration failed' });
+    }
+  }
+);
+
 app.get('/api/me', authMiddleware, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -2785,6 +2875,11 @@ app.put('/api/me',
   body('name').optional().trim().notEmpty(),
   body('email').optional({ nullable: true }).isEmail(),
   body('phone').optional({ nullable: true }).trim(),
+  body('country').optional({ nullable: true }).trim(),
+  body('referralCode').optional({ nullable: true }).trim(),
+  body('dateOfBirth').optional({ nullable: true }).isISO8601(),
+  body('gender').optional({ nullable: true }).trim(),
+  body('address').optional({ nullable: true }).trim(),
   body('password').optional({ nullable: true }).isLength({ min: 6 }),
   validate,
   async (req, res) => {
@@ -2793,7 +2888,12 @@ app.put('/api/me',
         username: req.body.username,
         name: req.body.name,
         email: req.body.email || null,
-        phone: req.body.phone || null
+        phone: req.body.phone || null,
+        country: req.body.country || null,
+        referralCode: req.body.referralCode || null,
+        dateOfBirth: req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null,
+        gender: req.body.gender || null,
+        address: req.body.address || null
       };
 
       if (req.body.username) {

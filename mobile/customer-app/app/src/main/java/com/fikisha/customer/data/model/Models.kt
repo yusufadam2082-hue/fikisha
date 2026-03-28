@@ -111,6 +111,11 @@ data class User(
     @SerializedName("name") val name: String,
     @SerializedName("email") val email: String?,
     @SerializedName("phone") val phone: String?,
+    @SerializedName("country") val country: String? = null,
+    @SerializedName("referralCode") val referralCode: String? = null,
+    @SerializedName("dateOfBirth") val dateOfBirth: String? = null,
+    @SerializedName("gender") val gender: String? = null,
+    @SerializedName("address") val address: String? = null,
     @SerializedName("role") val role: String,
     @SerializedName("storeId") val storeId: String? = null
 )
@@ -121,8 +126,17 @@ data class LoginRequest(
 )
 
 data class RegisterRequest(
+    val fullName: String,
+    val email: String,
+    val phone: String,
     val username: String,
     val password: String,
+    val confirmPassword: String,
+    val country: String? = null,
+    val referralCode: String? = null,
+    val dateOfBirth: String? = null,
+    val gender: String? = null,
+    val address: String? = null,
     val role: String = "CUSTOMER"
 )
 

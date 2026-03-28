@@ -119,12 +119,38 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun register(username: String, password: String, rememberMe: Boolean, onSuccess: (String) -> Unit) {
+    fun register(
+        fullName: String,
+        email: String,
+        phone: String,
+        username: String,
+        password: String,
+        confirmPassword: String,
+        country: String?,
+        referralCode: String?,
+        dateOfBirth: String?,
+        gender: String?,
+        address: String?,
+        rememberMe: Boolean,
+        onSuccess: (String) -> Unit
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
 
-            repository.register(username, password)
+            repository.register(
+                fullName = fullName,
+                email = email,
+                phone = phone,
+                username = username,
+                password = password,
+                confirmPassword = confirmPassword,
+                country = country,
+                referralCode = referralCode,
+                dateOfBirth = dateOfBirth,
+                gender = gender,
+                address = address,
+            )
                 .onSuccess { response ->
                     if (response.user.role != "CUSTOMER") {
                         _error.value = "This portal is only for customers."
@@ -172,6 +198,11 @@ class AuthViewModel : ViewModel() {
                 name = "Guest User",
                 email = null,
                 phone = null,
+                country = null,
+                referralCode = null,
+                dateOfBirth = null,
+                gender = null,
+                address = null,
                 role = "CUSTOMER",
                 storeId = null
             )
