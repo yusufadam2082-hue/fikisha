@@ -11,6 +11,15 @@ export function CustomerLogin() {
   const [view, setView] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState('');
+  const [address, setAddress] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,7 +37,62 @@ export function CustomerLogin() {
         login({ ...user, token });
         navigate('/customer');
       } else {
-        const { token, user } = await registerUser(username, password);
+        const emailRegex = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$/;
+        const phoneRegex = /^\+[1-9]\d{7,14}$/;
+
+        if (!fullName.trim()) {
+          setError('Full Name is required');
+          return;
+        }
+
+        if (!emailRegex.test(email.trim())) {
+          setError('Enter a valid email address');
+          return;
+        }
+
+        if (!phoneRegex.test(phone.replace(/\s+/g, '').trim())) {
+          setError('Enter phone in international format (e.g. +255700000000)');
+          return;
+        }
+
+        if (!username.trim()) {
+          setError('Username is required');
+          return;
+        }
+
+        if (!password) {
+          setError('Password is required');
+          return;
+        }
+
+        if (!confirmPassword) {
+          setError('Confirm Password is required');
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          setError('Passwords do not match');
+          return;
+        }
+
+        if (dateOfBirth.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth.trim())) {
+          setError('Date of Birth must use YYYY-MM-DD');
+          return;
+        }
+
+        const { token, user } = await registerUser({
+          fullName: fullName.trim(),
+          email: email.trim(),
+          phone: phone.replace(/\s+/g, '').trim(),
+          username: username.trim(),
+          password,
+          confirmPassword,
+          country: country.trim() || null,
+          referralCode: referralCode.trim() || null,
+          dateOfBirth: dateOfBirth.trim() || null,
+          gender: gender.trim() || null,
+          address: address.trim() || null
+        });
         login({ ...user, token });
         navigate('/customer');
       }
@@ -76,6 +140,35 @@ export function CustomerLogin() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+            {view === 'register' && (
+              <>
+                <input
+                  className="input-field"
+                  placeholder="Full Name"
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Email Address"
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Phone Number (+country code)"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+              </>
+            )}
             <input
               className="input-field"
               placeholder="Username"
@@ -93,9 +186,64 @@ export function CustomerLogin() {
               onChange={e => setPassword(e.target.value)}
               onKeyDown={handleKeyDown}
             />
+
+            {view === 'register' && (
+              <>
+                <input
+                  className="input-field"
+                  type="password"
+                  placeholder="Confirm Password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Country / Location"
+                  value={country}
+                  onChange={e => setCountry(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Referral Code"
+                  value={referralCode}
+                  onChange={e => setReferralCode(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Date of Birth (YYYY-MM-DD)"
+                  value={dateOfBirth}
+                  onChange={e => setDateOfBirth(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+                <select
+                  className="input-field"
+                  value={gender}
+                  onChange={e => setGender(e.target.value)}
+                >
+                  <option value="">Gender (optional)</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+                <textarea
+                  className="input-field"
+                  placeholder="Address"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={3}
+                  style={{ resize: 'vertical', minHeight: '84px' }}
+                />
+              </>
+            )}
             {error && <p className="text-sm" style={{ color: 'var(--error)' }}>{error}</p>}
 
-            <Button onClick={handleSubmit} disabled={!username || !password || isLoading}>
+            <Button onClick={handleSubmit} disabled={isLoading || !username || !password || (view === 'register' && (!fullName || !email || !phone || !confirmPassword))}>
               {isLoading ? 'Please wait…' : view === 'login' ? 'Sign In' : 'Sign Up'}
             </Button>
             

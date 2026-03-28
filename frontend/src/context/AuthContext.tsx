@@ -10,10 +10,29 @@ export interface User {
   name?: string;
   email?: string | null;
   phone?: string | null;
+  country?: string | null;
+  referralCode?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  address?: string | null;
   role: Role;
   storeId?: string;
   driverId?: string;
   token?: string;
+}
+
+export interface RegisterPayload {
+  fullName: string;
+  email: string;
+  phone: string;
+  username: string;
+  password: string;
+  confirmPassword: string;
+  country?: string | null;
+  referralCode?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  address?: string | null;
 }
 
 interface AuthContextType {
@@ -104,11 +123,11 @@ export async function loginUser(username: string, password: string): Promise<{ t
   return { token: data.token, user: data.user };
 }
 
-export async function registerUser(username: string, password: string): Promise<{ token: string; user: User }> {
+export async function registerUser(payload: RegisterPayload): Promise<{ token: string; user: User }> {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, role: 'CUSTOMER' })
+    body: JSON.stringify(payload)
   });
   
   if (!res.ok) {
@@ -150,6 +169,11 @@ export async function updateProfile(updates: {
   name?: string;
   email?: string | null;
   phone?: string | null;
+  country?: string | null;
+  referralCode?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  address?: string | null;
   password?: string;
 }): Promise<User> {
   // Read the token from persisted auth so profile updates stay authenticated after refreshes.
