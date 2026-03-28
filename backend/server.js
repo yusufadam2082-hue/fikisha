@@ -17,6 +17,7 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const DATABASE_URL = process.env.DATABASE_URL || '';
 const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
@@ -28,6 +29,33 @@ const MERCHANT_PASSWORD = process.env.MERCHANT_PASSWORD || 'merchant123';
 if (!JWT_SECRET) {
   console.error('JWT_SECRET environment variable is required');
   process.exit(1);
+}
+
+if (IS_PRODUCTION) {
+  const normalizedDbUrl = DATABASE_URL.trim().toLowerCase();
+  const isSqlite = normalizedDbUrl.startsWith('file:');
+  const isPersistentSqlite = normalizedDbUrl.startsWith('file:/var/data/');
+  const isManagedDb =
+    normalizedDbUrl.startsWith('postgres://')
+    || normalizedDbUrl.startsWith('postgresql://')
+    || normalizedDbUrl.startsWith('mysql://')
+    || normalizedDbUrl.startsWith('sqlserver://')
+    || normalizedDbUrl.startsWith('mongodb://')
+    || normalizedDbUrl.startsWith('mongodb+srv://');
+
+  if (!normalizedDbUrl) {
+    console.error('DATABASE_URL must be set in production.');
+    process.exit(1);
+  }
+
+  if (isSqlite && !isPersistentSqlite) {
+    console.error('Production DATABASE_URL uses SQLite without a persistent disk path. Use file:/var/data/... or a managed database URL.');
+    process.exit(1);
+  }
+
+  if (!isSqlite && !isManagedDb) {
+    console.warn('DATABASE_URL does not match known managed DB URL schemes. Verify persistence configuration.');
+  }
 }
 
 const prisma = new PrismaClient();
