@@ -45,6 +45,8 @@ function Accounting() {
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line no-unused-vars
   const [stores, setStores] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [drivers, setDrivers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [platformFeePercent, setPlatformFeePercent] = useState(DEFAULT_PLATFORM_FEE_PERCENT);
   const [selectedCycle, setSelectedCycle] = useState('ALL');
@@ -69,16 +71,18 @@ function Accounting() {
       setLoading(true);
       setError('');
       getAuthConfig();
-      const [storesRes, ordersRes, payoutsRes, fraudRes] = await Promise.all([
+      const [storesRes, ordersRes, payoutsRes, fraudRes, driversRes] = await Promise.all([
         apiClient.get('/api/stores'),
         apiClient.get('/api/orders'),
         apiClient.get('/api/accounting/payouts'),
-        apiClient.get('/api/ai/fraud-overview?limit=8')
+        apiClient.get('/api/ai/fraud-overview?limit=8'),
+        apiClient.get('/api/drivers').catch(() => ({ data: [] }))
       ]);
       setStores(storesRes.data || []);
       setOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setLedger(Array.isArray(payoutsRes.data) ? payoutsRes.data : []);
       setFraudOverview(Array.isArray(fraudRes?.data?.orders) ? fraudRes.data.orders : []);
+      setDrivers(driversRes.data || []);
     } catch (err) {
       setError(err?.response?.data?.error || 'Failed to load accounting data');
     } finally {
@@ -146,8 +150,48 @@ function Accounting() {
     return rows.sort((a, b) => b.pendingPayout - a.pendingPayout);
   }, [filteredOrders, platformFeePercent, ledger, selectedCycle]);
 
+  const driverRows = useMemo(() => {
+    const byDriver = new Map();
+
+    filteredOrders.forEach((order) => {
+      const driverId = order?.driver?.id || order?.driverId;
+      if (!driverId) return;
+
+      const entry = byDriver.get(driverId) || {
+        driverId,
+        driverName: order?.driver?.name || 'Unknown Driver',
+        orderCount: 0,
+        grossEarnings: 0
+      };
+
+      entry.orderCount += 1;
+      entry.grossEarnings += Number(order?.deliveryFee || 0);
+      byDriver.set(driverId, entry);
+    });
+
+    const rows = Array.from(byDriver.values()).map((row) => {
+      const driverPayout = row.grossEarnings;
+
+      const paidAmount = ledger
+        .filter((p) => p.driverId === row.driverId && (selectedCycle === 'ALL' || p.cycleKey === selectedCycle))
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+      const pendingPayout = Math.max(0, driverPayout - paidAmount);
+
+      return {
+        ...row,
+        driverPayout,
+        paidAmount,
+        pendingPayout,
+        payoutStatus: pendingPayout <= 0.009 ? 'PAID' : paidAmount > 0 ? 'PARTIAL' : 'UNPAID'
+      };
+    });
+
+    return rows.sort((a, b) => b.pendingPayout - a.pendingPayout);
+  }, [filteredOrders, ledger, selectedCycle]);
+
   const totals = useMemo(() => {
-    return storeRows.reduce(
+    const storeTotals = storeRows.reduce(
       (acc, row) => {
         acc.grossRevenue += row.grossRevenue;
         acc.platformRevenue += row.platformFee;
@@ -166,14 +210,30 @@ function Accounting() {
         orders: 0
       }
     );
-  }, [storeRows]);
+
+    const driverTotals = driverRows.reduce(
+      (acc, row) => {
+        acc.driverPayouts += row.driverPayout;
+        acc.driverPaidOut += row.paidAmount;
+        acc.driverPending += row.pendingPayout;
+        return acc;
+      },
+      {
+        driverPayouts: 0,
+        driverPaidOut: 0,
+        driverPending: 0
+      }
+    );
+
+    return { ...storeTotals, ...driverTotals };
+  }, [storeRows, driverRows]);
 
   const payoutHistory = useMemo(() => {
     const scoped = ledger.filter((entry) => selectedCycle === 'ALL' || entry.cycleKey === selectedCycle);
     return scoped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [ledger, selectedCycle]);
 
-  const handleMarkPaid = async (row) => {
+  const handleMarkStorePaid = async (row) => {
     if (row.pendingPayout <= 0) {
       return;
     }
@@ -193,6 +253,31 @@ function Accounting() {
       const created = response.data;
       setLedger((previous) => [created, ...previous]);
       showSnackbar(`Recorded payout for ${row.storeName}: ${formatKES(created.amount)}`);
+    } catch (err) {
+      showSnackbar(err?.response?.data?.error || 'Failed to record payout', 'error');
+    }
+  };
+
+  const handleMarkDriverPaid = async (row) => {
+    if (row.pendingPayout <= 0) {
+      return;
+    }
+
+    const cycleKey = selectedCycle === 'ALL' ? cycleKeyFromDate(new Date()) : selectedCycle;
+
+    try {
+      getAuthConfig();
+      const response = await apiClient.post('/api/accounting/payouts', {
+        driverId: row.driverId,
+        driverName: row.driverName,
+        cycleKey,
+        amount: Number(row.pendingPayout.toFixed(2)),
+        note: 'Settled driver payout'
+      });
+
+      const created = response.data;
+      setLedger((previous) => [created, ...previous]);
+      showSnackbar(`Recorded payout for ${row.driverName}: ${formatKES(created.amount)}`);
     } catch (err) {
       showSnackbar(err?.response?.data?.error || 'Failed to record payout', 'error');
     }
@@ -351,6 +436,18 @@ function Accounting() {
             </Card>
             <Card>
               <CardContent>
+                <Typography color="text.secondary" variant="body2">Driver Payouts (Total)</Typography>
+                <Typography variant="h6">{formatKES(totals.driverPayouts)}</Typography>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">Pending Driver Payouts</Typography>
+                <Typography variant="h6">{formatKES(totals.driverPending)}</Typography>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent>
                 <Typography color="text.secondary" variant="body2">Payable Orders</Typography>
                 <Typography variant="h6">{totals.orders}</Typography>
               </CardContent>
@@ -401,7 +498,59 @@ function Accounting() {
                           variant="contained"
                           color="success"
                           disabled={row.pendingPayout <= 0}
-                          onClick={() => handleMarkPaid(row)}
+                          onClick={() => handleMarkStorePaid(row)}
+                        >
+                          Mark Paid
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          <Typography variant="h6" sx={{ mb: 1 }}>Driver Payout Breakdown</Typography>
+          <TableContainer component={Paper} sx={{ mb: 3 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Driver</TableCell>
+                  <TableCell>Orders</TableCell>
+                  <TableCell>Driver Payout</TableCell>
+                  <TableCell>Paid</TableCell>
+                  <TableCell>Pending</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {driverRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7}>No payable order data found for selected cycle.</TableCell>
+                  </TableRow>
+                ) : (
+                  driverRows.map((row) => (
+                    <TableRow key={row.driverId}>
+                      <TableCell>{row.driverName}</TableCell>
+                      <TableCell>{row.orderCount}</TableCell>
+                      <TableCell>{formatKES(row.driverPayout)}</TableCell>
+                      <TableCell>{formatKES(row.paidAmount)}</TableCell>
+                      <TableCell>{formatKES(row.pendingPayout)}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={row.payoutStatus}
+                          color={row.payoutStatus === 'PAID' ? 'success' : row.payoutStatus === 'PARTIAL' ? 'warning' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="success"
+                          disabled={row.pendingPayout <= 0}
+                          onClick={() => handleMarkDriverPaid(row)}
                         >
                           Mark Paid
                         </Button>
@@ -435,7 +584,7 @@ function Accounting() {
                     <TableRow key={entry.id}>
                       <TableCell>{new Date(entry.createdAt).toLocaleString()}</TableCell>
                       <TableCell>{entry.cycleKey}</TableCell>
-                      <TableCell>{entry.storeName}</TableCell>
+                      <TableCell>{entry.storeName || entry.driverName || 'Unknown'}</TableCell>
                       <TableCell>{formatKES(entry.amount)}</TableCell>
                       <TableCell>{entry.note || '-'}</TableCell>
                     </TableRow>

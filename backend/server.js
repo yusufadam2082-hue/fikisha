@@ -3728,24 +3728,34 @@ app.get('/api/accounting/payouts',
 app.post('/api/accounting/payouts',
   authMiddleware,
   roleMiddleware('ADMIN'),
-  body('storeId').trim().notEmpty(),
-  body('storeName').trim().notEmpty(),
+  body('storeId').optional().trim(),
+  body('storeName').optional().trim(),
+  body('driverId').optional().trim(),
+  body('driverName').optional().trim(),
   body('cycleKey').optional().trim().notEmpty(),
   body('amount').isFloat({ gt: 0 }),
   body('note').optional({ nullable: true }).trim(),
   validate,
   async (req, res) => {
     try {
-      const { storeId, storeName, cycleKey, amount, note } = req.body;
+      const { storeId, storeName, driverId, driverName, cycleKey, amount, note } = req.body;
+      if (!storeId && !driverId) {
+        return res.status(400).json({ error: 'Either storeId or driverId is required to record a payout.' });
+      }
+
       const ledger = await readAccountingPayoutLedger();
+      const isDriver = !!driverId;
 
       const record = {
         id: randomUUID(),
-        storeId,
-        storeName,
+        storeId: storeId || null,
+        storeName: storeName || null,
+        driverId: driverId || null,
+        driverName: driverName || null,
+        type: isDriver ? SETTLEMENT_TYPE.DRIVER : SETTLEMENT_TYPE.MERCHANT,
         cycleKey: cycleKey || null,
         amount: Number(amount),
-        note: note || 'Settled merchant balance',
+        note: note || (isDriver ? 'Settled driver payout' : 'Settled merchant balance'),
         actorUserId: req.user.id,
         actorRole: req.user.role,
         createdAt: new Date().toISOString()
@@ -3756,15 +3766,15 @@ app.post('/api/accounting/payouts',
 
       await prisma.payoutLedger.create({
         data: {
-          type: SETTLEMENT_TYPE.MERCHANT,
+          type: isDriver ? SETTLEMENT_TYPE.DRIVER : SETTLEMENT_TYPE.MERCHANT,
           orderId: null,
-          storeId,
-          storeName,
-          driverId: null,
-          driverName: null,
+          storeId: storeId || null,
+          storeName: storeName || null,
+          driverId: driverId || null,
+          driverName: driverName || null,
           cycleKey: cycleKey || null,
           amount: Number(amount),
-          note: note || 'Settled merchant balance',
+          note: note || (isDriver ? 'Settled driver payout' : 'Settled merchant balance'),
           actorUserId: req.user.id,
           actorRole: req.user.role,
           source: 'MANUAL'
