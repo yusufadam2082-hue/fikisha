@@ -6,12 +6,10 @@ import App from './App';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { AuthProvider } from './context/AuthContext';
-
-const DEFAULT_REMOTE_API_URL = 'https://fikisha-sut2.onrender.com';
-const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const resolvedApiBaseUrl = process.env.REACT_APP_API_URL || (isLocalhost ? '' : DEFAULT_REMOTE_API_URL);
+import { resolvedApiBaseUrl } from './utils/apiClient';
 
 axios.defaults.baseURL = resolvedApiBaseUrl;
+console.info('[Fikisha Admin] API base URL:', resolvedApiBaseUrl || '(same-origin)');
 
 const theme = createTheme({
   palette: {

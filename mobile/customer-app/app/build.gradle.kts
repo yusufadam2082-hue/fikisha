@@ -3,6 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val apiBaseUrl =
+    (project.findProperty("API_BASE_URL") as String?)?.trim()?.ifEmpty { null }
+        ?: System.getenv("API_BASE_URL")?.trim()?.ifEmpty { null }
+        ?: "https://fikisha-sut2.onrender.com/"
+
 android {
     namespace = "com.fikisha.customer"
     compileSdk = 34
@@ -16,6 +21,7 @@ android {
 
         buildConfigField("String", "APP_ROLE", "\"CUSTOMER\"")
         buildConfigField("String", "APP_NAME", "\"Fikisha\"")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         resValue("string", "app_name", "Fikisha")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -26,10 +32,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"https://fikisha-sut2.onrender.com/\"")
         }
         release {
-            buildConfigField("String", "API_BASE_URL", "\"https://fikisha-sut2.onrender.com/\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

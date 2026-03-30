@@ -43,18 +43,8 @@ import GroupIcon from '@mui/icons-material/Group';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { formatKES } from '../utils/currency';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
-const apiClient = axios.create({ baseURL: API_BASE_URL });
-
-// Sync the auth token before every request so it always uses the latest value.
-apiClient.interceptors.request.use(cfg => {
-  const token = localStorage.getItem('token');
-  if (token) cfg.headers['Authorization'] = `Bearer ${token}`;
-  return cfg;
-});
 
 const STATUS_OPTIONS = [
   { value: 'all',    label: 'All customers'  },

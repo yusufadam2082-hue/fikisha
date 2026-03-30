@@ -15,10 +15,16 @@ import {
   Switch,
   Snackbar,
   Alert,
-  Divider
+  Divider,
+  Chip,
+  CircularProgress
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import apiClient, { resolvedApiBaseUrl } from '../utils/apiClient';
 
 const STORAGE_KEY = 'fikisha_admin_settings';
 
@@ -61,6 +67,13 @@ function Settings() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [healthStatus, setHealthStatus] = useState({
+    status: 'checking',
+    isOnline: false,
+    lastChecked: null,
+    error: null,
+    responseTime: null
+  });
 
   useEffect(() => {
     try {
@@ -82,6 +95,48 @@ function Settings() {
     } catch (error) {
       console.error('Failed to load admin settings from localStorage', error);
     }
+  }, []);
+
+  // Fetch backend health status
+  const fetchHealthStatus = async () => {
+    const startTime = performance.now();
+    try {
+      const response = await apiClient.get('/health', { timeout: 5000 });
+      const responseTime = Math.round(performance.now() - startTime);
+      setHealthStatus({
+        status: 'online',
+        isOnline: true,
+        lastChecked: new Date(),
+        error: null,
+        responseTime
+      });
+      console.info('[Fikisha Admin] Backend health check passed', {
+        responseTime,
+        timestamp: new Date().toISOString(),
+        apiBaseUrl: resolvedApiBaseUrl
+      });
+    } catch (error) {
+      setHealthStatus({
+        status: 'offline',
+        isOnline: false,
+        lastChecked: new Date(),
+        error: error.message || 'Connection failed',
+        responseTime: null
+      });
+      console.warn('[Fikisha Admin] Backend health check failed', {
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        apiBaseUrl: resolvedApiBaseUrl
+      });
+    }
+  };
+
+  useEffect(() => {
+    // Initial check
+    fetchHealthStatus();
+    // Recheck every 30 seconds
+    const interval = setInterval(fetchHealthStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const updateSection = (section, key, value) => {
@@ -139,6 +194,80 @@ function Settings() {
       </Box>
 
       <Grid container spacing={3}>
+        {/* Health & Environment Panel */}
+        <Grid item xs={12}>
+          <Card sx={{ background: healthStatus.isOnline ? 'linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%)' : 'linear-gradient(135deg, #ffebee 0%, #fff3e0 100%)', border: `2px solid ${healthStatus.isOnline ? '#4caf50' : '#f44336'}` }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <HealthAndSafetyIcon sx={{ color: healthStatus.isOnline ? '#4caf50' : '#f44336', fontSize: 28 }} />
+                  <Typography variant="h6">System Health & Environment</Typography>
+                </Box>
+                <Chip 
+                  icon={healthStatus.status === 'checking' ? undefined : (healthStatus.isOnline ? <CheckCircleIcon /> : <ErrorIcon />)}
+                  label={healthStatus.status === 'checking' ? 'Checking...' : (healthStatus.isOnline ? 'Online' : 'Offline')}
+                  color={healthStatus.isOnline ? 'success' : 'error'}
+                  variant="outlined"
+                />
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
+                    <Typography variant="caption" color="textSecondary">API Base URL</Typography>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', mt: 0.5 }}>
+                      {resolvedApiBaseUrl || '(same-origin)'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
+                    <Typography variant="caption" color="textSecondary">Response Time</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      {healthStatus.status === 'checking' ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <CircularProgress size={14} /> Checking...
+                        </Box>
+                      ) : (
+                        healthStatus.responseTime ? `${healthStatus.responseTime}ms` : 'N/A'
+                      )}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 1.5, bgcolor: 'rgba(255,255,255,0.5)', borderRadius: 1 }}>
+                    <Typography variant="caption" color="textSecondary">Last Checked</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5 }}>
+                      {healthStatus.lastChecked ? healthStatus.lastChecked.toLocaleTimeString() : 'Never'}
+                    </Typography>
+                  </Box>
+                </Grid>
+                {healthStatus.error && (
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ p: 1.5, bgcolor: 'rgba(244,67,54,0.1)', borderRadius: 1, border: '1px solid #f44336' }}>
+                      <Typography variant="caption" color="error">Error</Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5, color: '#d32f2f' }}>
+                        {healthStatus.error}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+              
+              <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Button 
+                  size="small" 
+                  variant="outlined" 
+                  onClick={fetchHealthStatus}
+                  disabled={healthStatus.status === 'checking'}
+                >
+                  {healthStatus.status === 'checking' ? 'Checking...' : 'Check Now'}
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>

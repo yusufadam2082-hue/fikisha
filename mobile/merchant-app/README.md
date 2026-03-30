@@ -58,8 +58,9 @@ merchant-app/
    - Let Gradle sync and download dependencies
 
 3. **Configure Backend URL**:
-   - Update `BASE_URL` in `NetworkModule.kt` to point to your backend server
-   - Default: `http://10.0.2.2:3000/` (Android emulator localhost)
+   - Use `api-base.example.properties` as a reference, then set `API_BASE_URL` in `local.properties` (or as an environment variable) to point to your backend server.
+   - Example: `API_BASE_URL=http://10.0.2.2:3002/` for local emulator backend.
+   - If not set, the app uses the default compiled URL.
 
 4. **Build & Run**:
    - Connect a device or emulator

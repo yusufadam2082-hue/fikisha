@@ -17,13 +17,9 @@ import {
   TableRow,
   Typography
 } from '@mui/material';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { formatKES } from '../utils/currency';
 import { getStoreSecurityEvents } from '../utils/storeSecurityLog';
-
-// Use backend URL directly to avoid proxy issues
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
-const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 function parsePaymentMethod(customerInfo) {
   if (!customerInfo) {

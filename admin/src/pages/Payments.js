@@ -25,11 +25,8 @@ import {
   TextField,
   Typography
 } from '@mui/material';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { formatKES } from '../utils/currency';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
-const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 function statusColor(status) {
   switch (String(status || '').toUpperCase()) {

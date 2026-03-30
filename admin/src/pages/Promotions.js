@@ -38,18 +38,7 @@ import EventBusyIcon from '@mui/icons-material/EventBusy';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import SortIcon from '@mui/icons-material/Sort';
-import axios from 'axios';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
-const apiClient = axios.create({ baseURL: API_BASE_URL });
-
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import apiClient from '../utils/apiClient';
 
 const DEFAULT_COLOR = '#FF5A5F';
 const COLOR_PRESETS = ['#FF5A5F', '#F97316', '#14B8A6', '#0EA5E9', '#0F172A'];

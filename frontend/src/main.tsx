@@ -9,6 +9,7 @@ const defaultApiBase = window.location.hostname === 'localhost'
   ? 'http://127.0.0.1:3002'
   : 'https://fikisha-sut2.onrender.com'
 const apiBaseUrl = configuredApiBase || defaultApiBase
+console.info('[Fikisha Frontend] API base URL:', apiBaseUrl)
 
 const originalFetch = window.fetch.bind(window)
 window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {

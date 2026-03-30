@@ -23,13 +23,9 @@ import AddIcon from '@mui/icons-material/Add';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { formatKES } from '../utils/currency';
 import { appendStoreSecurityEvent } from '../utils/storeSecurityLog';
-
-// Use backend URL directly to avoid proxy issues
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://fikisha-sut2.onrender.com';
-const apiClient = axios.create({ baseURL: API_BASE_URL });
 
 function Stores() {
   const [stores, setStores] = useState([]);
