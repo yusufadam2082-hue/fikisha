@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth, loginUser, registerUser } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -270,14 +270,6 @@ export function CustomerLogin() {
           >
             {view === 'login' ? 'Create Account' : 'Sign In'}
           </button>
-        </p>
-
-        <p className="text-sm text-muted" style={{ textAlign: 'center', marginTop: '16px' }}>
-          Staff member? <Link to="/login" style={{ color: 'var(--primary)' }}>Use staff login</Link>
-        </p>
-
-        <p className="text-sm text-muted" style={{ textAlign: 'center', marginTop: '8px' }}>
-          Merchant? <Link to="/merchant/login" style={{ color: 'var(--primary)' }}>Use merchant portal</Link>
         </p>
       </div>
     </div>

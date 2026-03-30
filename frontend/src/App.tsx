@@ -16,9 +16,11 @@ import { AuthProvider } from './context/AuthContext';
 import { LocationProvider } from './context/LocationContext';
 import { SearchProvider } from './context/SearchContext';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import { Login } from './pages/Login';
+import { Landing } from './pages/Landing';
 import { CustomerLogin } from './pages/CustomerLogin';
 import { MerchantLogin } from './pages/MerchantLogin';
+import { DriverLogin } from './pages/DriverLogin';
+import { AdminLogin } from './pages/AdminLogin';
 import { MerchantLayout } from './components/layout/MerchantLayout';
 import { MerchantDashboard } from './pages/merchant/MerchantDashboard';
 import { MerchantOrders } from './pages/merchant/MerchantOrders';
@@ -62,11 +64,12 @@ function App() {
             <LocationProvider>
               <SearchProvider>
                 <Routes>
-                {/* Public entry points for signing in or landing on the customer app. */}
-                <Route path="/login" element={<Login />} />
+                {/* Public entry points for signing in or landing on the apps. */}
+                <Route path="/" element={<Landing />} />
                 <Route path="/customer/login" element={<CustomerLogin />} />
                 <Route path="/merchant/login" element={<MerchantLogin />} />
-                <Route path="/" element={<Navigate to="/customer" replace />} />
+                <Route path="/driver/login" element={<DriverLogin />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
                 
                 {/* Customer-facing shopping and account routes. */}
                 <Route path="/customer" element={

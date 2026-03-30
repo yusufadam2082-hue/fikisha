@@ -12,13 +12,19 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const location = useLocation();
 
   if (!isAuthenticated || !user) {
-    const customerPath = location.pathname.startsWith('/customer');
-    const merchantPath = location.pathname.startsWith('/merchant');
-    return <Navigate to={customerPath ? '/customer/login' : merchantPath ? '/merchant/login' : '/login'} replace />;
+    const isMerchant = location.pathname.startsWith('/merchant');
+    const isDriver = location.pathname.startsWith('/driver');
+    const isAdmin = location.pathname.startsWith('/admin');
+    
+    if (isMerchant) return <Navigate to="/merchant/login" replace />;
+    if (isDriver) return <Navigate to="/driver/login" replace />;
+    if (isAdmin) return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/customer/login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirect to their respective dashboards if they try to access the wrong one
+    // If the authenticated user is accessing a platform they don't have access to,
+    // explicitly prevent them by returning to their own safe portal or forcing a re-login.
     if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
     if (user.role === 'MERCHANT') return <Navigate to="/merchant" replace />;
     if (user.role === 'DRIVER') return <Navigate to="/driver" replace />;

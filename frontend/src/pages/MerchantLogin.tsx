@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth, loginUser } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Store as StoreIcon, ArrowRight } from 'lucide-react';
+import { Store as StoreIcon } from 'lucide-react';
 
 export function MerchantLogin() {
   const { login } = useAuth();
@@ -65,18 +65,6 @@ export function MerchantLogin() {
             </Button>
           </div>
         </Card>
-
-        <div style={{ textAlign: 'center', marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <p className="text-sm text-muted">
-            Platform admin or driver? <Link to="/login" style={{ color: 'var(--primary)' }}>Use staff login</Link>
-          </p>
-          <p className="text-sm text-muted">
-            Shopping as a customer? <Link to="/customer/login" style={{ color: 'var(--primary)' }}>Go to customer portal</Link>
-          </p>
-          <Link to="/customer" style={{ color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-            Browse marketplace <ArrowRight size={16} />
-          </Link>
-        </div>
       </div>
     </div>
   );
