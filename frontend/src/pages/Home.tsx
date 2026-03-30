@@ -1,12 +1,20 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Card } from '../components/ui/Card';
-import { ArrowRight, Clock, Star, X, Package, ChevronLeft, ChevronRight, MapPin, Navigation } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  ArrowRight,
+  Clock3,
+  MapPin,
+  Navigation,
+  Package,
+  Pill,
+  ShoppingBasket,
+  Star,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { useStoreContext } from '../context/StoreContext';
 import { useSearch } from '../context/SearchContext';
-import { formatKES } from '../utils/currency';
-import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
 import { useLocation, type DeliveryQuote } from '../context/LocationContext';
+import './HomeRedesign.css';
 
 interface Promotion {
   id: string;
@@ -18,49 +26,50 @@ interface Promotion {
   image: string | null;
 }
 
-interface AiRecommendation {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  storeId: string;
-  storeName: string;
-  reason: string;
-}
-
-function getAuthHeaders(): HeadersInit {
-  return buildAuthHeaders(true);
+function categoryVisual(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes('food') || normalized.includes('restaurant')) {
+    return {
+      icon: <UtensilsCrossed size={28} />,
+      bg: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)',
+      ghost: 'utensils-crossed',
+      subtitle: 'Chef-made meals',
+    };
+  }
+  if (normalized.includes('grocery') || normalized.includes('market')) {
+    return {
+      icon: <ShoppingBasket size={28} />,
+      bg: 'linear-gradient(135deg, #dbf7e5 0%, #c7f2d6 100%)',
+      ghost: 'shopping-basket',
+      subtitle: 'Fresh essentials',
+    };
+  }
+  if (normalized.includes('pharmacy') || normalized.includes('medicine')) {
+    return {
+      icon: <Pill size={28} />,
+      bg: 'linear-gradient(135deg, #dceeff 0%, #cfe5ff 100%)',
+      ghost: 'pill',
+      subtitle: 'Instant health care',
+    };
+  }
+  return {
+    icon: <Package size={28} />,
+    bg: 'linear-gradient(135deg, #f0ece6 0%, #e7dfd5 100%)',
+    ghost: 'package',
+    subtitle: 'Fast local delivery',
+  };
 }
 
 export function Home() {
   const { categories, stores } = useStoreContext();
   const { searchQuery } = useSearch();
   const { activeLocation, openLocationSelector } = useLocation();
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [aiRecommendations, setAiRecommendations] = useState<AiRecommendation[]>([]);
-  const [loadingAiRecommendations, setLoadingAiRecommendations] = useState(false);
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
   const storesRef = useRef<HTMLElement>(null);
-  const heroTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const nextSlide = useCallback(() => {
-    setHeroIndex(i => (i + 1) % Math.max(1, promotions.length));
-  }, [promotions.length]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
 
-  const prevSlide = () => {
-    setHeroIndex(i => (i - 1 + promotions.length) % promotions.length);
-  };
-
-  // Auto-advance carousel every 5 seconds when there are multiple promotions.
-  useEffect(() => {
-    if (promotions.length <= 1) return;
-    heroTimerRef.current = setInterval(nextSlide, 5000);
-    return () => { if (heroTimerRef.current) clearInterval(heroTimerRef.current); };
-  }, [promotions.length, nextSlide]);
-
-  // Fetch delivery quotes for visible stores when active location changes
   useEffect(() => {
     if (!activeLocation || stores.length === 0) {
       setStoreQuotes({});
@@ -68,7 +77,7 @@ export function Home() {
     }
 
     const controller = new AbortController();
-    const fetchAll = async () => {
+    const fetchQuotes = async () => {
       const results: Record<string, DeliveryQuote> = {};
       await Promise.allSettled(
         stores.map(async (store) => {
@@ -83,374 +92,251 @@ export function Home() {
             if (res.ok) {
               results[store.id] = (await res.json()) as DeliveryQuote;
             }
-          } catch { /* per-store failures are soft */ }
+          } catch {
+            // Soft failure for per-store quote requests.
+          }
         })
       );
-      if (!controller.signal.aborted) setStoreQuotes(results);
-    };
-    fetchAll();
-    return () => controller.abort();
-  }, [activeLocation, stores]);
 
-  // Fetch active promotions from the public endpoint.
-  useEffect(() => {
-    fetch('/api/promotions')
-      .then(r => r.ok ? r.json() : [])
-      .then((data: Promotion[]) => { if (Array.isArray(data)) setPromotions(data); })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const fetchAiRecommendations = async () => {
-      try {
-        setLoadingAiRecommendations(true);
-        const response = await fetch('/api/ai/recommendations?limit=6', {
-          headers: getAuthHeaders()
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data = await response.json();
-        if (!Array.isArray(data?.recommendations)) {
-          return;
-        }
-
-        const normalized = data.recommendations
-          .filter((item: Partial<AiRecommendation>) => item.id && item.storeId)
-          .map((item: Partial<AiRecommendation>) => ({
-            id: String(item.id),
-            name: String(item.name || 'Recommended item'),
-            price: Number(item.price || 0),
-            image: String(item.image || ''),
-            storeId: String(item.storeId),
-            storeName: String(item.storeName || 'Popular store'),
-            reason: String(item.reason || 'Popular in your area')
-          }));
-
-        setAiRecommendations(normalized);
-      } catch {
-        // Keep homepage functional if recommendation API is unavailable.
-      } finally {
-        setLoadingAiRecommendations(false);
+      if (!controller.signal.aborted) {
+        setStoreQuotes(results);
       }
     };
 
-    fetchAiRecommendations();
+    fetchQuotes();
+    return () => controller.abort();
+  }, [activeLocation, stores]);
+
+  useEffect(() => {
+    fetch('/api/promotions')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: Promotion[]) => {
+        if (Array.isArray(data)) {
+          setPromotions(data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const searchLower = searchQuery.toLowerCase().trim();
 
-  const filteredBySearch = searchLower
-    ? stores.filter(store =>
-        store.name.toLowerCase().includes(searchLower) ||
-        store.category.toLowerCase().includes(searchLower) ||
-        store.products?.some(product => product.name.toLowerCase().includes(searchLower))
-      )
-    : stores;
+  const filteredBySearch = useMemo(
+    () =>
+      searchLower
+        ? stores.filter(
+            (store) =>
+              store.name.toLowerCase().includes(searchLower) ||
+              store.category.toLowerCase().includes(searchLower) ||
+              store.products?.some((product) => product.name.toLowerCase().includes(searchLower))
+          )
+        : stores,
+    [searchLower, stores]
+  );
 
-  // Issue 5: sort by rating descending; issue 38: filter by serviceability when location is set
-  const filteredStores = (selectedCategory
-    ? filteredBySearch.filter(store => store.category === selectedCategory)
-    : filteredBySearch
-  ).slice().sort((a, b) => b.rating - a.rating).filter(store => {
-    if (!activeLocation || Object.keys(storeQuotes).length === 0) return true;
-    const quote = storeQuotes[store.id];
-    if (!quote) return true; // no quote yet → show store
-    return quote.serviceable;
-  });
+  const filteredStores = useMemo(
+    () =>
+      (selectedCategory
+        ? filteredBySearch.filter((store) => store.category === selectedCategory)
+        : filteredBySearch
+      )
+        .slice()
+        .sort((a, b) => b.rating - a.rating)
+        .filter((store) => {
+          if (!activeLocation || Object.keys(storeQuotes).length === 0) return true;
+          const quote = storeQuotes[store.id];
+          if (!quote) return true;
+          return quote.serviceable;
+        }),
+    [selectedCategory, filteredBySearch, activeLocation, storeQuotes]
+  );
+
+  const heroPromo = promotions[0];
+  const rewardPromos = promotions.length > 0
+    ? promotions
+    : [
+        {
+          id: 'fallback-a',
+          title: '50% Off First Order',
+          subtitle: 'Use code FIKISHA50 today',
+          ctaText: 'Claim Offer',
+          ctaLink: null,
+          bgColor: 'linear-gradient(160deg, #4b1810 0%, #a63400 100%)',
+          image: null,
+        },
+        {
+          id: 'fallback-b',
+          title: 'Free Market Delivery',
+          subtitle: 'Orders over KES 3,000 get zero delivery fee',
+          ctaText: 'Explore Markets',
+          ctaLink: null,
+          bgColor: 'linear-gradient(160deg, #0c3b2a 0%, #006944 100%)',
+          image: null,
+        },
+      ];
 
   return (
-    <div className="container" style={{ padding: '0 24px' }}>
-
-      {/* Hero / Promotions Section */}
-      {promotions.length > 0 ? (
-        <section style={{ position: 'relative', marginBottom: '0', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-          {/* Slide */}
-          {promotions.map((promo, idx) => {
-            const handleCtaClick = () => {
-              if (promo.ctaLink) {
-                window.open(promo.ctaLink, '_blank', 'noopener,noreferrer');
-              } else {
-                storesRef.current?.scrollIntoView({ behavior: 'smooth' });
-              }
-            };
-            return (
-              <div
-                key={promo.id}
-                className="animate-fade-in home-promo-slide"
-                style={{
-                  display: idx === heroIndex ? 'flex' : 'none',
-                  alignItems: 'center',
-                  minHeight: '260px',
-                  padding: '48px 40px',
-                  background: promo.image
-                    ? `linear-gradient(rgba(0,0,0,0.48), rgba(0,0,0,0.48)), url(${promo.image}) center/cover`
-                    : promo.bgColor,
-                  color: '#fff',
-                  position: 'relative',
-                }}
-              >
-                <div style={{ maxWidth: '560px', zIndex: 2 }}>
-                  <h1 className="text-h1" style={{ marginBottom: '12px', color: '#fff' }}>{promo.title}</h1>
-                  <p className="text-h3" style={{ opacity: 0.9, marginBottom: '28px', fontWeight: 400, color: '#fff' }}>{promo.subtitle}</p>
-                  <button
-                    onClick={handleCtaClick}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '8px',
-                      background: 'rgba(255,255,255,0.2)', color: '#fff',
-                      border: '2px solid rgba(255,255,255,0.6)', borderRadius: '999px',
-                      padding: '12px 28px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer',
-                      backdropFilter: 'blur(4px)',
-                    }}
-                  >
-                    {promo.ctaText} <ArrowRight size={18} />
-                  </button>
-                </div>
-                {/* Decorative circle */}
-                <div style={{
-                  position: 'absolute', right: '-5%', top: '-20%',
-                  width: '400px', height: '400px', borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.07)', zIndex: 1,
-                }} className="hidden-mobile" />
-              </div>
-            );
-          })}
-
-          {/* Prev / Next arrows */}
-          {promotions.length > 1 && (
-            <>
-              <button
-                onClick={prevSlide}
-                style={{
-                  position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%',
-                  color: '#fff', width: '36px', height: '36px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', cursor: 'pointer', zIndex: 10,
-                }}
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <button
-                onClick={nextSlide}
-                style={{
-                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '50%',
-                  color: '#fff', width: '36px', height: '36px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', cursor: 'pointer', zIndex: 10,
-                }}
-              >
-                <ChevronRight size={20} />
-              </button>
-              {/* Dot indicators */}
-              <div style={{
-                position: 'absolute', bottom: '14px', left: '50%', transform: 'translateX(-50%)',
-                display: 'flex', gap: '6px', zIndex: 10,
-              }}>
-                {promotions.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setHeroIndex(idx)}
-                    style={{
-                      width: idx === heroIndex ? '20px' : '8px', height: '8px',
-                      borderRadius: '999px', border: 'none', cursor: 'pointer',
-                      background: idx === heroIndex ? '#fff' : 'rgba(255,255,255,0.45)',
-                      transition: 'all 0.3s ease', padding: 0,
-                    }}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      ) : (
-        /* Fallback static hero when no promotions are configured */
-        <section className="animate-fade-in hero-section">
-          <div style={{ maxWidth: '600px', position: 'relative', zIndex: 2 }}>
-            <h1 className="text-h1" style={{ marginBottom: '16px' }}>Cravings? Groceries? Anything, delivered.</h1>
-            <p className="text-h3" style={{ opacity: 0.9, marginBottom: '32px', fontWeight: 400 }}>Get exactly what you need, exactly when you need it.</p>
+    <div className="customer-home-shell">
+      <section
+        className="customer-hero"
+        style={{
+          background: heroPromo?.image
+            ? `linear-gradient(102deg, rgba(24, 8, 4, 0.75), rgba(24, 8, 4, 0.25)), url(${heroPromo.image}) center/cover`
+            : 'linear-gradient(125deg, #fff1ee 0%, #ffd6ca 52%, #ffe9e3 100%)',
+        }}
+      >
+        <div className="customer-hero-copy">
+          <p className="customer-hero-kicker">Premium speed, citywide reach</p>
+          <h1>
+            Fastest delivery in <span>your</span> city.
+          </h1>
+          <p>
+            {heroPromo?.subtitle ||
+              'From hot meals to groceries and pharmacies, Fikisha brings your essentials to your door in minutes.'}
+          </p>
+          <div className="customer-hero-actions">
             <button
+              type="button"
+              className="btn-explore"
               onClick={() => storesRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="hero-btn"
             >
-              Order now <ArrowRight size={18} />
+              Explore Stores <ArrowRight size={16} />
+            </button>
+            <button
+              type="button"
+              className="btn-offers"
+              onClick={() => document.getElementById('home-rewards')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Offers
             </button>
           </div>
-          <div style={{
-            position: 'absolute', right: '-10%', top: '-20%',
-            width: '500px', height: '500px', borderRadius: '50%',
-            background: 'rgba(255,255,255,0.1)', zIndex: 1
-          }} className="hidden-mobile" />
-        </section>
-      )}
-
-      {/* Categories */}
-      <section style={{ marginBottom: '48px' }}>
-        <div style={{ marginBottom: '24px' }}>
-          <h2 className="text-h2">What do you need?</h2>
         </div>
-        <div className="home-categories-grid">
-          {categories.map((cat) => (
-            <Card
-              key={cat.id}
-              className="flex-center home-category-card"
-              hoverable
-              onClick={() => setSelectedCategory(selectedCategory === cat.name ? null : cat.name)}
+
+        <div className="customer-hero-badge" role="status" aria-live="polite">
+          <button type="button" className="customer-hero-location" onClick={openLocationSelector}>
+            {activeLocation ? <MapPin size={14} /> : <Navigation size={14} />}
+            <span>{activeLocation ? activeLocation.label : 'Set delivery location'}</span>
+          </button>
+          <p>Most stores deliver in 15-35 minutes</p>
+        </div>
+      </section>
+
+      <section className="customer-section">
+        <div className="section-headline">
+          <h2>What can we bring you?</h2>
+          <p>Tap a category to start your journey</p>
+        </div>
+
+        <div className="customer-categories-grid">
+          {categories.map((cat) => {
+            const visual = categoryVisual(cat.name);
+            const isSelected = selectedCategory === cat.name;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`customer-category-card${isSelected ? ' selected' : ''}`}
+                onClick={() => setSelectedCategory(isSelected ? null : cat.name)}
+              >
+                <div className="category-icon" style={{ background: visual.bg }}>
+                  {visual.icon}
+                </div>
+                <h3>{cat.name}</h3>
+                <p>{visual.subtitle}</p>
+                <span className="ghost-icon" aria-hidden="true">
+                  {cat.image || visual.ghost}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="home-rewards" className="customer-section">
+        <div className="section-headline">
+          <h2>Exclusive Rewards</h2>
+        </div>
+        <div className="customer-rewards-row">
+          {rewardPromos.map((promo) => (
+            <article
+              key={promo.id}
+              className="reward-card"
               style={{
-                background: selectedCategory === cat.name ? 'rgba(255, 90, 95, 0.1)' : 'var(--surface)',
-                borderColor: selectedCategory === cat.name ? 'var(--primary)' : 'transparent',
+                background: promo.image
+                  ? `linear-gradient(180deg, rgba(10, 8, 8, 0.15) 0%, rgba(10, 8, 8, 0.75) 100%), url(${promo.image}) center/cover`
+                  : promo.bgColor,
               }}
             >
-              <span className="home-category-emoji">{cat.image}</span>
-              <span className="text-h3 home-category-label" style={{ color: selectedCategory === cat.name ? 'var(--primary)' : 'inherit' }}>
-                {cat.name}
-              </span>
-            </Card>
+              <span className="reward-pill">Limited Time</span>
+              <h3>{promo.title}</h3>
+              <p>{promo.subtitle}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section style={{ marginBottom: '48px' }}>
-        <div className="flex-between" style={{ marginBottom: '20px' }}>
-          <h2 className="text-h2">AI Picks For You</h2>
-          <span className="text-sm text-muted">Personalized from your recent activity</span>
-        </div>
-
-        {loadingAiRecommendations ? (
-          <div className="text-muted">Loading smart picks...</div>
-        ) : aiRecommendations.length === 0 ? (
-          <div className="text-muted">No personalized picks yet. Place an order and AI suggestions will improve.</div>
-        ) : (
-          <div className="home-ai-grid">
-            {aiRecommendations.map((item) => (
-              <Link key={item.id} to={`/customer/store/${item.storeId}`}>
-                <Card className="home-ai-card">
-                  <div className="home-ai-image">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.style.display = 'none';
-                          if (target.parentElement) {
-                            target.parentElement.innerHTML = '<div class="image-fallback">No Image</div>';
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="image-fallback">No Image</div>
-                    )}
-                  </div>
-                  <div className="home-ai-content">
-                    <p className="text-sm" style={{ color: 'var(--primary)', fontWeight: 700, marginBottom: '6px' }}>{item.storeName}</p>
-                    <h3 className="text-h3" style={{ fontSize: '1rem', marginBottom: '8px' }}>{item.name}</h3>
-                    <p className="text-sm text-muted" style={{ marginBottom: '10px' }}>{item.reason}</p>
-                    <p style={{ fontWeight: 700 }}>{formatKES(item.price)}</p>
-                  </div>
-                </Card>
-              </Link>
-            ))}
+      <section ref={storesRef} className="customer-section">
+        <div className="customer-merchants-head">
+          <div>
+            <h2>{selectedCategory ? `${selectedCategory} near you` : 'Nearby Merchants'}</h2>
+            <p>{filteredStores.length} options available now</p>
           </div>
-        )}
-      </section>
-
-      {/* Issue 1: single store section (removed duplicate list view) */}
-      {/* Issue 2: removed dead "See all" button */}
-      <section ref={storesRef} style={{ marginBottom: '48px' }}>
-        <div className="flex-between" style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <h2 className="text-h2">
-              {selectedCategory ? `${selectedCategory} near you` : 'Popular near you'}
-            </h2>
-            {selectedCategory && (
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className="btn-icon"
-                style={{ background: 'var(--surface-hover)', padding: '4px', borderRadius: '50%' }}
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          {/* Location chip */}
-          <button
-            type="button"
-            onClick={openLocationSelector}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '6px 14px', borderRadius: 'var(--radius-pill)',
-              border: '1px solid var(--border)', background: 'var(--surface)',
-              color: activeLocation ? 'var(--primary)' : 'var(--text-muted)',
-              fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer',
-              maxWidth: '200px', overflow: 'hidden', flexShrink: 0,
-            }}
-          >
+          <button type="button" className="location-filter" onClick={openLocationSelector}>
             {activeLocation ? <MapPin size={14} /> : <Navigation size={14} />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {activeLocation ? activeLocation.label : 'Set location'}
-            </span>
+            <span>{activeLocation ? activeLocation.label : 'Set location'}</span>
           </button>
         </div>
 
-        {/* Issue 4: empty state */}
         {filteredStores.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '64px 24px', color: 'var(--text-muted)' }}>
-            <Package size={48} style={{ opacity: 0.3, marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
-            <p className="text-h3" style={{ marginBottom: '8px' }}>No stores found</p>
-            <p className="text-body">
+          <div className="home-empty-state">
+            <Package size={42} />
+            <h3>No stores found</h3>
+            <p>
               {searchQuery
-                ? `No results for "${searchQuery}" â€” try a different search.`
+                ? `No results for "${searchQuery}". Try another keyword.`
                 : 'No stores in this category yet.'}
             </p>
-            <button
-              onClick={() => setSelectedCategory(null)}
-              style={{ marginTop: '16px', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Clear filters
-            </button>
           </div>
         ) : (
-          <div className="home-stores-grid">
-            {filteredStores.map((place) => (
-              <Link key={place.id} to={`/customer/store/${place.id}`}>
-                <Card className="home-store-card">
-                  {/* Issue 9: image fallback */}
-                  <div className="home-store-image">
-                    <img
-                      src={place.image}
-                      alt={place.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => { 
-                        const target = e.currentTarget;
-                        target.style.display = 'none';
-                        if (target.parentElement) {
-                          target.parentElement.innerHTML = '<div class="image-fallback">No Image</div>';
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="home-store-content">
-                    <div className="flex-between" style={{ marginBottom: '8px' }}>
-                      <h3 className="text-h3 home-store-title">{place.name}</h3>
-                      <div className="flex-center" style={{ gap: '4px', background: 'var(--surface-hover)', padding: '4px 8px', borderRadius: 'var(--radius-sm)' }}>
-                        <Star size={16} color="var(--accent)" fill="var(--accent)" />
-                        <span className="text-sm" style={{ fontWeight: 600 }}>{place.rating}</span>
+          <div className="customer-merchants-grid">
+            {filteredStores.map((store) => {
+              const quote = storeQuotes[store.id];
+              return (
+                <Link key={store.id} to={`/customer/store/${store.id}`} className="merchant-card-link">
+                  <article className="merchant-card">
+                    <div className="merchant-media">
+                      <img
+                        src={store.image}
+                        alt={store.name}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="merchant-rating">
+                        <Star size={12} fill="currentColor" />
+                        <span>{store.rating.toFixed(1)}</span>
+                      </div>
+                      <div className="merchant-time">
+                        <Clock3 size={12} />
+                        <span>{store.time}</span>
                       </div>
                     </div>
-                    <div className="flex-between text-muted text-sm">
-                      <span>{place.category}</span>
-                      <div className="flex-center" style={{ gap: '4px' }}>
-                        <Clock size={16} />
-                        <span>{place.time}</span>
+                    <div className="merchant-content">
+                      <div className="merchant-title-row">
+                        <h3>{store.name}</h3>
+                        <span className="merchant-fee">
+                          {quote?.serviceable
+                            ? quote.deliveryFee === 0
+                              ? 'Free'
+                              : `${quote.deliveryFee.toFixed(0)} KES`
+                            : 'Fee varies'}
+                        </span>
                       </div>
+                      <p>{store.category}</p>
                     </div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
+                  </article>
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>
