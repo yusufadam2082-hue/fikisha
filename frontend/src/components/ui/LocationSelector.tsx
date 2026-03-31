@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Navigation, Search, Bookmark, X, Trash2, Check } from 'lucide-react';
 import { useLocation, type AppLocation, type AddressSearchResult } from '../../context/LocationContext';
-import { Button } from './Button';
 import { LocationPickerMap } from './LocationPickerMap';
 
 type Tab = 'current' | 'search' | 'map' | 'saved';
+
+const ORANGE = '#a63400';
+const ORANGE_BG = 'rgba(166, 52, 0, 0.08)';
+const ORANGE_BORDER = 'rgba(166, 52, 0, 0.2)';
+const BROWN_TEXT = '#4e211e';
+const BROWN_MUTED = '#834c48';
 
 export function LocationSelector() {
   const {
@@ -28,7 +33,6 @@ export function LocationSelector() {
   const [showMap, setShowMap] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset state when opening
   useEffect(() => {
     if (isLocationSelectorOpen) {
       setTab('current');
@@ -40,7 +44,6 @@ export function LocationSelector() {
     }
   }, [isLocationSelectorOpen]);
 
-  // Debounced address search
   useEffect(() => {
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!searchQuery.trim()) {
@@ -94,7 +97,6 @@ export function LocationSelector() {
   };
 
   const handleMapConfirm = async (coords: { lat: number; lng: number }) => {
-    // Reverse geocode
     let label = 'Pinned location';
     let address = `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
     try {
@@ -140,7 +142,6 @@ export function LocationSelector() {
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={closeLocationSelector}
         style={{
@@ -149,7 +150,6 @@ export function LocationSelector() {
         }}
       />
 
-      {/* Panel */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
         width: '100%', maxWidth: '460px',
@@ -158,7 +158,6 @@ export function LocationSelector() {
         boxShadow: 'var(--shadow-lg)',
         overflowY: 'auto',
       }}>
-        {/* Header */}
         <div style={{
           padding: '20px 24px 12px',
           borderBottom: '1px solid var(--border)',
@@ -166,7 +165,7 @@ export function LocationSelector() {
         }}>
           <div>
             <h2 className="text-h2" style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <MapPin size={20} color="var(--primary)" />
+              <MapPin size={20} color={ORANGE} />
               Delivery Location
             </h2>
             {activeLocation && (
@@ -180,7 +179,6 @@ export function LocationSelector() {
           </button>
         </div>
 
-        {/* Tabs */}
         <div style={{
           display: 'flex', borderBottom: '1px solid var(--border)',
           background: 'var(--surface)',
@@ -193,8 +191,8 @@ export function LocationSelector() {
                 flex: 1, padding: '12px 8px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                 fontSize: '0.8rem', fontWeight: tab === t.key ? 700 : 500,
-                color: tab === t.key ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottom: tab === t.key ? '2px solid var(--primary)' : '2px solid transparent',
+                color: tab === t.key ? ORANGE : BROWN_MUTED,
+                borderBottom: tab === t.key ? `2px solid ${ORANGE}` : '2px solid transparent',
                 background: 'transparent', cursor: 'pointer',
                 transition: 'color 0.2s',
               }}
@@ -204,14 +202,11 @@ export function LocationSelector() {
           ))}
         </div>
 
-        {/* Tab content */}
         <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Save to list option (shared across tabs) */}
           {tab !== 'saved' && (
             <label style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              cursor: 'pointer', fontSize: '0.875rem', color: 'var(--text-muted)',
+              cursor: 'pointer', fontSize: '0.875rem', color: BROWN_MUTED,
             }}>
               <input
                 type="checkbox"
@@ -222,17 +217,16 @@ export function LocationSelector() {
             </label>
           )}
 
-          {/* ── GPS Tab ─────────────────────────────────────────── */}
           {tab === 'current' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', paddingTop: '32px' }}>
               <div style={{
                 width: '80px', height: '80px', borderRadius: '50%',
-                background: 'rgba(255,90,95,0.1)', display: 'flex',
+                background: ORANGE_BG, display: 'flex',
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Navigation size={36} color="var(--primary)" />
+                <Navigation size={36} color={ORANGE} />
               </div>
-              <p className="text-body" style={{ textAlign: 'center', color: 'var(--text-muted)', maxWidth: '280px' }}>
+              <p className="text-body" style={{ textAlign: 'center', color: BROWN_MUTED, maxWidth: '280px' }}>
                 Use your device GPS to automatically detect your current location.
               </p>
               {gpsError && (
@@ -244,22 +238,21 @@ export function LocationSelector() {
                   {gpsError}
                 </div>
               )}
-              <Button
+              <button
+                className="cl-btn-primary"
                 onClick={handleUseGPS}
                 disabled={isLocating}
-                fullWidth
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
               >
                 <Navigation size={16} />
                 {isLocating ? 'Locating...' : 'Use My Current Location'}
-              </Button>
-              <p className="text-sm text-muted" style={{ textAlign: 'center' }}>
+              </button>
+              <p className="text-sm" style={{ textAlign: 'center', color: BROWN_MUTED }}>
                 If GPS is unavailable, use the <strong>Search</strong> or <strong>Map</strong> tab.
               </p>
             </div>
           )}
 
-          {/* ── Search Tab ──────────────────────────────────────── */}
           {tab === 'search' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="input-wrapper">
@@ -276,7 +269,7 @@ export function LocationSelector() {
               </div>
 
               {isSearching && (
-                <p className="text-sm text-muted">Searching...</p>
+                <p className="text-sm" style={{ color: BROWN_MUTED }}>Searching...</p>
               )}
 
               {searchResults.length > 0 && (
@@ -290,14 +283,15 @@ export function LocationSelector() {
                         padding: '12px 14px', background: 'var(--surface-hover)',
                         borderRadius: 'var(--radius-md)', cursor: 'pointer',
                         textAlign: 'left', transition: 'background 0.15s',
+                        border: '1px solid transparent',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,90,95,0.08)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                      onMouseEnter={e => { e.currentTarget.style.background = ORANGE_BG; e.currentTarget.style.borderColor = ORANGE_BORDER; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-hover)'; e.currentTarget.style.borderColor = 'transparent'; }}
                     >
-                      <MapPin size={16} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+                      <MapPin size={16} color={ORANGE} style={{ marginTop: '2px', flexShrink: 0 }} />
                       <div>
-                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>{result.label}</p>
-                        <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem', color: BROWN_TEXT }}>{result.label}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: BROWN_MUTED }}>
                           {result.address}
                         </p>
                       </div>
@@ -307,46 +301,44 @@ export function LocationSelector() {
               )}
 
               {!isSearching && searchQuery.trim() && searchResults.length === 0 && (
-                <p className="text-sm text-muted">No results found. Try a different search term.</p>
+                <p className="text-sm" style={{ color: BROWN_MUTED }}>No results found. Try a different search term.</p>
               )}
             </div>
           )}
 
-          {/* ── Map Tab ─────────────────────────────────────────── */}
           {tab === 'map' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <p className="text-sm text-muted">
+              <p className="text-sm" style={{ color: BROWN_MUTED }}>
                 Click the button below to open the map and pin your delivery location.
               </p>
-              <Button
+              <button
+                className="cl-btn-primary"
                 onClick={() => setShowMap(true)}
-                fullWidth
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
               >
                 <MapPin size={16} />
                 Open Map Picker
-              </Button>
+              </button>
               {activeLocation && (
                 <div style={{
                   padding: '10px 14px', background: 'var(--surface-hover)',
                   borderRadius: 'var(--radius-md)', fontSize: '0.875rem',
                 }}>
-                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.75rem' }}>Active location</p>
-                  <p style={{ margin: '2px 0 0', fontWeight: 600 }}>{activeLocation.label}</p>
-                  <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{activeLocation.address}</p>
+                  <p style={{ margin: 0, color: BROWN_MUTED, fontSize: '0.75rem' }}>Active location</p>
+                  <p style={{ margin: '2px 0 0', fontWeight: 600, color: BROWN_TEXT }}>{activeLocation.label}</p>
+                  <p style={{ margin: '2px 0 0', color: BROWN_MUTED, fontSize: '0.8rem' }}>{activeLocation.address}</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* ── Saved Tab ───────────────────────────────────────── */}
           {tab === 'saved' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {savedLocations.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+                <div style={{ textAlign: 'center', padding: '48px 24px', color: BROWN_MUTED }}>
                   <Bookmark size={40} style={{ opacity: 0.25, display: 'block', margin: '0 auto 12px' }} />
                   <p className="text-body">No saved locations yet.</p>
-                  <p className="text-sm">Select a location from another tab and check "Save to my list".</p>
+                  <p className="text-sm">Select a location from another tab and check &ldquo;Save to my list&rdquo;.</p>
                 </div>
               ) : (
                 savedLocations.map(loc => (
@@ -356,18 +348,18 @@ export function LocationSelector() {
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '12px 14px', background: 'var(--surface-hover)',
                       borderRadius: 'var(--radius-md)',
-                      border: activeLocation?.id === loc.id ? '1px solid var(--primary)' : '1px solid transparent',
+                      border: activeLocation?.id === loc.id ? `1px solid ${ORANGE}` : '1px solid transparent',
                     }}
                   >
                     <div style={{ flex: 1, marginRight: '8px' }}>
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem' }}>{loc.label}</p>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: '0.875rem', color: BROWN_TEXT }}>{loc.label}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: BROWN_MUTED }}>
                         {loc.address}
                       </p>
                       {loc.source && (
                         <span style={{
                           fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase',
-                          color: 'var(--primary)', letterSpacing: '0.05em',
+                          color: ORANGE, letterSpacing: '0.05em',
                         }}>
                           {loc.source}
                         </span>
@@ -380,7 +372,7 @@ export function LocationSelector() {
                         style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           width: '32px', height: '32px', borderRadius: 'var(--radius-sm)',
-                          background: 'var(--primary)', color: '#fff', cursor: 'pointer',
+                          background: ORANGE, color: '#fff', cursor: 'pointer',
                         }}
                       >
                         <Check size={15} />
@@ -405,7 +397,6 @@ export function LocationSelector() {
         </div>
       </div>
 
-      {/* Map picker overlay (rendered outside panel so it can be fullscreen) */}
       {showMap && (
         <LocationPickerMap
           initialCenter={activeLocation ? { lat: activeLocation.latitude, lng: activeLocation.longitude } : undefined}

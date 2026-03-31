@@ -85,13 +85,13 @@ const STATUS_COLOR: Record<string, string> = {
   DELIVERED:        '#16a34a',
   DRIVER_ACCEPTED:  '#4f46e5',
   ASSIGNED:         '#2563eb',
-  IN_TRANSIT:       'var(--primary)',
-  ON_THE_WAY:       'var(--primary)',
-  OUT_FOR_DELIVERY: 'var(--primary)',
+  IN_TRANSIT:       '#a63400',
+  ON_THE_WAY:       '#a63400',
+  OUT_FOR_DELIVERY: '#a63400',
   PREPARING:        '#d97706',
   READY_FOR_PICKUP: '#d97706',
-  CONFIRMED:        'var(--text-muted)',
-  PENDING:          'var(--text-muted)',
+  CONFIRMED:        '#834c48',
+  PENDING:          '#834c48',
   CANCELLED:        '#DC2626',
   CANCELED:         '#DC2626',
 };
@@ -454,7 +454,7 @@ export function CustomerProfile() {
                       display: 'flex', alignItems: 'center', gap: '12px',
                       padding: '12px 16px', borderRadius: 'var(--radius-md)',
                       border: 'none',
-                      background: isActive ? 'var(--primary)' : 'transparent',
+                      background: isActive ? '#a63400' : 'transparent',
                       color: isActive ? 'white' : 'var(--text-main)',
                       cursor: 'pointer', fontWeight: 600, textAlign: 'left',
                       transition: 'all var(--transition-smooth)',
@@ -512,7 +512,7 @@ export function CustomerProfile() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '32px' }}>
                 <div style={{
                   width: '80px', height: '80px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-                  background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#a63400', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: 'white', fontSize: '2rem', fontWeight: 700,
                 }}>
                   {profile.avatar
@@ -601,11 +601,11 @@ export function CustomerProfile() {
               {addresses.map(addr => (
                 <Card key={addr.id} style={{ padding: '24px', position: 'relative' }}>
                   {addr.isDefault && (
-                    <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
+                    <span style={{ position: 'absolute', top: '16px', right: '16px', background: '#a63400', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <MapPin size={24} color="var(--primary)" />
+                      <MapPin size={24} color="#a63400" />
                     </div>
                     <div style={{ flex: 1 }}>
                       <h3 className="text-h3" style={{ marginBottom: '4px' }}>{addr.label}</h3>
@@ -614,7 +614,7 @@ export function CustomerProfile() {
                     </div>
                   </div>
                   {deliveryAddress === formatAddress(addr) && (
-                    <p className="text-sm" style={{ color: 'var(--primary)', marginTop: '8px', fontWeight: 600 }}>
+                    <p className="text-sm" style={{ color: '#a63400', marginTop: '8px', fontWeight: 600 }}>
                       Currently used for delivery
                     </p>
                   )}
@@ -681,7 +681,7 @@ export function CustomerProfile() {
               {payments.map(pay => (
                 <Card key={pay.id} style={{ padding: '24px', position: 'relative' }}>
                   {pay.isDefault && (
-                    <span style={{ position: 'absolute', top: '16px', right: '16px', background: 'var(--primary)', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
+                    <span style={{ position: 'absolute', top: '16px', right: '16px', background: '#a63400', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
                     <div style={{ width: '64px', height: '40px', borderRadius: 'var(--radius-sm)', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>
@@ -723,7 +723,7 @@ export function CustomerProfile() {
                       <p className="text-sm text-muted">{order.orderNumber || `FK-${String(order.id).replace(/-/g, '').slice(-6).toUpperCase()}`} | {new Date(order.createdAt).toLocaleDateString()}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontWeight: 700, color: 'var(--primary)' }}>{formatKES(Number(order.total))}</p>
+                      <p style={{ fontWeight: 700, color: '#a63400' }}>{formatKES(Number(order.total))}</p>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: STATUS_COLOR[order.status] || 'var(--text-muted)', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: 'var(--radius-pill)' }}>
                         {order.paymentSettled && order.status === 'DELIVERED' ? 'DELIVERED & SETTLED' : order.status.replace(/_/g, ' ')}
                       </span>

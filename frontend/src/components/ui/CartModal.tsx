@@ -352,7 +352,7 @@ export function CartModal() {
       >
         <div className="flex-between" style={{ padding: '24px', borderBottom: '1px solid var(--border)' }}>
           <h2 className="text-h2 flex-center" style={{ gap: '12px' }}>
-            <ShoppingBag size={24} color="var(--primary)" />
+            <ShoppingBag size={24} color="#a63400" />
             Your Cart
           </h2>
           <button className="btn-icon" onClick={() => setIsCartOpen(false)}>
@@ -413,8 +413,8 @@ export function CartModal() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
                   padding: '10px 14px', marginBottom: '12px',
-                  background: 'rgba(255,90,95,0.06)', border: '1px dashed var(--primary)',
-                  borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'var(--primary)',
+                  background: 'rgba(166, 52, 0, 0.06)', border: '1px dashed #a63400',
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer', color: '#a63400',
                   fontSize: '0.875rem', fontWeight: 500,
                 }}
               >
@@ -433,11 +433,11 @@ export function CartModal() {
                   fontSize: '0.8rem',
                 }}
               >
-                <MapPin size={14} color="var(--primary)" style={{ flexShrink: 0 }} />
+                <MapPin size={14} color="#a63400" style={{ flexShrink: 0 }} />
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: 'var(--text-main)' }}>
                   {activeLocation.label}
                 </span>
-                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Change</span>
+                <span style={{ color: '#a63400', fontWeight: 600 }}>Change</span>
               </button>
             )}
 
@@ -473,7 +473,7 @@ export function CartModal() {
               <div style={{ display: 'grid', gap: '12px' }}>
                 <div style={{ padding: '12px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-md)' }}>
                   <div className="flex-center" style={{ gap: '8px', justifyContent: 'flex-start', marginBottom: '8px' }}>
-                    <MapPin size={16} color="var(--primary)" />
+                    <MapPin size={16} color="#a63400" />
                     <p className="text-sm" style={{ fontWeight: 700, margin: 0 }}>Confirm Delivery Address</p>
                   </div>
                   <textarea

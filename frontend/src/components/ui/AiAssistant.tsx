@@ -113,9 +113,9 @@ export function AiAssistant() {
           height: 58,
           borderRadius: '50%',
           border: 'none',
-          background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))',
+          background: 'linear-gradient(135deg, #a63400, #ff7948)',
           color: '#fff',
-          boxShadow: '0 12px 28px rgba(0,0,0,0.22)',
+          boxShadow: '0 12px 28px rgba(166, 52, 0, 0.3)',
           zIndex: 1300,
           cursor: 'pointer',
           display: 'flex',
@@ -156,7 +156,7 @@ export function AiAssistant() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Bot size={18} color="var(--primary)" />
+              <Bot size={18} color="#a63400" />
               <strong>Fikisha AI Assistant</strong>
             </div>
             <button type="button" className="btn-icon" onClick={() => setIsOpen(false)}>
@@ -173,7 +173,7 @@ export function AiAssistant() {
                   maxWidth: '85%',
                   padding: '10px 12px',
                   borderRadius: '12px',
-                  background: message.role === 'user' ? 'var(--primary)' : 'var(--surface-hover)',
+                  background: message.role === 'user' ? '#a63400' : 'var(--surface-hover)',
                   color: message.role === 'user' ? '#fff' : 'var(--text-main)',
                   fontSize: '0.92rem',
                   lineHeight: 1.4
@@ -214,9 +214,9 @@ export function AiAssistant() {
                   style={{
                     fontSize: '0.75rem',
                     borderRadius: '999px',
-                    border: '1px solid rgba(37, 99, 235, 0.35)',
-                    background: 'rgba(37, 99, 235, 0.08)',
-                    color: '#1d4ed8',
+                    border: '1px solid rgba(166, 52, 0, 0.35)',
+                    background: 'rgba(166, 52, 0, 0.08)',
+                    color: '#a63400',
                     padding: '8px 14px',
                     cursor: 'pointer',
                     minHeight: '36px'

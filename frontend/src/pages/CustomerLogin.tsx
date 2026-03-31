@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, loginUser, registerUser } from '../context/AuthContext';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 import { User, UserPlus, ArrowRight } from 'lucide-react';
+import './CustomerLogin.css';
 
 export function CustomerLogin() {
   const { login } = useAuth();
@@ -108,42 +107,56 @@ export function CustomerLogin() {
   };
 
   const handleGuestLogin = () => {
-    // Generate a secure enough guest token string / random id for session
     const guestId = `guest_${Math.random().toString(36).substring(2, 11)}`;
     login({
       id: guestId,
       username: 'Guest',
       name: 'Guest User',
       role: 'CUSTOMER',
-      token: '' // Guests don't get a JWT, limited privileges are handled elsewhere
+      token: ''
     });
     navigate('/customer');
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)', padding: '24px' }}>
-      <div style={{ maxWidth: '520px', width: '100%' }}>
-        <h1 className="text-h1" style={{ textAlign: 'center', marginBottom: '8px', color: 'var(--primary)', letterSpacing: '-1px' }}>fikisha.</h1>
-        <p className="text-muted" style={{ textAlign: 'center', marginBottom: '40px' }}>Customer Portal</p>
+  const switchView = (newView: 'login' | 'register') => {
+    setView(newView);
+    setError('');
+  };
 
-        <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} hoverable={false}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ padding: '16px', background: 'rgba(13, 148, 136, 0.1)', color: 'var(--primary)', borderRadius: 'var(--radius-lg)' }}>
-              {view === 'login' ? <User size={32} /> : <UserPlus size={32} />}
-            </div>
-            <div>
-              <h3 className="text-h3" style={{ marginBottom: '4px' }}>
-                {view === 'login' ? 'Welcome Back' : 'Create Account'}
-              </h3>
-              <p className="text-sm text-muted">Shop from nearby stores and track deliveries.</p>
-            </div>
+  const isLoginDisabled = isLoading || !username || !password;
+  const isRegisterDisabled = isLoading || !username || !password || !fullName || !email || !phone || !confirmPassword;
+
+  return (
+    <div className="cl-shell">
+      <div className="cl-wrapper">
+        <div className="cl-brand">
+          <span className="cl-brand-name">fikisha.</span>
+          <p className="cl-brand-sub">Customer Portal</p>
+        </div>
+
+        <div className="cl-card">
+          <div className="cl-tabs">
+            <button
+              type="button"
+              className={`cl-tab${view === 'login' ? ' active' : ''}`}
+              onClick={() => switchView('login')}
+            >
+              <User size={16} /> Sign In
+            </button>
+            <button
+              type="button"
+              className={`cl-tab${view === 'register' ? ' active' : ''}`}
+              onClick={() => switchView('register')}
+            >
+              <UserPlus size={16} /> Create Account
+            </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+          <div className="cl-fields">
             {view === 'register' && (
               <>
                 <input
-                  className="input-field"
+                  className="cl-input"
                   placeholder="Full Name"
                   autoComplete="name"
                   value={fullName}
@@ -151,7 +164,7 @@ export function CustomerLogin() {
                   onKeyDown={handleKeyDown}
                 />
                 <input
-                  className="input-field"
+                  className="cl-input"
                   placeholder="Email Address"
                   type="email"
                   autoComplete="email"
@@ -160,7 +173,7 @@ export function CustomerLogin() {
                   onKeyDown={handleKeyDown}
                 />
                 <input
-                  className="input-field"
+                  className="cl-input"
                   placeholder="Phone Number (+country code)"
                   autoComplete="tel"
                   value={phone}
@@ -170,7 +183,7 @@ export function CustomerLogin() {
               </>
             )}
             <input
-              className="input-field"
+              className="cl-input"
               placeholder="Username"
               autoComplete="username"
               value={username}
@@ -178,7 +191,7 @@ export function CustomerLogin() {
               onKeyDown={handleKeyDown}
             />
             <input
-              className="input-field"
+              className="cl-input"
               type="password"
               placeholder="Password"
               autoComplete={view === 'login' ? 'current-password' : 'new-password'}
@@ -190,7 +203,7 @@ export function CustomerLogin() {
             {view === 'register' && (
               <>
                 <input
-                  className="input-field"
+                  className="cl-input"
                   type="password"
                   placeholder="Confirm Password"
                   autoComplete="new-password"
@@ -199,28 +212,28 @@ export function CustomerLogin() {
                   onKeyDown={handleKeyDown}
                 />
                 <input
-                  className="input-field"
+                  className="cl-input"
                   placeholder="Country / Location"
                   value={country}
                   onChange={e => setCountry(e.target.value)}
                   onKeyDown={handleKeyDown}
                 />
                 <input
-                  className="input-field"
-                  placeholder="Referral Code"
+                  className="cl-input"
+                  placeholder="Referral Code (optional)"
                   value={referralCode}
                   onChange={e => setReferralCode(e.target.value)}
                   onKeyDown={handleKeyDown}
                 />
                 <input
-                  className="input-field"
+                  className="cl-input"
                   placeholder="Date of Birth (YYYY-MM-DD)"
                   value={dateOfBirth}
                   onChange={e => setDateOfBirth(e.target.value)}
                   onKeyDown={handleKeyDown}
                 />
                 <select
-                  className="input-field"
+                  className="cl-select"
                   value={gender}
                   onChange={e => setGender(e.target.value)}
                 >
@@ -231,46 +244,45 @@ export function CustomerLogin() {
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
                 <textarea
-                  className="input-field"
+                  className="cl-textarea"
                   placeholder="Address"
                   value={address}
                   onChange={e => setAddress(e.target.value)}
                   onKeyDown={handleKeyDown}
                   rows={3}
-                  style={{ resize: 'vertical', minHeight: '84px' }}
                 />
               </>
             )}
-            {error && <p className="text-sm" style={{ color: 'var(--error)' }}>{error}</p>}
 
-            <Button onClick={handleSubmit} disabled={isLoading || !username || !password || (view === 'register' && (!fullName || !email || !phone || !confirmPassword))}>
-              {isLoading ? 'Please wait…' : view === 'login' ? 'Sign In' : 'Sign Up'}
-            </Button>
-            
-            <div style={{ display: 'flex', alignItems: 'center', margin: '8px 0', gap: '8px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
-              <span className="text-sm text-muted">or</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }}></div>
-            </div>
+            {error && <p className="cl-error">{error}</p>}
 
-            <Button variant="outline" onClick={handleGuestLogin}>
+            <button
+              className="cl-btn-primary"
+              onClick={handleSubmit}
+              disabled={view === 'login' ? isLoginDisabled : isRegisterDisabled}
+            >
+              {isLoading ? 'Please wait\u2026' : view === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+
+            <div className="cl-divider">or</div>
+
+            <button className="cl-btn-ghost" onClick={handleGuestLogin}>
               Continue as Guest <ArrowRight size={16} />
-            </Button>
+            </button>
           </div>
-        </Card>
+        </div>
 
-        <p className="text-sm text-muted" style={{ textAlign: 'center', marginTop: '24px' }}>
-          {view === 'login' ? "Don't have an account? " : "Already have an account? "}
-          <button 
-            onClick={() => {
-              setView(view === 'login' ? 'register' : 'login');
-              setError('');
-            }}
-            style={{ color: 'var(--primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            {view === 'login' ? 'Create Account' : 'Sign In'}
-          </button>
-        </p>
+        <div className="cl-footer">
+          <p>
+            {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            <button
+              className="cl-footer-link"
+              onClick={() => switchView(view === 'login' ? 'register' : 'login')}
+            >
+              {view === 'login' ? 'Create Account' : 'Sign In'}
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );

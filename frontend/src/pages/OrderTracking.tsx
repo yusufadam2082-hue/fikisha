@@ -277,7 +277,7 @@ export function OrderTracking() {
       <div className="flex-between" style={{ marginBottom: '32px' }}>
         <h1 className="text-h1">Track Order</h1>
         <div style={{ background: 'var(--surface)', padding: '8px 16px', borderRadius: 'var(--radius-pill)', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-sm)' }}>
-          <Clock size={16} color="var(--primary)" />
+          <Clock size={16} color="#a63400" />
           <span style={{ fontWeight: 600 }}>
             {currentStep === 5 ? (order?.paymentSettled ? 'Delivered & settled' : 'Delivered!') : `Arriving in ${etaMinutes} mins`}
           </span>
@@ -322,7 +322,7 @@ export function OrderTracking() {
       {/* Issue 11: order summary card when real order data is available */}
       {order && (
         <Card style={{ padding: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Store size={24} color="var(--primary)" style={{ flexShrink: 0 }} />
+          <Store size={24} color="#a63400" style={{ flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <p className="text-sm text-muted" style={{ marginBottom: '2px' }}>Order #{String(order.id).slice(-6).toUpperCase()}</p>
             <p style={{ fontWeight: 600 }}>{order.store?.name || 'Your order'}</p>
@@ -330,7 +330,7 @@ export function OrderTracking() {
               <p className="text-sm text-muted">{order.items.map((i: any) => i.name || i.product?.name).filter(Boolean).join(', ')}</p>
             )}
           </div>
-          <span style={{ fontWeight: 700, color: 'var(--primary)', flexShrink: 0 }}>{formatKES(Number(order.total))}</span>
+          <span style={{ fontWeight: 700, color: '#a63400', flexShrink: 0 }}>{formatKES(Number(order.total))}</span>
         </Card>
       )}
 
@@ -374,8 +374,8 @@ export function OrderTracking() {
       <Card style={{ padding: '32px', marginBottom: '32px' }}>
         {/* Tracking map placeholder */}
         <div style={{ width: '100%', height: '240px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-md)', marginBottom: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 50% 50%, var(--primary) 2px, transparent 2px)', backgroundSize: '24px 24px' }} />
-          <div className="flex-center" style={{ flexDirection: 'column', color: 'var(--primary)', zIndex: 2 }}>
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.1, backgroundImage: 'radial-gradient(circle at 50% 50%, #a63400 2px, transparent 2px)', backgroundSize: '24px 24px' }} />
+          <div className="flex-center" style={{ flexDirection: 'column', color: '#a63400', zIndex: 2 }}>
             <Navigation size={48} style={{ transform: 'rotate(45deg)' }} />
             <span className="text-sm" style={{ marginTop: '16px', background: 'var(--surface)', padding: '4px 12px', borderRadius: 'var(--radius-pill)', boxShadow: 'var(--shadow-sm)', fontWeight: 600 }}>
               {currentStep === 5 ? 'Delivered!' : currentStep >= 4 ? 'Driver is on the way' : currentStep === 3 ? 'Driver assigned' : 'Order in progress'}
@@ -389,7 +389,7 @@ export function OrderTracking() {
             const Icon = step.icon;
             const isActive    = currentStep === step.id;
             const isCompleted = currentStep > step.id;
-            const statusColor = isCompleted ? '#22c55e' : isActive ? 'var(--primary)' : 'var(--border)';
+            const statusColor = isCompleted ? '#22c55e' : isActive ? '#a63400' : 'var(--border)';
             const textColor   = isCompleted || isActive ? 'var(--text-main)' : 'var(--text-muted)';
 
             return (

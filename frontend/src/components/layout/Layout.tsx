@@ -22,17 +22,16 @@ export function Layout({ children }: LayoutProps) {
         {children}
       </main>
 
-      {/* Issue 24: footer links converted from <span> to <Link> */}
       <footer style={{ background: 'var(--surface)', padding: '48px 0', marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
         <div className="container flex-between">
           <div>
-            <h3 className="text-h3" style={{ color: 'var(--primary)', marginBottom: '16px' }}>fikisha.</h3>
+            <h3 className="text-h3" style={{ color: '#a63400', marginBottom: '16px' }}>fikisha.</h3>
             <p className="text-muted">Hyperlocal delivery at your fingertips.</p>
           </div>
           <div className="flex-center" style={{ gap: '24px' }}>
-            <Link to="/customer/about"   className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>About</Link>
-            <Link to="/customer/terms"   className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>Terms</Link>
-            <Link to="/customer/privacy" className="text-sm" style={{ color: 'var(--text-muted)', transition: 'color 0.2s' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}>Privacy</Link>
+            <Link to="/customer/about"   className="text-sm customer-link" style={{ transition: 'color 0.2s' }}>About</Link>
+            <Link to="/customer/terms"   className="text-sm customer-link" style={{ transition: 'color 0.2s' }}>Terms</Link>
+            <Link to="/customer/privacy" className="text-sm customer-link" style={{ transition: 'color 0.2s' }}>Privacy</Link>
           </div>
         </div>
       </footer>

@@ -34,6 +34,18 @@
   /* Transitions */
   --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Customer Portal Theme (Burnt Orange) */
+  --customer-primary: #a63400;
+  --customer-primary-hover: #8a2b00;
+  --customer-primary-light: #ff7948;
+  --customer-bg: linear-gradient(150deg, #fff1ee 0%, #ffd6ca 55%, #ffe9e3 100%);
+  --customer-surface: rgba(255, 255, 255, 0.88);
+  --customer-text: #4e211e;
+  --customer-text-muted: #834c48;
+  --customer-border: rgba(224, 156, 150, 0.4);
+  --customer-shadow: 0 24px 48px rgba(165, 52, 0, 0.12);
+  --customer-shadow-primary: 0 10px 22px rgba(166, 52, 0, 0.28);
 }
 
 /* Dark Mode Support for Premium Feel */
@@ -201,7 +213,7 @@ img {
 .btn-primary:hover {
   background: var(--primary-hover);
   transform: translateY(-2px);
-  box-shadow: 0 12px 20px rgba(255, 90, 95, 0.3);
+  box-shadow: 0 12px 20px rgba(13, 148, 136, 0.3);
 }
 
 .btn-primary:active {
@@ -283,7 +295,7 @@ img {
 
 .input-field:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(255, 90, 95, 0.1);
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1);
 }
 
 .input-icon {
@@ -781,4 +793,60 @@ img {
 
 @media (min-width: 769px) {
   .hidden-desktop { display: none !important; }
+}
+
+/* === Customer Portal Theme Overrides === */
+.customer-primary-btn {
+  background: linear-gradient(90deg, #a63400 0%, #ff7948 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(166, 52, 0, 0.28);
+}
+
+.customer-primary-btn:hover {
+  background: linear-gradient(90deg, #8a2b00 0%, #e66a3a 100%);
+  box-shadow: 0 14px 28px rgba(166, 52, 0, 0.34);
+  transform: translateY(-2px);
+}
+
+.customer-link {
+  color: #a63400;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.customer-link:hover {
+  color: #8a2b00;
+}
+
+/* Customer portal input focus uses orange */
+.customer-input:focus {
+  border-color: #ff7948 !important;
+  box-shadow: 0 0 0 3px rgba(255, 121, 72, 0.18) !important;
+}
+
+/* Customer portal badge */
+.customer-badge {
+  background: #a63400;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+/* Customer portal active tab indicator */
+.customer-tab-active {
+  color: #a63400;
+  border-bottom-color: #a63400;
+}
+
+/* Customer portal error message */
+.customer-error {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #c0392b;
+  background: #fff2f2;
+  border: 1px solid #fcd4d4;
+  border-radius: 10px;
+  padding: 9px 12px;
 }

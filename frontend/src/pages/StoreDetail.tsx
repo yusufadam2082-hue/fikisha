@@ -52,7 +52,7 @@ export function StoreDetail() {
             color: 'var(--text-muted)', fontWeight: 500, cursor: 'pointer',
             transition: 'color 0.2s',
           }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseEnter={e => (e.currentTarget.style.color = '#a63400')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
         >
           <ArrowLeft size={18} /> Back to stores
@@ -100,8 +100,8 @@ export function StoreDetail() {
         <div className="container" style={{ position: 'absolute', bottom: '32px', left: 0, right: 0, color: 'white' }}>
           <h1 className="text-h1" style={{ marginBottom: '8px' }}>{store.name}</h1>
           <div className="flex-center" style={{ gap: '16px', justifyContent: 'flex-start' }}>
-            <div className="flex-center" style={{ gap: '4px' }}>
-              <Star size={18} fill="currentColor" color="var(--accent)" />
+              <div className="flex-center" style={{ gap: '4px' }}>
+              <Star size={18} fill="currentColor" color="#F59E0B" />
               <span style={{ fontWeight: 600 }}>{store.rating}</span>
             </div>
             <span>•</span>
@@ -145,7 +145,7 @@ export function StoreDetail() {
                         <span style={{ fontWeight: 600, minWidth: '20px', textAlign: 'center' }}>{cartItem.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, cartItem.quantity + 1)}
-                          style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
+                          style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#a63400', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
                         >
                           <Plus size={14} />
                         </button>
