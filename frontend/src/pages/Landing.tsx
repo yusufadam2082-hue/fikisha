@@ -13,7 +13,7 @@ export function Landing() {
           
           <Link to="/customer/login" style={{ textDecoration: 'none', color: 'inherit' }}>
             <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center', height: '100%' }} hoverable>
-              <div style={{ padding: '16px', background: 'rgba(255, 90, 95, 0.1)', color: 'var(--primary)', borderRadius: 'var(--radius-lg)' }}>
+              <div style={{ padding: '16px', background: 'rgba(13, 148, 136, 0.1)', color: 'var(--primary)', borderRadius: 'var(--radius-lg)' }}>
                 <User size={32} />
               </div>
               <div>

@@ -1,0 +1,244 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ─── Shell ───────────────────────────────────────────── */
+.cl-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, #fff1ee 0%, #ffd6ca 55%, #ffe9e3 100%);
+  padding: 32px 20px;
+  font-family: 'Inter', 'Outfit', sans-serif;
+}
+
+/* ─── Wrapper ─────────────────────────────────────────── */
+.cl-wrapper {
+  width: 100%;
+  max-width: 500px;
+}
+
+/* ─── Brand ───────────────────────────────────────────── */
+.cl-brand {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.cl-brand-name {
+  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: #a63400;
+  line-height: 1;
+  display: block;
+}
+
+.cl-brand-sub {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #834c48;
+}
+
+/* ─── Card ────────────────────────────────────────────── */
+.cl-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(224, 156, 150, 0.4);
+  border-radius: 32px;
+  padding: 32px;
+  box-shadow: 0 24px 48px rgba(165, 52, 0, 0.12), 0 4px 12px rgba(165, 52, 0, 0.08);
+}
+
+/* ─── Tab switcher ────────────────────────────────────── */
+.cl-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  background: #f7ece9;
+  border-radius: 14px;
+  margin-bottom: 28px;
+}
+
+.cl-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #834c48;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'Inter', 'Outfit', sans-serif;
+}
+
+.cl-tab.active {
+  background: #fff;
+  color: #a63400;
+  box-shadow: 0 4px 12px rgba(166, 52, 0, 0.14);
+}
+
+/* ─── Fields ──────────────────────────────────────────── */
+.cl-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.cl-input,
+.cl-select,
+.cl-textarea {
+  width: 100%;
+  font-family: 'Inter', 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  border-radius: 14px;
+  border: 1px solid #e5c4bf;
+  background: #fff;
+  color: #4e211e;
+  padding: 13px 16px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cl-input::placeholder,
+.cl-textarea::placeholder {
+  color: #a36762;
+}
+
+.cl-input:focus,
+.cl-select:focus,
+.cl-textarea:focus {
+  border-color: #ff7948;
+  box-shadow: 0 0 0 3px rgba(255, 121, 72, 0.18);
+}
+
+.cl-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23834c48' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 38px;
+  cursor: pointer;
+}
+
+.cl-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+/* ─── Error ───────────────────────────────────────────── */
+.cl-error {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #c0392b;
+  background: #fff2f2;
+  border: 1px solid #fcd4d4;
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+
+/* ─── Buttons ─────────────────────────────────────────── */
+.cl-btn-primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, #a63400 0%, #ff7948 100%);
+  box-shadow: 0 10px 22px rgba(166, 52, 0, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.cl-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(166, 52, 0, 0.34);
+}
+
+.cl-btn-primary:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.cl-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: #a36762;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.cl-divider::before,
+.cl-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #f0cec9;
+}
+
+.cl-btn-ghost {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 16px;
+  font-family: 'Inter', 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6a3430;
+  background: #fff;
+  border: 1px solid #e5c4bf;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+  cursor: pointer;
+}
+
+.cl-btn-ghost:hover {
+  transform: translateY(-1px);
+  border-color: #a63400;
+  color: #a63400;
+}
+
+/* ─── Footer links ────────────────────────────────────── */
+.cl-footer {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cl-footer p {
+  text-align: center;
+  font-size: 0.84rem;
+  color: #834c48;
+}
+
+.cl-footer a,
+.cl-footer-link {
+  color: #a63400;
+  font-weight: 700;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  font-family: inherit;
+}

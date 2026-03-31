@@ -34,6 +34,7 @@ import { MerchantReviews } from './pages/merchant/MerchantReviews';
 import { MerchantSupport } from './pages/merchant/MerchantSupport';
 import { MerchantSettings } from './pages/merchant/MerchantSettings';
 import { CustomerProfile } from './pages/CustomerProfile';
+import { CustomerWallet } from './pages/customer/CustomerWallet';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './context/ToastContext';
 import { NotFound } from './pages/NotFound';
@@ -95,6 +96,11 @@ function App() {
                 <Route path="/customer/profile" element={
                   <ProtectedRoute allowedRoles={['CUSTOMER']}>
                     <Layout><CustomerProfile /></Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/customer/wallet" element={
+                  <ProtectedRoute allowedRoles={['CUSTOMER']}>
+                    <Layout><CustomerWallet /></Layout>
                   </ProtectedRoute>
                 } />
                 <Route path="/customer/about" element={<Layout><About /></Layout>} />

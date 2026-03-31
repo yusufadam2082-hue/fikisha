@@ -1,5 +1,5 @@
 import { Bell, LogOut, MapPin, Search, ShoppingBag, User } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation as useRouteLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSearch } from '../../context/SearchContext';
@@ -12,6 +12,7 @@ export function Navbar() {
   const { searchQuery, setSearchQuery, searchInputRef } = useSearch();
   const { activeLocation, openLocationSelector } = useLocation();
   const navigate = useNavigate();
+  const routeLocation = useRouteLocation();
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const homeByRole = user?.role === 'ADMIN'
     ? '/admin'
@@ -74,7 +75,7 @@ export function Navbar() {
     <header className="customer-topbar">
       <nav className="customer-topbar-inner">
         <div className="customer-brand-side">
-          <Link to={homeByRole} className="customer-brand">Mtaaexpress</Link>
+          <Link to={homeByRole} className="customer-brand">fikisha.</Link>
 
           <div className="customer-search-desktop">
             <Search size={16} className="customer-search-icon" />
@@ -90,9 +91,9 @@ export function Navbar() {
 
         <div className="customer-actions-side">
           <div className="customer-nav-links" aria-label="Primary">
-            <Link to="/customer" className="active">Home</Link>
-            <Link to="/customer/tracking">Activity</Link>
-            <button type="button" onClick={() => setIsCartOpen(true)}>Wallet</button>
+            <Link to="/customer" className={routeLocation.pathname === '/customer' ? 'active' : ''}>Home</Link>
+            <Link to="/customer/tracking" className={routeLocation.pathname.startsWith('/customer/tracking') ? 'active' : ''}>Activity</Link>
+            <Link to="/customer/wallet" className={routeLocation.pathname.startsWith('/customer/wallet') ? 'active' : ''}>Wallet</Link>
           </div>
 
           <button type="button" className="customer-location-pill" onClick={openLocationSelector}>

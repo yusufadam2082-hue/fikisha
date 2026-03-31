@@ -128,7 +128,7 @@ export function CustomerLogin() {
 
         <Card style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} hoverable={false}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-            <div style={{ padding: '16px', background: 'rgba(255, 90, 95, 0.1)', color: 'var(--primary)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ padding: '16px', background: 'rgba(13, 148, 136, 0.1)', color: 'var(--primary)', borderRadius: 'var(--radius-lg)' }}>
               {view === 'login' ? <User size={32} /> : <UserPlus size={32} />}
             </div>
             <div>

@@ -1,4 +1,4 @@
-import { Home, Package, ShoppingBag, User } from 'lucide-react';
+import { Home, Package, ShoppingBag, User, Wallet } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -55,13 +55,15 @@ export function MobileNav() {
         <span>Activity</span>
       </Link>
 
-      <button type="button" className="customer-mobile-item" onClick={() => setIsCartOpen(true)}>
+      <Link 
+        to="/customer/wallet" 
+        className={`customer-mobile-item ${location.pathname.startsWith('/customer/wallet') ? 'active' : ''}`}
+      >
         <div className="customer-mobile-badge-wrap">
-          <ShoppingBag size={20} />
-          {itemCount > 0 && <span className="customer-mobile-badge">{itemCount}</span>}
+          <Wallet size={20} />
         </div>
         <span>Wallet</span>
-      </button>
+      </Link>
 
       <Link
         to={profilePath}

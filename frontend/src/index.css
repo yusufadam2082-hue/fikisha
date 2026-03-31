@@ -1,47 +1,47 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
   /* Dynamic & Vibrant Colors */
-  --primary: #FF5A5F;      /* Vibrant Red/Coral for appetizing feeling */
-  --primary-hover: #E04E53;
-  --secondary: #1F2937;    /* Deep gray/slate for text/accents */
-  --accent: #FFC107;       /* Warm yellow for ratings/highlights */
-  --error: #DC2626;
+  --primary: #0D9488;      /* Deep Teal */
+  --primary-hover: #0F766E;
+  --secondary: #1E293B;    /* Deep slate */
+  --accent: #F59E0B;       /* Warm yellow/amber */
+  --error: #EF4444;
   
   /* Backgrounds & Surfaces */
-  --bg-color: #F8FAFC;     /* Off-white background */
-  --surface: #FFFFFF;
-  --surface-hover: #F1F5F9;
+  --bg-color: #FFFBF0;     /* Very Light Cream */
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-hover: rgba(255, 255, 255, 1);
   
   /* Text Colors */
   --text-main: #0F172A;
-  --text-muted: #64748B;
+  --text-muted: #475569;
   --text-inverse: #FFFFFF;
 
   /* UI Details */
-  --border: #E2E8F0;
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
+  --border: rgba(15, 23, 42, 0.05); /* very soft borders */
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 32px;
   --radius-pill: 9999px;
   
   /* Shadows & Elevations */
-  --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg: 0 12px 24px rgba(45, 21, 10, 0.12);
-  --shadow-primary: 0 8px 16px rgba(255, 90, 95, 0.25);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.06);
+  --shadow-primary: 0 8px 16px rgba(13, 148, 136, 0.2);
   
   /* Transitions */
   --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-smooth: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Dark Mode Support for Premium Feel */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-color: #0F172A;
-    --surface: #1E293B;
-    --surface-hover: #334155;
+    --bg-color: #064E3B; /* Very dark teal for dark mode */
+    --surface: #0F172A;
+    --surface-hover: #1E293B;
     
     --text-main: #F8FAFC;
     --text-muted: #94A3B8;
@@ -62,13 +62,15 @@
 }
 
 body {
-  background-color: var(--bg-color);
+  background: linear-gradient(135deg, #0D9488 0%, #FFFBF0 50%);
+  background-attachment: fixed;
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition: color var(--transition-fast);
   overflow-x: hidden;
+  min-height: 100vh;
 }
 
 /* Base Styles */
@@ -404,7 +406,7 @@ img {
 
 .mobile-nav .nav-item.active svg {
   transform: translateY(-4px) scale(1.1);
-  filter: drop-shadow(0 4px 6px rgba(255, 90, 95, 0.4));
+  filter: drop-shadow(0 4px 6px rgba(13, 148, 136, 0.4));
 }
 
 .cart-badge {
@@ -422,7 +424,7 @@ img {
   align-items: center;
   justify-content: center;
   border: 2px solid var(--surface);
-  box-shadow: 0 2px 4px rgba(255, 90, 95, 0.3);
+  box-shadow: 0 2px 4px rgba(13, 148, 136, 0.3);
   animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -503,7 +505,7 @@ img {
   margin-bottom: 48px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 16px 32px rgba(255, 90, 95, 0.2);
+  box-shadow: 0 16px 32px rgba(13, 148, 136, 0.2);
 }
 
 .hero-btn {

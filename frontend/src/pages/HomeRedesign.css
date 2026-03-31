@@ -173,6 +173,20 @@
   color: #834c48;
 }
 
+/* Text overrides when hero has a background image (dark overlay) */
+.customer-hero.has-image .customer-hero-copy h1 {
+  color: #fff;
+}
+
+.customer-hero.has-image .customer-hero-copy p {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.customer-hero.has-image .customer-hero-kicker {
+  color: #ff9e7a;
+  background: rgba(0, 0, 0, 0.35);
+}
+
 .customer-categories-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -223,10 +237,12 @@
 
 .ghost-icon {
   position: absolute;
-  right: 16px;
-  bottom: 2px;
-  font-size: 2rem;
-  opacity: 0.16;
+  right: 12px;
+  bottom: 8px;
+  opacity: 0.08;
+  color: #4e211e;
+  pointer-events: none;
+  line-height: 0;
 }
 
 .customer-rewards-row {
@@ -440,7 +456,7 @@
 
 @media (max-width: 780px) {
   .customer-home-shell {
-    padding: 0 16px;
+    padding: 0 16px 96px;
   }
 
   .customer-hero {

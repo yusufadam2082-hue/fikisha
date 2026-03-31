@@ -31,31 +31,31 @@ function categoryVisual(name: string) {
   if (normalized.includes('food') || normalized.includes('restaurant')) {
     return {
       icon: <UtensilsCrossed size={28} />,
+      ghostIcon: <UtensilsCrossed size={80} />,
       bg: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)',
-      ghost: 'utensils-crossed',
       subtitle: 'Chef-made meals',
     };
   }
   if (normalized.includes('grocery') || normalized.includes('market')) {
     return {
       icon: <ShoppingBasket size={28} />,
+      ghostIcon: <ShoppingBasket size={80} />,
       bg: 'linear-gradient(135deg, #dbf7e5 0%, #c7f2d6 100%)',
-      ghost: 'shopping-basket',
       subtitle: 'Fresh essentials',
     };
   }
   if (normalized.includes('pharmacy') || normalized.includes('medicine')) {
     return {
       icon: <Pill size={28} />,
+      ghostIcon: <Pill size={80} />,
       bg: 'linear-gradient(135deg, #dceeff 0%, #cfe5ff 100%)',
-      ghost: 'pill',
       subtitle: 'Instant health care',
     };
   }
   return {
     icon: <Package size={28} />,
+    ghostIcon: <Package size={80} />,
     bg: 'linear-gradient(135deg, #f0ece6 0%, #e7dfd5 100%)',
-    ghost: 'package',
     subtitle: 'Fast local delivery',
   };
 }
@@ -177,7 +177,7 @@ export function Home() {
   return (
     <div className="customer-home-shell">
       <section
-        className="customer-hero"
+        className={`customer-hero${heroPromo?.image ? ' has-image' : ''}`}
         style={{
           background: heroPromo?.image
             ? `linear-gradient(102deg, rgba(24, 8, 4, 0.75), rgba(24, 8, 4, 0.25)), url(${heroPromo.image}) center/cover`
@@ -243,7 +243,7 @@ export function Home() {
                 <h3>{cat.name}</h3>
                 <p>{visual.subtitle}</p>
                 <span className="ghost-icon" aria-hidden="true">
-                  {cat.image || visual.ghost}
+                  {visual.ghostIcon}
                 </span>
               </button>
             );
