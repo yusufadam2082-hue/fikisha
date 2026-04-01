@@ -2629,6 +2629,14 @@ app.post('/api/admin/settings', authMiddleware, roleMiddleware('ADMIN'), async (
         create: { key, value: JSON.stringify(value) }
       });
     }
+
+    if (data.delivery?.baseFee != null) {
+      const fee = Number(data.delivery.baseFee);
+      if (Number.isFinite(fee) && fee >= 0) {
+        await prisma.store.updateMany({ data: { deliveryFee: fee } });
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save settings' });
@@ -3385,6 +3393,7 @@ app.put('/api/stores/:id',
 
       const updateData = req.user.role === 'ADMIN'
         ? {
+            deliveryFee: req.body.deliveryFee,
             isOpen: req.body.isOpen,
             isActive: req.body.isActive
           }
@@ -3392,7 +3401,6 @@ app.put('/api/stores/:id',
             name: req.body.name,
             rating: req.body.rating,
             time: req.body.time,
-            deliveryFee: req.body.deliveryFee,
             category: req.body.category,
             image: req.body.image,
             description: req.body.description,

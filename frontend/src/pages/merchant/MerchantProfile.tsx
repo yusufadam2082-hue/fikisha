@@ -203,12 +203,15 @@ export function MerchantProfile() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '24px' }}>
                   <div>
                     <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Delivery Fee (KES)</label>
-                    <input 
-                      className="input-field" type="number" step="0.01"
-                      value={storeForm.deliveryFee || 0} 
-                      onChange={e => setStoreForm({...storeForm, deliveryFee: parseFloat(e.target.value) || 0})} 
-                      disabled={!isEditing}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <input 
+                        className="input-field" type="number" step="0.01"
+                        value={storeForm.deliveryFee || 0} 
+                        disabled={true}
+                        style={{ cursor: 'not-allowed', background: 'var(--bg-color)', opacity: 0.8 }}
+                      />
+                      <span className="text-sm text-muted" style={{ fontSize: '0.75rem' }}>* Set dynamically by system admin.</span>
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Delivery Time</label>
