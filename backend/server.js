@@ -2605,6 +2605,36 @@ app.get('/api/promotions', async (req, res) => {
   }
 });
 
+// Admin Global Settings
+app.get('/api/admin/settings', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const records = await prisma.systemSetting.findMany();
+    const settingsObj = {};
+    for (const r of records) {
+      settingsObj[r.key] = JSON.parse(r.value);
+    }
+    res.json(settingsObj);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+app.post('/api/admin/settings', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const data = req.body;
+    for (const [key, value] of Object.entries(data)) {
+      await prisma.systemSetting.upsert({
+        where: { key },
+        update: { value: JSON.stringify(value) },
+        create: { key, value: JSON.stringify(value) }
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
 // Admin: list all promotions regardless of active/date state.
 app.get('/api/admin/promotions', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {

@@ -74,9 +74,10 @@ const defaultSettings: AdminSettingsState = {
 };
 
 export function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, token } = useAuth();
   const [settings, setSettings] = useState<AdminSettingsState>(defaultSettings);
   const [message, setMessage] = useState('');
+  const [isSavingSystem, setIsSavingSystem] = useState(false);
   
   // Admin Account State
   const [accountForm, setAccountForm] = useState({
@@ -89,27 +90,34 @@ export function Settings() {
   const [accountMessage, setAccountMessage] = useState('');
   const [isSavingAccount, setIsSavingAccount] = useState(false);
 
+  // Fetch global system settings from backend
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      if (!saved) {
-        return;
+    const fetchSettings = async () => {
+      try {
+        const url = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+        const res = await fetch(`${url}/api/admin/settings`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const parsed = await res.json();
+          if (Object.keys(parsed).length > 0) {
+            setSettings({
+              ...defaultSettings,
+              ...parsed,
+              general: { ...defaultSettings.general, ...(parsed.general || {}) },
+              orders: { ...defaultSettings.orders, ...(parsed.orders || {}) },
+              delivery: { ...defaultSettings.delivery, ...(parsed.delivery || {}) },
+              security: { ...defaultSettings.security, ...(parsed.security || {}) },
+              notifications: { ...defaultSettings.notifications, ...(parsed.notifications || {}) }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load settings from DB', error);
       }
-
-      const parsed = JSON.parse(saved);
-      setSettings({
-        ...defaultSettings,
-        ...parsed,
-        general: { ...defaultSettings.general, ...(parsed.general || {}) },
-        orders: { ...defaultSettings.orders, ...(parsed.orders || {}) },
-        delivery: { ...defaultSettings.delivery, ...(parsed.delivery || {}) },
-        security: { ...defaultSettings.security, ...(parsed.security || {}) },
-        notifications: { ...defaultSettings.notifications, ...(parsed.notifications || {}) }
-      });
-    } catch (error) {
-      console.error('Failed to load settings from localStorage', error);
-    }
-  }, []);
+    };
+    if (token) fetchSettings();
+  }, [token]);
 
   const setSectionValue = <Section extends keyof AdminSettingsState, Key extends keyof AdminSettingsState[Section]>(
     section: Section,
@@ -125,15 +133,27 @@ export function Settings() {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsSavingSystem(true);
     try {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-      setMessage('Settings saved locally.');
-      setTimeout(() => setMessage(''), 2500);
+      const url = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+      const res = await fetch(`${url}/api/admin/settings`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(settings)
+      });
+      if (!res.ok) throw new Error('Network response was not ok');
+      setMessage('Platform settings successfully saved to the database.');
+      setTimeout(() => setMessage(''), 3500);
     } catch (error) {
       console.error('Failed to save settings', error);
-      setMessage('Failed to save settings.');
-      setTimeout(() => setMessage(''), 2500);
+      setMessage('Failed to save settings to the database.');
+      setTimeout(() => setMessage(''), 3500);
+    } finally {
+      setIsSavingSystem(false);
     }
   };
 
@@ -217,11 +237,13 @@ export function Settings() {
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h1 className="text-h1">Platform Settings</h1>
-          <p className="text-muted">Frontend-only logic settings for this browser session.</p>
+          <p className="text-muted">Global system logic used by Fikisha application.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Button variant="outline" onClick={handleReset}>Reset defaults</Button>
-          <Button onClick={handleSave}>Save platform settings</Button>
+          <Button onClick={handleSave} disabled={isSavingSystem}>
+            {isSavingSystem ? 'Saving...' : 'Save platform settings'}
+          </Button>
         </div>
       </div>
 

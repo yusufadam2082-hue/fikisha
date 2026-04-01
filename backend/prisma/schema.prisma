@@ -394,3 +394,10 @@ model PayoutLedger {
   @@index([cycleKey])
   @@index([createdAt])
 }
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   // Stores JSON stringified data
+  updatedAt DateTime @updatedAt
+}
