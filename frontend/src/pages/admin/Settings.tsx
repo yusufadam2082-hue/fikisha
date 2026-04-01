@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { useAuth, updateProfile } from '../../context/AuthContext';
 
 const SETTINGS_STORAGE_KEY = 'fikisha_admin_settings';
 
@@ -73,8 +74,20 @@ const defaultSettings: AdminSettingsState = {
 };
 
 export function Settings() {
+  const { user, updateUser } = useAuth();
   const [settings, setSettings] = useState<AdminSettingsState>(defaultSettings);
   const [message, setMessage] = useState('');
+  
+  // Admin Account State
+  const [accountForm, setAccountForm] = useState({
+    name: user?.name || '',
+    username: user?.username || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    password: ''
+  });
+  const [accountMessage, setAccountMessage] = useState('');
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
 
   useEffect(() => {
     try {
@@ -130,16 +143,85 @@ export function Settings() {
     setTimeout(() => setMessage(''), 2500);
   };
 
+  const handleSaveAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountMessage('');
+    setIsSavingAccount(true);
+
+    try {
+      const updatedUser = await updateProfile({
+        name: accountForm.name,
+        username: accountForm.username,
+        email: accountForm.email || null,
+        phone: accountForm.phone || null,
+        ...(accountForm.password ? { password: accountForm.password } : {})
+      });
+
+      updateUser(updatedUser);
+      setAccountForm((currentForm) => ({ ...currentForm, password: '' }));
+      setAccountMessage('Admin account updated successfully.');
+      setTimeout(() => setAccountMessage(''), 3000);
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : 'Failed to update admin account');
+    } finally {
+      setIsSavingAccount(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ padding: '24px' }}>
+      
+      {/* Admin Account Settings Card */}
+      <h1 className="text-h1" style={{ marginBottom: '8px' }}>Admin Profile</h1>
+      <p className="text-muted" style={{ marginBottom: '24px' }}>Manage your admin login credentials and personal info.</p>
+      
+      <Card style={{ padding: '24px', marginBottom: '40px' }}>
+        <form onSubmit={handleSaveAccount} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            <div>
+              <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Full Name</label>
+              <input className="input-field" value={accountForm.name} onChange={e => setAccountForm({ ...accountForm, name: e.target.value })} required />
+            </div>
+            <div>
+              <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Username</label>
+              <input className="input-field" value={accountForm.username} onChange={e => setAccountForm({ ...accountForm, username: e.target.value })} required />
+            </div>
+            <div>
+              <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Email Address</label>
+              <input className="input-field" type="email" value={accountForm.email} onChange={e => setAccountForm({ ...accountForm, email: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Phone Number</label>
+              <input className="input-field" value={accountForm.phone} onChange={e => setAccountForm({ ...accountForm, phone: e.target.value })} />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>New Password</label>
+            <input className="input-field" type="password" placeholder="Leave blank to keep current password" value={accountForm.password} onChange={e => setAccountForm({ ...accountForm, password: e.target.value })} />
+          </div>
+          {accountMessage && (
+            <p className="text-sm" style={{ color: accountMessage.includes('successfully') ? 'var(--success, #16a34a)' : 'var(--error)' }}>
+              {accountMessage}
+            </p>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <Button type="submit" disabled={isSavingAccount}>
+              {isSavingAccount ? 'Saving...' : 'Update Admin Account'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <div style={{ height: '1px', background: 'var(--border)', margin: '40px 0' }}></div>
+
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h1 className="text-h1">Platform Settings</h1>
-          <p className="text-muted">Frontend-only admin settings for this browser.</p>
+          <p className="text-muted">Frontend-only logic settings for this browser session.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="outline" onClick={handleReset}>Reset</Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button variant="outline" onClick={handleReset}>Reset defaults</Button>
+          <Button onClick={handleSave}>Save platform settings</Button>
         </div>
       </div>
 
