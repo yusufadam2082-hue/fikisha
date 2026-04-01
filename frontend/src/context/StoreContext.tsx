@@ -36,6 +36,44 @@ export interface Store {
   owner?: StoreOwner;
   isActive?: boolean;
   isOpen?: boolean;
+  status?: string;
+  bannerImage?: string | null;
+  country?: string | null;
+  city?: string | null;
+  area?: string | null;
+  streetAddress?: string | null;
+  buildingNumber?: string | null;
+  landmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  deliveryRadiusKm?: number | null;
+  orderPreparationTimeMin?: number | null;
+  minimumOrderAmount?: number | null;
+  deliveryMethod?: string | null;
+  deliveryFeeType?: string | null;
+  deliveryFeeValue?: number | null;
+  freeDeliveryThreshold?: number | null;
+  allowPickup?: boolean;
+  ownerIdDocument?: string | null;
+  businessPermitDocument?: string | null;
+  taxPin?: string | null;
+  proofOfAddressDocument?: string | null;
+  payoutMethod?: string | null;
+  bankName?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  mpesaNumber?: string | null;
+  mpesaRegisteredName?: string | null;
+  reviewNotes?: string | null;
+  reviewRequestedDocs?: string | null;
+  goLiveReady?: boolean;
+  verificationCompleted?: boolean;
+  payoutCompleted?: boolean;
+  acceptedTerms?: boolean;
+  acceptedPrivacy?: boolean;
+  confirmedAccurate?: boolean;
+  confirmedAuthorization?: boolean;
+  onboardingDraft?: string | null;
   openingHours?: { open: string; close: string };
   totalOrders?: number;
   totalRevenue?: number;
@@ -50,12 +88,50 @@ export interface CreateStoreInput {
   image: string;
   description: string;
   address?: string;
+  fullName?: string;
+  email?: string;
   phone?: string;
-  ownerName: string;
-  ownerUsername: string;
-  ownerPassword: string;
+  password?: string;
+  confirmPassword?: string;
+  ownerName?: string;
+  ownerUsername?: string;
+  ownerPassword?: string;
   ownerEmail?: string;
   ownerPhone?: string;
+  bannerImage?: string;
+  country?: string;
+  city?: string;
+  area?: string;
+  streetAddress?: string;
+  buildingNumber?: string;
+  landmark?: string;
+  latitude?: number;
+  longitude?: number;
+  deliveryRadiusKm?: number;
+  openingHours?: Record<string, { open: string; close: string; closed?: boolean }>;
+  orderPreparationTimeMin?: number;
+  minimumOrderAmount?: number;
+  deliveryMethod?: 'PLATFORM_DRIVERS' | 'OWN_RIDERS' | 'BOTH';
+  deliveryFeeType?: 'FIXED' | 'DISTANCE_BASED' | 'FREE_OVER_THRESHOLD';
+  deliveryFeeValue?: number;
+  freeDeliveryThreshold?: number;
+  allowPickup?: boolean;
+  ownerIdDocument?: string;
+  businessPermitDocument?: string;
+  taxPin?: string;
+  proofOfAddressDocument?: string;
+  payoutMethod?: 'BANK' | 'MPESA' | 'WALLET';
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  mpesaNumber?: string;
+  mpesaRegisteredName?: string;
+  acceptedTerms?: boolean;
+  acceptedPrivacy?: boolean;
+  confirmedAccurate?: boolean;
+  confirmedAuthorization?: boolean;
+  onboardingCompleted?: boolean;
+  onboardingDraft?: string;
 }
 
 export interface Category {
@@ -73,6 +149,7 @@ interface StoreContextType {
   updateProduct: (storeId: string, productId: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (storeId: string, productId: string) => Promise<void>;
   deleteStore: (id: string) => Promise<void>;
+  reviewStore: (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[] }) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -336,9 +413,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const reviewStore = async (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[] }) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/stores/${id}/review`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const updatedStore = await readJsonSafely<Store>(res);
+        if (!updatedStore) {
+          return;
+        }
+        setStores(prev => prev.map(s => s.id === id ? updatedStore : s));
+        return;
+      }
+
+      throw new Error(await getErrorMessage(res, 'Failed to update store review state'));
+    } catch (error) {
+      console.error('Failed to review store', error);
+      throw error;
+    }
+  };
+
   return (
     // Make shared catalog state available to the customer, merchant, and admin experiences.
-    <StoreContext.Provider value={{ stores, categories, addStore, updateStore, addProduct, updateProduct, deleteProduct, deleteStore, isLoading }}>
+    <StoreContext.Provider value={{ stores, categories, addStore, updateStore, addProduct, updateProduct, deleteProduct, deleteStore, reviewStore, isLoading }}>
       {children}
     </StoreContext.Provider>
   );

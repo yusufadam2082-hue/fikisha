@@ -3269,6 +3269,86 @@ app.post('/api/payments/webhooks/:provider', async (req, res) => {
 });
 
 // Store and product routes serve public catalog browsing plus admin and merchant store management.
+const STORE_REVIEW_STATUS = {
+  PENDING_REVIEW: 'PENDING_REVIEW',
+  DOCUMENTS_REQUIRED: 'DOCUMENTS_REQUIRED',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  SUSPENDED: 'SUSPENDED',
+  ACTIVE: 'ACTIVE'
+};
+
+const normalizePhone = (value) => String(value || '').replace(/[\s\-()]/g, '');
+
+const sanitizeUsernameBase = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '');
+
+const buildOperatingHoursPayload = (input) => {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+
+  return JSON.stringify(input);
+};
+
+const parseRequestedDocs = (value) => {
+  if (Array.isArray(value)) {
+    return JSON.stringify(value.filter(Boolean));
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? JSON.stringify(parsed.filter(Boolean)) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
+const computeGoLiveReadiness = ({ store, productCount }) => {
+  const hasRequiredDocs = Boolean(store?.ownerIdDocument) && Boolean(store?.businessPermitDocument) && Boolean(store?.taxPin);
+  const hasPayout = store?.payoutMethod === 'BANK'
+    ? Boolean(store.bankName && store.accountName && store.accountNumber)
+    : store?.payoutMethod === 'MPESA'
+      ? Boolean(store.mpesaNumber && store.mpesaRegisteredName)
+      : store?.payoutMethod === 'WALLET';
+  const hasProduct = Number(productCount || 0) > 0;
+
+  return {
+    hasRequiredDocs,
+    hasPayout,
+    hasProduct,
+    ready: hasRequiredDocs && hasPayout && hasProduct
+  };
+};
+
+const refreshStoreReadiness = async (storeId) => {
+  if (!storeId) {
+    return null;
+  }
+
+  const store = await prisma.store.findUnique({ where: { id: storeId } });
+  if (!store) {
+    return null;
+  }
+
+  const productCount = await prisma.product.count({ where: { storeId } });
+  const readiness = computeGoLiveReadiness({ store, productCount });
+
+  return prisma.store.update({
+    where: { id: storeId },
+    data: {
+      verificationCompleted: readiness.hasRequiredDocs,
+      payoutCompleted: readiness.hasPayout,
+      goLiveReady: readiness.ready
+    }
+  });
+};
+
 app.get('/api/stores', async (req, res) => {
   try {
     const stores = await prisma.store.findMany({
@@ -3297,50 +3377,121 @@ app.get('/api/stores', async (req, res) => {
 app.post('/api/stores',
   authMiddleware,
   roleMiddleware('ADMIN'),
+  body('fullName').optional().trim().notEmpty(),
+  body('ownerName').optional().trim().notEmpty(),
+  body('email').optional({ nullable: true }).isEmail(),
+  body('ownerEmail').optional({ nullable: true }).isEmail(),
+  body('phone').optional({ nullable: true }).trim(),
+  body('ownerPhone').optional({ nullable: true }).trim(),
+  body('password').optional({ nullable: true }).isLength({ min: 6 }),
+  body('ownerPassword').optional({ nullable: true }).isLength({ min: 6 }),
+  body('confirmPassword').optional({ nullable: true }).trim(),
   body('name').trim().notEmpty(),
   body('category').trim().notEmpty(),
-  body('image').trim().notEmpty(),
   body('description').trim().notEmpty(),
-  body('ownerName').trim().notEmpty(),
-  body('ownerUsername').trim().notEmpty(),
-  body('ownerPassword').isLength({ min: 6 }),
   validate,
   async (req, res) => {
     try {
-      if (!req.body.ownerName || !req.body.ownerUsername || !req.body.ownerPassword) {
-        return res.status(400).json({ error: 'Owner name, username, and password are required' });
+      const ownerName = (req.body.fullName || req.body.ownerName || '').trim();
+      const ownerEmail = String(req.body.email || req.body.ownerEmail || '').toLowerCase().trim();
+      const ownerPhone = normalizePhone(req.body.phone || req.body.ownerPhone || '');
+      const ownerPassword = req.body.password || req.body.ownerPassword || '';
+      const confirmPassword = req.body.confirmPassword || req.body.ownerPassword || '';
+      const storeName = String(req.body.name || '').trim();
+      const category = String(req.body.category || '').trim();
+
+      if (!ownerName || !ownerEmail || !ownerPhone || !ownerPassword || !confirmPassword) {
+        return res.status(400).json({ error: 'Full name, email, phone, password, and confirm password are required' });
+      }
+
+      if (ownerPassword !== confirmPassword) {
+        return res.status(400).json({ error: 'Passwords do not match' });
+      }
+
+      if (!/^\+[1-9]\d{7,14}$/.test(ownerPhone)) {
+        return res.status(400).json({ error: 'Phone number must be in international format (e.g. +255700000000)' });
+      }
+
+      const ownerUsernameCandidate = req.body.ownerUsername || `${sanitizeUsernameBase(ownerEmail.split('@')[0] || ownerName)}${Math.floor(Math.random() * 1000)}`;
+      const ownerUsername = ownerUsernameCandidate || `merchant${Date.now().toString().slice(-6)}`;
+
+      if (!storeName || !category || !req.body.description) {
+        return res.status(400).json({ error: 'Store name, category, and description are required' });
       }
 
       const existingUser = await prisma.user.findUnique({
-        where: { username: req.body.ownerUsername }
+        where: { username: ownerUsername }
       });
 
       if (existingUser) {
         return res.status(409).json({ error: 'Merchant username already exists' });
       }
 
+      const existingByEmail = await prisma.user.findFirst({ where: { email: ownerEmail } });
+      if (existingByEmail) {
+        return res.status(409).json({ error: 'Merchant email already exists' });
+      }
+
       const owner = await prisma.user.create({
         data: {
-          username: req.body.ownerUsername,
-          password: await bcrypt.hash(req.body.ownerPassword, 12),
+          username: ownerUsername,
+          password: await bcrypt.hash(ownerPassword, 12),
           role: 'MERCHANT',
-          name: req.body.ownerName,
-          email: req.body.ownerEmail || null,
-          phone: req.body.ownerPhone || null
+          name: ownerName,
+          email: ownerEmail,
+          phone: ownerPhone
         }
       });
 
       const store = await prisma.store.create({
         data: {
-          name: req.body.name,
+          name: storeName,
           rating: req.body.rating ?? 5,
           time: req.body.time ?? '20-30 min',
           deliveryFee: req.body.deliveryFee ?? 2.99,
-          category: req.body.category,
-          image: req.body.image,
+          category,
+          image: req.body.image || req.body.logoImage || '',
+          bannerImage: req.body.bannerImage || null,
           description: req.body.description,
-          address: req.body.address,
-          phone: req.body.phone,
+          address: req.body.address || req.body.streetAddress || null,
+          country: req.body.country || null,
+          city: req.body.city || null,
+          area: req.body.area || null,
+          streetAddress: req.body.streetAddress || null,
+          buildingNumber: req.body.buildingNumber || null,
+          landmark: req.body.landmark || null,
+          latitude: req.body.latitude === undefined ? null : Number(req.body.latitude),
+          longitude: req.body.longitude === undefined ? null : Number(req.body.longitude),
+          deliveryRadiusKm: req.body.deliveryRadiusKm === undefined ? null : Number(req.body.deliveryRadiusKm),
+          phone: req.body.storePhone || null,
+          status: STORE_REVIEW_STATUS.PENDING_REVIEW,
+          isOpen: false,
+          isActive: false,
+          onboardingCompleted: Boolean(req.body.onboardingCompleted),
+          operatingHours: buildOperatingHoursPayload(req.body.openingHours),
+          orderPreparationTimeMin: req.body.orderPreparationTimeMin === undefined ? null : Number(req.body.orderPreparationTimeMin),
+          minimumOrderAmount: req.body.minimumOrderAmount === undefined ? null : Number(req.body.minimumOrderAmount),
+          deliveryMethod: req.body.deliveryMethod || null,
+          deliveryFeeType: req.body.deliveryFeeType || null,
+          deliveryFeeValue: req.body.deliveryFeeValue === undefined ? null : Number(req.body.deliveryFeeValue),
+          freeDeliveryThreshold: req.body.freeDeliveryThreshold === undefined ? null : Number(req.body.freeDeliveryThreshold),
+          allowPickup: Boolean(req.body.allowPickup),
+          ownerIdDocument: req.body.ownerIdDocument || null,
+          businessPermitDocument: req.body.businessPermitDocument || null,
+          taxPin: req.body.taxPin || null,
+          proofOfAddressDocument: req.body.proofOfAddressDocument || null,
+          payoutMethod: req.body.payoutMethod || null,
+          bankName: req.body.bankName || null,
+          accountName: req.body.accountName || null,
+          accountNumber: req.body.accountNumber || null,
+          mpesaNumber: req.body.mpesaNumber || null,
+          mpesaRegisteredName: req.body.mpesaRegisteredName || null,
+          acceptedTerms: Boolean(req.body.acceptedTerms),
+          acceptedPrivacy: Boolean(req.body.acceptedPrivacy),
+          confirmedAccurate: Boolean(req.body.confirmedAccurate),
+          confirmedAuthorization: Boolean(req.body.confirmedAuthorization),
+          onboardingDraft: req.body.onboardingDraft || null,
+          reviewNotes: req.body.reviewNotes || null,
           ownerId: owner.id
         },
         include: {
@@ -3362,6 +3513,8 @@ app.post('/api/stores',
         where: { id: owner.id },
         data: { storeId: store.id }
       });
+
+      await refreshStoreReadiness(store.id);
 
       await appendStoreSecurityLog({
         storeId: store.id,
@@ -3390,12 +3543,23 @@ app.put('/api/stores/:id',
       }
 
       const previousIsOpen = access.store.isOpen;
+      const previousStatus = access.store.status;
+
+      if (req.body.isOpen === true) {
+        const readyStore = await refreshStoreReadiness(req.params.id);
+        if (!readyStore?.goLiveReady) {
+          return res.status(400).json({ error: 'Store cannot go live yet. Complete required documents, payout setup, and add at least one product.' });
+        }
+      }
 
       const updateData = req.user.role === 'ADMIN'
         ? {
             deliveryFee: req.body.deliveryFee,
             isOpen: req.body.isOpen,
-            isActive: req.body.isActive
+            isActive: req.body.isActive,
+            status: req.body.status,
+            reviewNotes: req.body.reviewNotes,
+            reviewRequestedDocs: parseRequestedDocs(req.body.reviewRequestedDocs)
           }
         : {
             name: req.body.name,
@@ -3403,9 +3567,43 @@ app.put('/api/stores/:id',
             time: req.body.time,
             category: req.body.category,
             image: req.body.image,
+            bannerImage: req.body.bannerImage,
             description: req.body.description,
             address: req.body.address,
+            country: req.body.country,
+            city: req.body.city,
+            area: req.body.area,
+            streetAddress: req.body.streetAddress,
+            buildingNumber: req.body.buildingNumber,
+            landmark: req.body.landmark,
+            latitude: req.body.latitude,
+            longitude: req.body.longitude,
+            deliveryRadiusKm: req.body.deliveryRadiusKm,
             phone: req.body.phone,
+            operatingHours: req.body.openingHours ? buildOperatingHoursPayload(req.body.openingHours) : undefined,
+            orderPreparationTimeMin: req.body.orderPreparationTimeMin,
+            minimumOrderAmount: req.body.minimumOrderAmount,
+            deliveryMethod: req.body.deliveryMethod,
+            deliveryFeeType: req.body.deliveryFeeType,
+            deliveryFeeValue: req.body.deliveryFeeValue,
+            freeDeliveryThreshold: req.body.freeDeliveryThreshold,
+            allowPickup: req.body.allowPickup,
+            ownerIdDocument: req.body.ownerIdDocument,
+            businessPermitDocument: req.body.businessPermitDocument,
+            taxPin: req.body.taxPin,
+            proofOfAddressDocument: req.body.proofOfAddressDocument,
+            payoutMethod: req.body.payoutMethod,
+            bankName: req.body.bankName,
+            accountName: req.body.accountName,
+            accountNumber: req.body.accountNumber,
+            mpesaNumber: req.body.mpesaNumber,
+            mpesaRegisteredName: req.body.mpesaRegisteredName,
+            onboardingCompleted: req.body.onboardingCompleted,
+            acceptedTerms: req.body.acceptedTerms,
+            acceptedPrivacy: req.body.acceptedPrivacy,
+            confirmedAccurate: req.body.confirmedAccurate,
+            confirmedAuthorization: req.body.confirmedAuthorization,
+            onboardingDraft: req.body.onboardingDraft,
             isOpen: req.body.isOpen,
             isActive: req.body.isActive
           };
@@ -3442,9 +3640,122 @@ app.put('/api/stores/:id',
         });
       }
 
+      if (store.status !== previousStatus) {
+        await appendStoreSecurityLog({
+          storeId: store.id,
+          type: 'STORE_STATUS_UPDATED',
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+          message: `Store status changed from ${previousStatus || 'UNKNOWN'} to ${store.status || 'UNKNOWN'}`,
+          metadata: { from: previousStatus, to: store.status }
+        });
+      }
+
       res.json(store);
     } catch (error) {
       res.status(500).json({ error: 'Failed to update store' });
+    }
+  }
+);
+
+app.post('/api/admin/stores/:id/review',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  body('action').trim().notEmpty(),
+  body('reason').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const store = await prisma.store.findUnique({ where: { id: req.params.id } });
+      if (!store) {
+        return res.status(404).json({ error: 'Store not found' });
+      }
+
+      const action = String(req.body.action || '').toLowerCase();
+      const reason = req.body.reason || null;
+      const requestedDocs = parseRequestedDocs(req.body.requestedDocs);
+
+      const refreshed = await refreshStoreReadiness(store.id);
+      const canGoLive = Boolean(refreshed?.goLiveReady);
+
+      const updateData = {};
+      let auditAction = 'STORE_REVIEW_UPDATED';
+
+      if (action === 'approve') {
+        updateData.status = STORE_REVIEW_STATUS.APPROVED;
+        updateData.reviewNotes = reason;
+        auditAction = 'STORE_APPROVED';
+      } else if (action === 'reject') {
+        updateData.status = STORE_REVIEW_STATUS.REJECTED;
+        updateData.isActive = false;
+        updateData.isOpen = false;
+        updateData.reviewNotes = reason;
+        auditAction = 'STORE_REJECTED';
+      } else if (action === 'request_documents') {
+        updateData.status = STORE_REVIEW_STATUS.DOCUMENTS_REQUIRED;
+        updateData.reviewNotes = reason;
+        updateData.reviewRequestedDocs = requestedDocs;
+        updateData.isOpen = false;
+        auditAction = 'STORE_DOCUMENTS_REQUESTED';
+      } else if (action === 'suspend') {
+        updateData.status = STORE_REVIEW_STATUS.SUSPENDED;
+        updateData.isActive = false;
+        updateData.isOpen = false;
+        updateData.reviewNotes = reason;
+        auditAction = 'STORE_SUSPENDED';
+      } else if (action === 'activate') {
+        if (!canGoLive) {
+          return res.status(400).json({ error: 'Store is not eligible to go live. Complete required documents, payout setup, and add at least one product.' });
+        }
+        updateData.status = STORE_REVIEW_STATUS.ACTIVE;
+        updateData.isActive = true;
+        updateData.isOpen = true;
+        updateData.reviewNotes = reason;
+        auditAction = 'STORE_ACTIVATED';
+      } else {
+        return res.status(400).json({ error: 'Invalid review action' });
+      }
+
+      const updated = await prisma.store.update({
+        where: { id: store.id },
+        data: updateData,
+        include: {
+          products: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              email: true,
+              phone: true,
+              storeId: true
+            }
+          }
+        }
+      });
+
+      await auditLog({
+        adminId: req.user.id,
+        action: auditAction,
+        entityType: 'STORE',
+        entityId: store.id,
+        before: {
+          status: store.status,
+          isActive: store.isActive,
+          isOpen: store.isOpen
+        },
+        after: {
+          status: updated.status,
+          isActive: updated.isActive,
+          isOpen: updated.isOpen
+        },
+        note: reason,
+        req
+      });
+
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update store review state' });
     }
   }
 );
@@ -3587,6 +3898,8 @@ app.post('/api/stores/:storeId/products',
         }
       });
 
+      await refreshStoreReadiness(req.params.storeId);
+
       res.status(201).json(product);
     } catch (error) {
       res.status(500).json({ error: 'Failed to create product' });
@@ -3667,6 +3980,7 @@ app.delete('/api/stores/:storeId/products/:productId',
         return res.status(access.error.status).json(access.error.body);
       }
       await prisma.product.delete({ where: { id: req.params.productId } });
+      await refreshStoreReadiness(req.params.storeId);
       res.json({ message: 'Product deleted successfully' });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete product' });
@@ -4852,7 +5166,11 @@ app.post('/api/admin/stores/:id/suspend', authMiddleware, roleMiddleware('ADMIN'
 
     const updated = await prisma.store.update({
       where: { id: req.params.id },
-      data: { isActive: !suspend, isOpen: suspend ? false : store.isOpen },
+      data: {
+        isActive: !suspend,
+        isOpen: suspend ? false : store.isOpen,
+        status: suspend ? STORE_REVIEW_STATUS.SUSPENDED : (store.goLiveReady ? STORE_REVIEW_STATUS.ACTIVE : store.status)
+      },
     });
     await auditLog({ adminId: req.user.id, action: suspend ? 'STORE_SUSPENDED' : 'STORE_REACTIVATED', entityType: 'STORE', entityId: store.id, before: { isActive: store.isActive }, after: { isActive: !suspend }, note: reason, req });
     res.json(updated);

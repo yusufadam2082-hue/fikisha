@@ -50,11 +50,50 @@ model Store {
   deliveryFee Float     @default(2.99)
   category    String
   image       String
+  bannerImage String?
   description String
   address     String?
+  country     String?
+  city        String?
+  area        String?
+  streetAddress String?
+  buildingNumber String?
+  landmark    String?
+  latitude    Float?
+  longitude   Float?
+  deliveryRadiusKm Float?
   phone       String?
   isOpen      Boolean   @default(true)
   isActive    Boolean   @default(true)
+  status      String    @default("PENDING_REVIEW")
+  reviewNotes String?
+  reviewRequestedDocs String?
+  goLiveReady Boolean   @default(false)
+  onboardingCompleted Boolean @default(false)
+  orderPreparationTimeMin Int?
+  minimumOrderAmount Float?
+  deliveryMethod String?
+  deliveryFeeType String?
+  deliveryFeeValue Float?
+  freeDeliveryThreshold Float?
+  allowPickup Boolean @default(false)
+  ownerIdDocument String?
+  businessPermitDocument String?
+  taxPin      String?
+  proofOfAddressDocument String?
+  verificationCompleted Boolean @default(false)
+  payoutMethod String?
+  bankName    String?
+  accountName String?
+  accountNumber String?
+  mpesaNumber String?
+  mpesaRegisteredName String?
+  payoutCompleted Boolean @default(false)
+  acceptedTerms Boolean @default(false)
+  acceptedPrivacy Boolean @default(false)
+  confirmedAccurate Boolean @default(false)
+  confirmedAuthorization Boolean @default(false)
+  onboardingDraft String?
   ownerId     String
   owner       User      @relation("StoreOwner", fields: [ownerId], references: [id])
   products    Product[]
