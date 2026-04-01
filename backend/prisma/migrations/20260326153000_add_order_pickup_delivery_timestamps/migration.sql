@@ -1,2 +1,0 @@
-ALTER TABLE "Order" ADD COLUMN "pickedUpAt" DATETIME;
-ALTER TABLE "Order" ADD COLUMN "deliveredAt" DATETIME;

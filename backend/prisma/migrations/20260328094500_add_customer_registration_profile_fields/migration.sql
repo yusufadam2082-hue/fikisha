@@ -1,5 +1,0 @@
-ALTER TABLE "User" ADD COLUMN "country" TEXT;
-ALTER TABLE "User" ADD COLUMN "referralCode" TEXT;
-ALTER TABLE "User" ADD COLUMN "dateOfBirth" DATETIME;
-ALTER TABLE "User" ADD COLUMN "gender" TEXT;
-ALTER TABLE "User" ADD COLUMN "address" TEXT;
