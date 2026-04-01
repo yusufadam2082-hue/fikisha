@@ -3,8 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useStoreContext, type Product } from '../../context/StoreContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Edit2, Package, Save, X } from 'lucide-react';
+import { Edit2, Package, Save, X, Upload } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
+import { compressImageToBase64 } from '../../utils/imageUpload';
 
 export function MerchantProducts() {
   const { user } = useAuth();
@@ -77,10 +78,29 @@ export function MerchantProducts() {
                 className="input-field" placeholder="Description" 
                 value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
               />
-              <input 
-                className="input-field" placeholder="Image URL" 
-                value={newProduct.image} onChange={e => setNewProduct({...newProduct, image: e.target.value})} 
-              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input 
+                  className="input-field" placeholder="Image URL (or upload ->)" 
+                  value={newProduct.image} onChange={e => setNewProduct({...newProduct, image: e.target.value})}
+                  style={{ flex: 1 }}
+                />
+                <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--surface-hover)', padding: '0 16px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border)', gap: '8px', fontWeight: 600 }}>
+                  <Upload size={16} /> Upload
+                  <input 
+                    type="file" accept="image/*" style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        try {
+                          const base64 = await compressImageToBase64(e.target.files[0]);
+                          setNewProduct({...newProduct, image: base64});
+                        } catch (err) {
+                          console.error('Upload failed', err);
+                        }
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                 <Button onClick={handleSaveNew} style={{ flex: 1 }}>Save</Button>
                 <Button variant="outline" onClick={() => setIsAdding(false)}>Cancel</Button>
@@ -113,10 +133,29 @@ export function MerchantProducts() {
                       className="input-field" value={editForm.description} rows={2}
                       onChange={e => setEditForm({...editForm, description: e.target.value})} 
                     />
-                    <input 
-                      className="input-field" placeholder="Image URL" value={editForm.image} 
-                      onChange={e => setEditForm({...editForm, image: e.target.value})} 
-                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input 
+                        className="input-field" placeholder="Image URL (or upload ->)" value={editForm.image} 
+                        onChange={e => setEditForm({...editForm, image: e.target.value})} 
+                        style={{ flex: 1 }}
+                      />
+                      <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'var(--surface-hover)', padding: '0 16px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border)', gap: '8px', fontWeight: 600 }}>
+                        <Upload size={16} /> Upload
+                        <input 
+                          type="file" accept="image/*" style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              try {
+                                const base64 = await compressImageToBase64(e.target.files[0]);
+                                setEditForm({...editForm, image: base64});
+                              } catch (err) {
+                                console.error('Upload failed', err);
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   <div style={{ flex: 1 }}>

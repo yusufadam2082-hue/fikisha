@@ -3,7 +3,8 @@ import { useAuth, updateProfile } from '../../context/AuthContext';
 import { useStoreContext, type Store } from '../../context/StoreContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { User, Store as StoreIcon, ShoppingBag, Edit2, X } from 'lucide-react';
+import { User, Store as StoreIcon, ShoppingBag, Edit2, X, Upload } from 'lucide-react';
+import { compressImageToBase64 } from '../../utils/imageUpload';
 
 type TabId = 'store' | 'account' | 'orders';
 
@@ -241,12 +242,31 @@ export function MerchantProfile() {
 
                 <div>
                   <label className="text-sm font-semibold" style={{ marginBottom: '8px', display: 'block' }}>Banner Image URL</label>
-                  <input 
-                    className="input-field" 
-                    value={storeForm.image || ''} 
-                    onChange={e => setStoreForm({...storeForm, image: e.target.value})} 
-                    disabled={!isEditing}
-                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input 
+                      className="input-field" 
+                      value={storeForm.image || ''} 
+                      onChange={e => setStoreForm({...storeForm, image: e.target.value})} 
+                      disabled={!isEditing}
+                      style={{ flex: 1 }}
+                    />
+                    <label style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: isEditing ? 'pointer' : 'not-allowed', background: 'var(--surface-hover)', padding: '0 16px', borderRadius: 'var(--radius-pill)', border: '1px solid var(--border)', gap: '8px', fontWeight: 600, opacity: isEditing ? 1 : 0.5 }}>
+                      <Upload size={16} /> Upload
+                      <input 
+                        type="file" accept="image/*" style={{ display: 'none' }} disabled={!isEditing}
+                        onChange={async (e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            try {
+                              const base64 = await compressImageToBase64(e.target.files[0]);
+                              setStoreForm({...storeForm, image: base64});
+                            } catch (err) {
+                              console.error('Upload failed', err);
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
                   {storeForm.image && (
                     <div style={{ marginTop: '16px', height: '150px', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
                       <img src={storeForm.image} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
