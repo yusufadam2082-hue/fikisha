@@ -67,6 +67,7 @@ function Settings() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [isSaving, setIsSaving] = useState(false);
   const [healthStatus, setHealthStatus] = useState({
     status: 'checking',
     isOnline: false,
@@ -76,25 +77,42 @@ function Settings() {
   });
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (!saved) {
-        return;
+    const loadSettings = async () => {
+      try {
+        const res = await apiClient.get('/api/admin/settings');
+        const parsed = res.data;
+        if (parsed && Object.keys(parsed).length > 0) {
+          setSettings({
+            ...defaultSettings,
+            ...parsed,
+            general: { ...defaultSettings.general, ...(parsed.general || {}) },
+            orders: { ...defaultSettings.orders, ...(parsed.orders || {}) },
+            delivery: { ...defaultSettings.delivery, ...(parsed.delivery || {}) },
+            security: { ...defaultSettings.security, ...(parsed.security || {}) },
+            notifications: { ...defaultSettings.notifications, ...(parsed.notifications || {}) }
+          });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (!saved) return;
+          const parsed = JSON.parse(saved);
+          setSettings({
+            ...defaultSettings,
+            ...parsed,
+            general: { ...defaultSettings.general, ...(parsed.general || {}) },
+            orders: { ...defaultSettings.orders, ...(parsed.orders || {}) },
+            delivery: { ...defaultSettings.delivery, ...(parsed.delivery || {}) },
+            security: { ...defaultSettings.security, ...(parsed.security || {}) },
+            notifications: { ...defaultSettings.notifications, ...(parsed.notifications || {}) }
+          });
+        } catch (inner) {
+          console.error('Failed to load admin settings', inner);
+        }
       }
-
-      const parsed = JSON.parse(saved);
-      setSettings({
-        ...defaultSettings,
-        ...parsed,
-        general: { ...defaultSettings.general, ...(parsed.general || {}) },
-        orders: { ...defaultSettings.orders, ...(parsed.orders || {}) },
-        delivery: { ...defaultSettings.delivery, ...(parsed.delivery || {}) },
-        security: { ...defaultSettings.security, ...(parsed.security || {}) },
-        notifications: { ...defaultSettings.notifications, ...(parsed.notifications || {}) }
-      });
-    } catch (error) {
-      console.error('Failed to load admin settings from localStorage', error);
-    }
+    };
+    loadSettings();
   }, []);
 
   // Fetch backend health status
@@ -149,15 +167,18 @@ function Settings() {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsSaving(true);
     try {
+      await apiClient.post('/api/admin/settings', settings);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-      setSnackbarMessage('Settings saved successfully (frontend only).');
+      setSnackbarMessage('Settings saved to database successfully.');
       setSnackbarSeverity('success');
     } catch (error) {
-      setSnackbarMessage('Failed to save settings locally.');
+      setSnackbarMessage(error?.response?.data?.error || 'Failed to save settings to database.');
       setSnackbarSeverity('error');
     } finally {
+      setIsSaving(false);
       setSnackbarOpen(true);
     }
   };
@@ -187,8 +208,8 @@ function Settings() {
           <Button variant="outlined" color="inherit" startIcon={<RestartAltIcon />} onClick={handleReset}>
             Reset
           </Button>
-          <Button variant="contained" color="primary" startIcon={<SaveIcon />} onClick={handleSave}>
-            Save
+          <Button variant="contained" color="primary" startIcon={isSaving ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />} onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </Box>
       </Box>
