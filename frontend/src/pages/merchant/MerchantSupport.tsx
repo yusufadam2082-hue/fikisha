@@ -10,6 +10,7 @@ interface SupportTicket {
   description: string;
   status: string;
   priority: string;
+  adminResponse?: string | null;
   createdAt: string;
 }
 
@@ -88,6 +89,12 @@ export function MerchantSupport() {
                   <span className="text-sm text-muted">{ticket.status} | {ticket.priority}</span>
                 </div>
                 <p className="text-sm text-muted">{ticket.description}</p>
+                {ticket.adminResponse && (
+                  <div style={{ marginTop: '8px', padding: '8px', background: 'var(--bg-secondary, #f0f9ff)', borderRadius: '6px', borderLeft: '3px solid var(--primary, #2563eb)' }}>
+                    <p className="text-sm" style={{ fontWeight: 600, marginBottom: '4px' }}>Admin Response</p>
+                    <p className="text-sm">{ticket.adminResponse}</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
