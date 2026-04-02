@@ -3,6 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { User, Plus, Trash2, Edit2, Navigation } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
+import { apiUrl } from '../../utils/apiUrl';
 
 function normalizeOrderStatus(status: string): string {
   return String(status || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
@@ -29,7 +30,7 @@ export function DriverManager() {
 
   const fetchDrivers = async () => {
     try {
-      const res = await fetch('/api/drivers');
+      const res = await fetch(apiUrl('/api/drivers'));
       if (res.ok && res.status !== 204) setDrivers(await res.json());
     } catch (e) {
       console.error(e);
@@ -54,11 +55,11 @@ export function DriverManager() {
       const payload = { name, phone, vehicle, username, password };
       let res;
       if (editingDriver) {
-        res = await fetch(`/api/drivers/${editingDriver.id}`, {
+        res = await fetch(apiUrl(`/api/drivers/${editingDriver.id}`), {
           method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
       } else {
-        res = await fetch('/api/drivers', {
+        res = await fetch(apiUrl('/api/drivers'), {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
       }
@@ -74,7 +75,7 @@ export function DriverManager() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this driver?')) return;
     try {
-      const res = await fetch(`/api/drivers/${id}`, { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/drivers/${id}`), { method: 'DELETE' });
       if (res.ok) fetchDrivers();
     } catch (e) {
       console.error(e);
@@ -83,7 +84,7 @@ export function DriverManager() {
 
   const handleViewOrders = async (driverId: string) => {
     try {
-      const res = await fetch(`/api/orders?driverId=${driverId}`);
+      const res = await fetch(apiUrl(`/api/orders?driverId=${driverId}`));
       if (res.ok && res.status !== 204) {
         const orders = await res.json();
         setDriverOrders(orders.filter((o: any) => normalizeOrderStatus(o.status) === 'DELIVERED')); // only show historical completed

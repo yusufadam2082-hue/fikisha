@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { CheckCircle, Clock, MapPin, Navigation, Package, Store } from 'lucide-react';
 import { formatKES } from '../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
+import { apiUrl } from '../utils/apiUrl';
 
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(true);
@@ -168,13 +169,13 @@ export function OrderTracking() {
     // Issue 13: poll the API for real order status every 10 s
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${encodeURIComponent(resolvedOrderId)}`, { headers: getAuthHeaders() });
+        const res = await fetch(apiUrl(`/api/orders/${encodeURIComponent(resolvedOrderId)}`), { headers: getAuthHeaders() });
         if (res.ok) {
           const data = await res.json();
           setOrder(data);
           setCurrentStep(statusToStep(data.status));
 
-          const etaRes = await fetch('/api/ai/eta', {
+          const etaRes = await fetch(apiUrl('/api/ai/eta'), {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({ orderId: data.id })
@@ -231,7 +232,7 @@ export function OrderTracking() {
 
     setIsPaymentActionBusy(true);
     try {
-      const res = await fetch(`/api/payments/intents/${encodeURIComponent(paymentIntentSummary.id)}/retry`, {
+      const res = await fetch(apiUrl(`/api/payments/intents/${encodeURIComponent(paymentIntentSummary.id)}/retry`), {
         method: 'POST',
         headers: getAuthHeaders()
       });

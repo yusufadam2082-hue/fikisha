@@ -156,7 +156,7 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 // All store catalog requests are served from the same backend API namespace.
-const API_URL = '/api';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api`;
 
 function getAuthHeaders(): HeadersInit {
   // Reuse the saved auth token so privileged store/product mutations stay authorized.

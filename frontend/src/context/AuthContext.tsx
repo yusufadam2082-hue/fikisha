@@ -46,7 +46,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // The customer app talks to the backend through the shared /api base path.
-const API_URL = '/api';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || ''}/api`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Restore the previous session on refresh so users stay signed in between page loads.

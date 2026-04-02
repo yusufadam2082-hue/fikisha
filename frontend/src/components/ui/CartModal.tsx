@@ -8,6 +8,7 @@ import { X, Minus, Plus, ShoppingBag, MapPin, Clock, Navigation } from 'lucide-r
 import { useNavigate } from 'react-router-dom';
 import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
+import { apiUrl } from '../../utils/apiUrl';
 
 const FALLBACK_DELIVERY_FEE = 1.99;
 
@@ -115,7 +116,7 @@ export function CartModal() {
     }
 
     try {
-      const res = await fetch('/api/me', { headers });
+      const res = await fetch(apiUrl('/api/me'), { headers });
       if (!res.ok) {
         showToast('Your session expired. Please log in again.', 'error');
         logout();
@@ -191,7 +192,7 @@ export function CartModal() {
     try {
       if (paymentProvider !== 'COD') {
         try {
-          const paymentIntentResponse = await fetch('/api/payments/intents', {
+          const paymentIntentResponse = await fetch(apiUrl('/api/payments/intents'), {
             method: 'POST',
             headers: {
               ...getAuthHeaders(),
@@ -264,7 +265,7 @@ export function CartModal() {
         }
       };
 
-      const res = await fetch('/api/orders', {
+      const res = await fetch(apiUrl('/api/orders'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(orderData)

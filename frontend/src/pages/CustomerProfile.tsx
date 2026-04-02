@@ -9,6 +9,7 @@ import { User, MapPin, CreditCard, ShoppingBag, Plus, Trash2, Edit2, Save, X, Ma
 import { useNavigate } from 'react-router-dom';
 import { formatKES } from '../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
+import { apiUrl } from '../utils/apiUrl';
 
 interface Address {
   id: string;
@@ -289,7 +290,7 @@ export function CustomerProfile() {
   useEffect(() => {
     if (activeTab !== 'orders') return;
     setOrdersLoading(true);
-    fetch('/api/orders', { headers: getAuthHeaders() })
+    fetch(apiUrl('/api/orders'), { headers: getAuthHeaders() })
       .then(res => (res.ok ? res.json() : []))
       .then(data => setOrders(Array.isArray(data) ? data : []))
       .catch(() => setOrders([]))
@@ -307,7 +308,7 @@ export function CustomerProfile() {
   // Save profile updates using the authenticated user's own endpoint.
   const handleSaveProfile = async () => {
     try {
-      const res = await fetch('/api/me', {
+      const res = await fetch(apiUrl('/api/me'), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({

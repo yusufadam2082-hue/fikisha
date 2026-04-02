@@ -6,6 +6,7 @@ import { useStoreContext } from '../context/StoreContext';
 import { useToast } from '../context/ToastContext';
 import { formatKES } from '../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../utils/authStorage';
+import { apiUrl } from '../utils/apiUrl';
 
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(false);
@@ -30,7 +31,7 @@ export function DriverDashboard() {
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(apiUrl('/api/orders'), {
         headers: getAuthHeaders()
       });
       if (res.ok && res.status !== 204) {
@@ -59,7 +60,7 @@ export function DriverDashboard() {
 
   const updateOrderStatus = async (id: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/orders/${id}/status`, {
+      const res = await fetch(apiUrl(`/api/orders/${id}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +104,7 @@ export function DriverDashboard() {
 
     setOtpVerifying((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`/api/orders/${id}/otp/verify`, {
+      const res = await fetch(apiUrl(`/api/orders/${id}/otp/verify`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

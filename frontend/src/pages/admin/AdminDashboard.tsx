@@ -4,6 +4,7 @@ import { Card } from '../../components/ui/Card';
 import { Store, ShoppingBag, Users, TrendingUp, Wallet } from 'lucide-react';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 import { formatKES } from '../../utils/currency';
+import { apiUrl } from '../../utils/apiUrl';
 
 interface SettlementRecord {
   id: string;
@@ -29,7 +30,7 @@ export function AdminDashboard() {
   useEffect(() => {
     const fetchSettlements = async () => {
       try {
-        const response = await fetch('/api/accounting/payouts', { headers: getAuthHeaders() });
+        const response = await fetch(apiUrl('/api/accounting/payouts'), { headers: getAuthHeaders() });
         if (!response.ok || response.status === 204) {
           return;
         }

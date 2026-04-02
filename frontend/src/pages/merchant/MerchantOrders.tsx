@@ -7,6 +7,7 @@ import { BellRing, BarChart3, Clock, DollarSign, ShoppingBag, Store as StoreIcon
 import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 import { getMerchantOrderFinancials } from '../../utils/merchantFinance';
+import { apiUrl } from '../../utils/apiUrl';
 
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(false);
@@ -160,7 +161,7 @@ export function MerchantOrders() {
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch(apiUrl('/api/orders'), {
         headers: getAuthHeaders()
       });
       if (res.ok && res.status !== 204) {
@@ -277,7 +278,7 @@ export function MerchantOrders() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
+      const res = await fetch(apiUrl(`/api/orders/${orderId}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

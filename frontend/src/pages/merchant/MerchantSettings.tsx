@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { getAuthHeaders } from '../../utils/authStorage';
+import { apiUrl } from '../../utils/apiUrl';
 
 export function MerchantSettings() {
   const { user } = useAuth();
@@ -18,7 +19,7 @@ export function MerchantSettings() {
     }
 
     try {
-      const response = await fetch(`/api/stores/${user.storeId}`, {
+      const response = await fetch(apiUrl(`/api/stores/${user.storeId}`), {
         method: 'PUT',
         headers: getAuthHeaders(true),
         body: JSON.stringify({

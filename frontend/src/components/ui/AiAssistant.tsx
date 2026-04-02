@@ -2,6 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import { Bot, MessageCircle, Send, X } from 'lucide-react';
 import { Button } from './Button';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
+import { apiUrl } from '../../utils/apiUrl';
 
 type ChatRole = 'assistant' | 'user';
 
@@ -61,7 +62,7 @@ export function AiAssistant() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch(apiUrl('/api/ai/chat'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({

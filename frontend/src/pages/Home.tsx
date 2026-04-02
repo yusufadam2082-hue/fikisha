@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useStoreContext } from '../context/StoreContext';
 import { useSearch } from '../context/SearchContext';
+import { apiUrl } from '../utils/apiUrl';
 import { useLocation, type DeliveryQuote } from '../context/LocationContext';
 import './HomeRedesign.css';
 
@@ -88,7 +89,7 @@ export function Home() {
               lng: activeLocation.longitude.toString(),
               orderTotal: '0',
             });
-            const res = await fetch(`/api/delivery/quote?${params}`, { signal: controller.signal });
+            const res = await fetch(apiUrl(`/api/delivery/quote?${params}`), { signal: controller.signal });
             if (res.ok) {
               results[store.id] = (await res.json()) as DeliveryQuote;
             }
@@ -108,7 +109,7 @@ export function Home() {
   }, [activeLocation, stores]);
 
   useEffect(() => {
-    fetch('/api/promotions')
+    fetch(apiUrl('/api/promotions'))
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Promotion[]) => {
         if (Array.isArray(data)) {

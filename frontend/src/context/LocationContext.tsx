@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
+import { apiUrl } from '../utils/apiUrl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,7 +243,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         lng: loc.longitude.toString(),
         orderTotal: orderTotal.toString(),
       });
-      const res = await fetch(`/api/delivery/quote?${params.toString()}`);
+      const res = await fetch(apiUrl(`/api/delivery/quote?${params.toString()}`));
       if (!res.ok) return null;
       const quote = (await res.json()) as DeliveryQuote;
       quoteCache.current.set(key, quote);

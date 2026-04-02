@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
+import { apiUrl } from '../../utils/apiUrl';
 
 interface Promotion {
   id: string;
@@ -219,7 +220,7 @@ export function Promotions() {
   const fetchPromotions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/promotions', { headers: getAuthHeaders() });
+      const response = await fetch(apiUrl('/api/admin/promotions'), { headers: getAuthHeaders() });
 
       if (!response.ok) {
         throw new Error(await getApiErrorMessage(response, 'Failed to load promotions'));
@@ -336,7 +337,7 @@ export function Promotions() {
 
   const handleToggleActive = async (promotion: Promotion) => {
     try {
-      const response = await fetch(`/api/admin/promotions/${promotion.id}`, {
+      const response = await fetch(apiUrl(`/api/admin/promotions/${promotion.id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ active: !promotion.active }),
@@ -363,7 +364,7 @@ export function Promotions() {
     }
 
     try {
-      const response = await fetch(`/api/admin/promotions/${promotionId}`, {
+      const response = await fetch(apiUrl(`/api/admin/promotions/${promotionId}`), {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
