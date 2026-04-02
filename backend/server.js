@@ -1617,12 +1617,17 @@ const isAllowedCorsOrigin = (origin) => {
 
   // Bearer-token auth does not rely on browser cookies, so allow secure deployed frontends
   // even if their hostname changes between Netlify, Render, or preview environments.
-  if (IS_PRODUCTION) {
-    try {
-      return new URL(origin).protocol === 'https:';
-    } catch {
-      return false;
+  try {
+    const url = new URL(origin);
+    const isHttps = url.protocol === 'https:';
+    
+    // In production: accept any HTTPS origin
+    // In development: accept any HTTPS origin (includes deployed preview environments)
+    if (isHttps) {
+      return true;
     }
+  } catch {
+    return false;
   }
 
   return false;
