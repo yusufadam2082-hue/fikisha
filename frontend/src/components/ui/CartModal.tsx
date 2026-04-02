@@ -81,13 +81,15 @@ export function CartModal() {
   };
 
   const getPaymentLabel = () => {
-    if (!selectedPayment) {
+    const payment = selectedPayment;
+
+    if (!payment) {
       return 'Cash on Delivery';
     }
-    if (isMpesaMethod(selectedPayment)) {
-      return `M-Pesa ${selectedPayment.phoneNumber || `•••• ${selectedPayment.last4}`}`;
+    if (isMpesaMethod(payment)) {
+      return `M-Pesa ${payment.phoneNumber || `**** ${payment.last4}`}`;
     }
-    return `${selectedPayment.type} •••• ${selectedPayment.last4}`;
+    return `${payment.type} **** ${payment.last4}`;
   };
 
   const getSelectedPaymentProvider = () => {
@@ -150,12 +152,16 @@ export function CartModal() {
       return;
     }
 
+    const currentUser = user;
+
     if (!activeLocation) {
       showToast('Please set a delivery location before placing the order.', 'error');
       openLocationSelector();
       setIsCartOpen(false);
       return;
     }
+
+    const currentLocation = activeLocation;
 
     if (!confirmedAddress.trim()) {
       showToast('Please confirm your delivery address before placing the order.', 'error');
@@ -189,13 +195,13 @@ export function CartModal() {
             method: 'POST',
             headers: {
               ...getAuthHeaders(),
-              'X-Idempotency-Key': `${user.id}:${storeId}:${selectedPaymentId}:${items.map((item) => `${item.id}:${item.quantity}`).join('|')}`
+              'X-Idempotency-Key': `${currentUser.id}:${storeId}:${selectedPaymentId}:${items.map((item) => `${item.id}:${item.quantity}`).join('|')}`
             },
             body: JSON.stringify({
               amount: checkoutTotal,
               currency: 'KES',
               provider: paymentProvider,
-              phoneNumber: paymentProvider === 'MPESA' ? user.phone || undefined : undefined,
+              phoneNumber: paymentProvider === 'MPESA' ? currentUser.phone || undefined : undefined,
               description: `Mtaaexpress order payment for ${items.length} item${items.length === 1 ? '' : 's'}`,
               returnUrlBase: window.location.origin,
               metadata: {
@@ -222,12 +228,15 @@ export function CartModal() {
       }
 
       // Validate serviceability via delivery quote before submitting
-      if (activeLocation) {
+      if (currentLocation) {
         const liveQuote = await fetchDeliveryQuote(storeId, total);
         if (liveQuote && !liveQuote.serviceable) {
+          const minimumOrderValue = liveQuote.minOrderValue;
+          const isBelowMinimum = typeof minimumOrderValue === 'number' && liveQuote.orderValueValid === false;
+
           showToast(
-            liveQuote.minOrderValue && !liveQuote.orderValueValid
-              ? `Minimum order for this zone is ${formatKES(liveQuote.minOrderValue)}.`
+            isBelowMinimum
+              ? `Minimum order for this zone is ${formatKES(minimumOrderValue)}.`
               : 'This store does not deliver to your selected location.',
             'error'
           );
@@ -241,14 +250,14 @@ export function CartModal() {
         items,
         total: checkoutTotal,
         paymentIntentId,
-        deliveryAddress: activeLocation ? {
+          deliveryAddress: currentLocation ? {
           address: confirmedAddress.trim(),
-          latitude: activeLocation.latitude,
-          longitude: activeLocation.longitude,
-          source: activeLocation.source,
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            source: currentLocation.source,
         } : undefined,
         customerInfo: {
-          name: user.name || user.username || 'Customer',
+            name: currentUser.name || currentUser.username || 'Customer',
           address: confirmedAddress.trim(),
           paymentMethod: getPaymentLabel(),
           paymentProvider: paymentProvider === 'COD' ? null : paymentProvider
@@ -282,14 +291,16 @@ export function CartModal() {
         ? `/customer/tracking/${encodeURIComponent(String(orderId))}`
         : '/customer/tracking';
 
-      if (paymentAction?.type === 'REDIRECT' && paymentAction.url) {
-        showToast(paymentAction.message || 'Order placed. Redirecting to secure payment.', 'info');
-        window.location.assign(paymentAction.url);
+      const action = paymentAction;
+
+      if (action?.type === 'REDIRECT' && action.url) {
+        showToast(action.message || 'Order placed. Redirecting to secure payment.', 'info');
+        window.location.assign(action.url);
         return;
       }
 
-      if (paymentAction?.type === 'STK_PUSH') {
-        showToast(paymentAction.message || 'Order placed. Confirm the payment prompt on your phone.', 'info');
+      if (action?.type === 'STK_PUSH') {
+        showToast(action.message || 'Order placed. Confirm the payment prompt on your phone.', 'info');
       } else if (paymentProvider === 'COD') {
         showToast('Order placed successfully.', 'success');
       }
@@ -456,7 +467,7 @@ export function CartModal() {
                 <span className="text-body text-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Clock size={14} /> ETA
                 </span>
-                <span className="text-body">{deliveryQuote.etaMinMinutes}–{deliveryQuote.etaMaxMinutes} min</span>
+                <span className="text-body">{deliveryQuote.etaMinMinutes} - {deliveryQuote.etaMaxMinutes} min</span>
               </div>
             )}
             {!showCheckoutConfirm ? (
@@ -505,7 +516,7 @@ export function CartModal() {
                           checked={selectedPaymentId === method.id}
                           onChange={() => setSelectedPaymentId(method.id)}
                         />
-                        <span className="text-sm">{isMpesaMethod(method) ? `M-Pesa - ${method.phoneNumber || `•••• ${method.last4}`}` : `${method.type} - **** ${method.last4}`}</span>
+                        <span className="text-sm">{isMpesaMethod(method) ? `M-Pesa - ${method.phoneNumber || `**** ${method.last4}`}` : `${method.type} - **** ${method.last4}`}</span>
                       </label>
                     ))}
                   </div>

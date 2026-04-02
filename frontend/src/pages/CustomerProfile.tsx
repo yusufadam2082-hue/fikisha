@@ -437,7 +437,7 @@ export function CustomerProfile() {
       {/* Issue 17: hidden file input wired to Change Photo button */}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handlePhotoChange} />
 
-      {/* Issue 19: responsive — .profile-layout switches to column on mobile via CSS */}
+        {/* Issue 19: .profile-layout switches to column on mobile via CSS */}
       <div className="profile-layout">
         <div className="profile-sidebar">
           <Card style={{ padding: '16px', position: 'sticky', top: '100px' }}>
@@ -465,7 +465,7 @@ export function CustomerProfile() {
                 );
               })}
 
-              {/* Mobile-visible logout button — desktop logout is in the Navbar */}
+              {/* Mobile-visible logout button ï¿½ desktop logout is in the Navbar */}
               <button
                 type="button"
                 onClick={handleLogout}
@@ -532,28 +532,28 @@ export function CustomerProfile() {
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Full Name</label>
                   {isEditing
                     ? <input className="input-field" value={editedProfile.name} onChange={e => setEditedProfile({ ...editedProfile, name: e.target.value })} style={{ width: '100%' }} />
-                    : <p style={{ fontSize: '1.1rem' }}>{profile.name || '—'}</p>
+                    : <p style={{ fontSize: '1.1rem' }}>{profile.name || 'ï¿½'}</p>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Username</label>
                   {isEditing
                     ? <input className="input-field" placeholder="@username" value={editedProfile.username} onChange={e => setEditedProfile({ ...editedProfile, username: e.target.value })} style={{ width: '100%' }} />
-                    : <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>@{profile.username || '—'}</p>
+                    : <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>@{profile.username || 'ï¿½'}</p>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Email</label>
                   {isEditing
                     ? <input type="email" className="input-field" value={editedProfile.email} onChange={e => setEditedProfile({ ...editedProfile, email: e.target.value })} style={{ width: '100%' }} />
-                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Mail size={18} color="var(--text-muted)" /><p>{profile.email || '—'}</p></div>
+                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Mail size={18} color="var(--text-muted)" /><p>{profile.email || 'ï¿½'}</p></div>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Phone</label>
                   {isEditing
                     ? <input type="tel" className="input-field" value={editedProfile.phone} onChange={e => setEditedProfile({ ...editedProfile, phone: e.target.value })} style={{ width: '100%' }} />
-                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={18} color="var(--text-muted)" /><p>{profile.phone || '—'}</p></div>
+                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={18} color="var(--text-muted)" /><p>{profile.phone || 'ï¿½'}</p></div>
                   }
                 </div>
               </div>
@@ -689,7 +689,7 @@ export function CustomerProfile() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <h3 className="text-h3" style={{ marginBottom: '4px' }}>
-                        {isMpesaPaymentType(pay.type) ? `M-Pesa ${pay.phoneNumber || `•••• ${pay.last4}`}` : `•••• •••• •••• ${pay.last4}`}
+                        {isMpesaPaymentType(pay.type) ? `M-Pesa ${pay.phoneNumber || `ï¿½ï¿½ï¿½ï¿½ ${pay.last4}`}` : `ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ${pay.last4}`}
                       </h3>
                       <p className="text-muted">{isMpesaPaymentType(pay.type) ? 'Pay via mobile money STK push' : `Expires ${pay.expiry}`}</p>
                     </div>
@@ -708,7 +708,7 @@ export function CustomerProfile() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <h2 className="text-h2">Order History</h2>
               {ordersLoading ? (
-                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Loading orders…</div>
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Loading ordersï¿½</div>
               ) : orders.length === 0 ? (
                 <Card style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <ShoppingBag size={48} style={{ opacity: 0.2, marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
