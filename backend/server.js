@@ -4889,15 +4889,21 @@ app.post('/api/admin/payout-batches',
             }
           });
 
-          await tx.payoutBatchItem.createMany({
-            data: entries.map((entry) => ({
-              batchId: batch.id,
-              orderId: entry.orderId,
-              amount: Number(entry.amount || 0),
-              entryType: PAYOUT_BATCH_TYPE.MERCHANT
-            })),
-            skipDuplicates: true
-          });
+          for (const entry of entries) {
+            try {
+              await tx.payoutBatchItem.create({
+                data: {
+                  batchId: batch.id,
+                  orderId: entry.orderId,
+                  amount: Number(entry.amount || 0),
+                  entryType: PAYOUT_BATCH_TYPE.MERCHANT
+                }
+              });
+            } catch (err) {
+              // Ignore unique constraint violations
+              if (!err.message.includes('unique')) throw err;
+            }
+          }
 
           await tx.merchantPayoutEntry.updateMany({
             where: { id: { in: entries.map((entry) => entry.id) } },
@@ -4948,15 +4954,21 @@ app.post('/api/admin/payout-batches',
           }
         });
 
-        await tx.payoutBatchItem.createMany({
-          data: entries.map((entry) => ({
-            batchId: batch.id,
-            orderId: entry.orderId,
-            amount: Number(entry.amount || 0),
-            entryType: PAYOUT_BATCH_TYPE.DRIVER
-          })),
-          skipDuplicates: true
-        });
+        for (const entry of entries) {
+          try {
+            await tx.payoutBatchItem.create({
+              data: {
+                batchId: batch.id,
+                orderId: entry.orderId,
+                amount: Number(entry.amount || 0),
+                entryType: PAYOUT_BATCH_TYPE.DRIVER
+              }
+            });
+          } catch (err) {
+            // Ignore unique constraint violations
+            if (!err.message.includes('unique')) throw err;
+          }
+        }
 
         await tx.driverPayoutEntry.updateMany({
           where: { id: { in: entries.map((entry) => entry.id) } },
