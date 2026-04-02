@@ -1393,12 +1393,61 @@ const getSettledOrderIds = async (orderIds) => {
     return new Set();
   }
 
+  const settledIds = new Set();
+
+  // Prefer DB-backed payout records when available.
+  const dbRows = await prisma.payoutLedger.findMany({
+    where: {
+      orderId: {
+        in: orderIds
+      }
+    },
+    select: {
+      orderId: true
+    }
+  }).catch(() => []);
+
+  for (const row of dbRows) {
+    if (row?.orderId) {
+      settledIds.add(row.orderId);
+    }
+  }
+
   const ledger = await readAccountingPayoutLedger();
-  return new Set(
-    ledger
-      .filter((entry) => entry?.orderId && orderIds.includes(entry.orderId))
-      .map((entry) => entry.orderId)
-  );
+
+  for (const entry of ledger) {
+    if (entry?.orderId && orderIds.includes(entry.orderId)) {
+      settledIds.add(entry.orderId);
+    }
+
+    // Period settlements store bundled order IDs rather than a single orderId.
+    const rawOrderIds = entry?.orderIds;
+    if (!rawOrderIds) {
+      continue;
+    }
+
+    let bundledOrderIds = [];
+    if (Array.isArray(rawOrderIds)) {
+      bundledOrderIds = rawOrderIds;
+    } else if (typeof rawOrderIds === 'string') {
+      try {
+        const parsed = JSON.parse(rawOrderIds);
+        if (Array.isArray(parsed)) {
+          bundledOrderIds = parsed;
+        }
+      } catch {
+        bundledOrderIds = [];
+      }
+    }
+
+    for (const id of bundledOrderIds) {
+      if (orderIds.includes(id)) {
+        settledIds.add(id);
+      }
+    }
+  }
+
+  return settledIds;
 };
 
 const appendSettlementRecordsForOrder = async (order, actor = {}) => {
@@ -4868,6 +4917,13 @@ app.put('/api/orders/:id/status',
           }
         }
       });
+
+      if (normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.DELIVERED) {
+        await appendSettlementRecordsForOrder(updatedOrder, {
+          userId: req.user.id,
+          role: req.user.role
+        }).catch(() => {});
+      }
 
       const settledOrderIds = await getSettledOrderIds([updatedOrder.id]);
       res.json(serializeOrder(updatedOrder, {
