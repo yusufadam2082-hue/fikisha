@@ -1362,7 +1362,7 @@ const computeMerchantOrderFinancials = (order = {}) => {
   const customerTotal = Number(order.customerTotal ?? order.total ?? 0) || 0;
   const deliveryFee = Number(order.deliveryFee ?? 0) || 0;
   const taxAmount = Number(order.taxAmount ?? order.tax ?? 0) || 0;
-  const platformFee = Number(order.platformFee ?? order.platformCommission ?? 0) || 0;
+  const platformFee = Number(order.merchantPlatformFee ?? order.platformFee ?? order.platformCommission ?? 0) || 0;
   const discountAmount = Number(order.discountAmount ?? 0) || 0;
   const merchantTaxAdjustment = Number(order.merchantTaxAdjustment ?? 0) || 0;
 
@@ -1420,7 +1420,7 @@ const computeOrderAccountingSnapshot = (order = {}) => {
     : itemSubtotal + deliveryFee + taxAmount + serviceFee + otherFees;
 
   const merchantPlatformFee = Number(financials.platformFee || 0);
-  const merchantNetPayout = Math.max(0, itemSubtotal - merchantPlatformFee);
+  const merchantNetPayout = Number(financials.merchantNetIncome.toFixed(2));
 
   const explicitDriverPayout = Number(order.driverPayout);
   const driverPayout = Number.isFinite(explicitDriverPayout)
@@ -3839,6 +3839,7 @@ app.put('/api/stores/:id',
       const updateData = req.user.role === 'ADMIN'
         ? {
             deliveryFee: req.body.deliveryFee,
+            commissionRate: req.body.commissionRate !== undefined ? Number(req.body.commissionRate) : undefined,
             isOpen: req.body.isOpen,
             isActive: req.body.isActive,
             status: req.body.status,
@@ -5386,6 +5387,10 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
     const taxAmount = 0;
     const serviceFee = 0;
     const otherFees = 0;
+    const merchantPlatformFee = Number(
+      ((Number(store.commissionRate) || 0) * itemSubtotal / 100).toFixed(2)
+    );
+    const merchantNetPayout = Math.max(0, Number((itemSubtotal - merchantPlatformFee).toFixed(2)));
     total += store.deliveryFee;
 
     const createInclude = {
@@ -5434,8 +5439,8 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
             serviceFee,
             otherFees,
             customerTotal: total,
-            merchantPlatformFee: 0,
-            merchantNetPayout: itemSubtotal,
+            merchantPlatformFee: merchantPlatformFee,
+            merchantNetPayout: merchantNetPayout,
             driverPayout: 0,
             platformDeliveryMargin: 0,
             platformRevenue: 0,
