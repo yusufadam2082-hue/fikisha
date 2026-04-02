@@ -5,24 +5,25 @@ import { merchantFetch } from './merchantApi';
 
 interface PayoutRow {
   id?: string;
-  orderId?: string;
+  orderId?: string | null;
   amount: number;
   createdAt: string;
   type?: string;
+  note?: string | null;
+  orderCount?: number | null;
 }
 
 interface PayoutPayload {
   summary: {
-    totalNetIncome: number;
-    netEarnings: number;
-    merchantPayout: number;
-    payoutDue: number;
+    totalSettled: number;
+    pendingBalance: number;
+    totalEarnings: number;
   };
   settlements: PayoutRow[];
 }
 
 const initialPayout: PayoutPayload = {
-  summary: { totalNetIncome: 0, netEarnings: 0, merchantPayout: 0, payoutDue: 0 },
+  summary: { totalSettled: 0, pendingBalance: 0, totalEarnings: 0 },
   settlements: [],
 };
 
@@ -49,21 +50,23 @@ export function MerchantPayouts() {
       {error && <p style={{ color: 'var(--error)', marginBottom: '10px' }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Total Net Income</p><h3 className="text-h2">{formatKES(payload.summary.totalNetIncome)}</h3></Card>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Net Earnings</p><h3 className="text-h2">{formatKES(payload.summary.netEarnings)}</h3></Card>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Merchant Payout</p><h3 className="text-h2">{formatKES(payload.summary.merchantPayout)}</h3></Card>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Payout Due</p><h3 className="text-h2">{formatKES(payload.summary.payoutDue)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Total Earnings</p><h3 className="text-h2">{formatKES(payload.summary.totalEarnings)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Settled (Paid Out)</p><h3 className="text-h2" style={{ color: '#0f766e' }}>{formatKES(payload.summary.totalSettled)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Pending Balance</p><h3 className="text-h2" style={{ color: '#b45309' }}>{formatKES(payload.summary.pendingBalance)}</h3></Card>
       </div>
-      <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>Not included in your earnings: Delivery Fee</p>
+      <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>Pending balance is paid out by the admin on a settlement schedule. Not included: Delivery fees.</p>
 
-      <Card style={{ padding: '16px' }}>
+        <Card style={{ padding: '16px' }}>
         <h3 className="text-h3" style={{ marginBottom: '10px' }}>Settlement Ledger</h3>
         {payload.settlements.length === 0 ? <p className="text-sm text-muted">No settlements yet.</p> : (
           <div style={{ display: 'grid', gap: '8px' }}>
             {payload.settlements.map((row, index) => (
-              <div key={`${row.orderId || 'row'}-${index}`} className="flex-between">
-                <span>{new Date(row.createdAt).toLocaleString()}</span>
-                <span>{formatKES(row.amount)}</span>
+              <div key={`${row.id || row.orderId || 'row'}-${index}`} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                <div className="flex-between">
+                  <span style={{ fontWeight: 600 }}>{formatKES(row.amount)}</span>
+                  <span className="text-sm text-muted">{new Date(row.createdAt).toLocaleString()}</span>
+                </div>
+                {row.note && <p className="text-sm text-muted" style={{ marginTop: '2px' }}>{row.note}</p>}
               </div>
             ))}
           </div>

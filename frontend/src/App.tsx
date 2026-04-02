@@ -10,6 +10,7 @@ import { StoreManager } from './pages/admin/StoreManager';
 import { DriverManager } from './pages/admin/DriverManager';
 import { Settings as AdminSettings } from './pages/admin/Settings';
 import { Promotions } from './pages/admin/Promotions';
+import { AdminPayouts } from './pages/admin/AdminPayouts';
 import { StoreProvider } from './context/StoreContext';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
@@ -147,6 +148,11 @@ function App() {
               <Route path="/admin/promotions" element={
                 <ProtectedRoute allowedRoles={['ADMIN']}>
                   <AdminLayout><Promotions /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/payouts" element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminLayout><AdminPayouts /></AdminLayout>
                 </ProtectedRoute>
               } />
 

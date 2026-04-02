@@ -4244,6 +4244,193 @@ app.delete('/api/accounting/payouts',
   }
 );
 
+// Pending payouts: shows delivered but unsettled orders grouped by store.
+app.get('/api/accounting/payouts/pending',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  async (req, res) => {
+    try {
+      const { from, to, storeId } = req.query;
+
+      const orderWhere = { status: 'DELIVERED' };
+      if (from || to) {
+        orderWhere.updatedAt = {};
+        if (from) orderWhere.updatedAt.gte = new Date(from);
+        if (to) orderWhere.updatedAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+      }
+      if (storeId) orderWhere.storeId = String(storeId);
+
+      const deliveredOrders = await prisma.order.findMany({
+        where: orderWhere,
+        include: {
+          store: { select: { id: true, name: true } },
+          items: { include: { product: { select: { name: true } } } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      const settledOrderIds = await getSettledOrderIds(deliveredOrders.map((o) => o.id));
+      const pendingOrders = deliveredOrders.filter((o) => !settledOrderIds.has(o.id));
+
+      const byStore = {};
+      for (const order of pendingOrders) {
+        const key = order.storeId || 'unknown';
+        if (!byStore[key]) {
+          byStore[key] = {
+            storeId: order.storeId,
+            storeName: order.store?.name || 'Unknown store',
+            orders: [],
+            totalMerchantAmount: 0,
+            totalDeliveryFees: 0,
+            orderCount: 0,
+          };
+        }
+        const financials = computeMerchantOrderFinancials(order);
+        byStore[key].orders.push({
+          id: order.id,
+          orderNumber: order.orderNumber || order.id,
+          customerTotal: financials.customerTotal,
+          merchantNetIncome: financials.merchantNetIncome,
+          deliveryFee: financials.deliveryFee,
+          platformFee: financials.platformFee,
+          createdAt: order.createdAt,
+          deliveredAt: order.updatedAt,
+        });
+        byStore[key].totalMerchantAmount += financials.merchantNetIncome;
+        byStore[key].totalDeliveryFees += financials.deliveryFee;
+        byStore[key].orderCount += 1;
+      }
+
+      const stores = Object.values(byStore).sort((a, b) => b.totalMerchantAmount - a.totalMerchantAmount);
+      const grandTotal = stores.reduce((sum, s) => sum + s.totalMerchantAmount, 0);
+
+      res.json({ stores, grandTotal, totalOrders: pendingOrders.length });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch pending payouts' });
+    }
+  }
+);
+
+// Bulk settle: creates a single settlement record per store for all pending orders in a period.
+app.post('/api/accounting/payouts/settle',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  body('storeId').notEmpty().trim(),
+  body('from').notEmpty().trim(),
+  body('to').notEmpty().trim(),
+  body('amount').isFloat({ gt: 0 }),
+  body('note').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const { storeId, from, to, amount, note } = req.body;
+
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, name: true },
+      });
+      if (!store) return res.status(404).json({ error: 'Store not found' });
+
+      const orderWhere = {
+        storeId,
+        status: 'DELIVERED',
+        updatedAt: {
+          gte: new Date(from),
+          lte: new Date(new Date(to).setHours(23, 59, 59, 999)),
+        },
+      };
+
+      const deliveredOrders = await prisma.order.findMany({
+        where: orderWhere,
+        include: {
+          items: { include: { product: { select: { name: true } } } },
+        },
+      });
+
+      const settledOrderIds = await getSettledOrderIds(deliveredOrders.map((o) => o.id));
+      const pendingOrders = deliveredOrders.filter((o) => !settledOrderIds.has(o.id));
+
+      if (pendingOrders.length === 0) {
+        return res.status(400).json({ error: 'No pending orders found for this store and period.' });
+      }
+
+      const totalMerchantAmount = pendingOrders.reduce(
+        (sum, order) => sum + computeMerchantOrderFinancials(order).merchantNetIncome,
+        0
+      );
+
+      const settleAmount = Number(amount);
+      if (settleAmount > totalMerchantAmount * 1.01) {
+        return res.status(400).json({
+          error: `Settlement amount exceeds pending balance of ${totalMerchantAmount.toFixed(2)}`,
+        });
+      }
+
+      const cycleKey = `${from.slice(0, 10)}_${to.slice(0, 10)}`;
+      const periodLabel = `${new Date(from).toLocaleDateString()} – ${new Date(to).toLocaleDateString()}`;
+
+      const ledgerEntry = {
+        id: randomUUID(),
+        type: SETTLEMENT_TYPE.MERCHANT,
+        orderId: null,
+        storeId: store.id,
+        storeName: store.name,
+        driverId: null,
+        driverName: null,
+        cycleKey,
+        amount: settleAmount,
+        orderCount: pendingOrders.length,
+        orderIds: JSON.stringify(pendingOrders.map((o) => o.id)),
+        note: note || `Period settlement (${periodLabel}) – ${pendingOrders.length} orders`,
+        actorUserId: req.user.id,
+        actorRole: req.user.role,
+        createdAt: new Date().toISOString(),
+      };
+
+      const ledger = await readAccountingPayoutLedger();
+      ledger.push(ledgerEntry);
+      await writeAccountingPayoutLedger(ledger);
+
+      await prisma.payoutLedger.create({
+        data: {
+          type: SETTLEMENT_TYPE.MERCHANT,
+          orderId: null,
+          storeId: store.id,
+          storeName: store.name,
+          driverId: null,
+          driverName: null,
+          cycleKey,
+          amount: settleAmount,
+          orderCount: pendingOrders.length,
+          orderIds: JSON.stringify(pendingOrders.map((o) => o.id)),
+          note: ledgerEntry.note,
+          actorUserId: req.user.id,
+          actorRole: req.user.role,
+          source: 'MANUAL',
+        },
+      }).catch(() => {});
+
+      await auditLog({
+        adminId: req.user.id,
+        action: 'PAYOUT_SETTLED',
+        entityType: 'PAYOUT',
+        entityId: ledgerEntry.id,
+        after: { storeId, storeName: store.name, amount: settleAmount, period: periodLabel, orderCount: pendingOrders.length },
+        note: ledgerEntry.note,
+        req,
+      });
+
+      res.status(201).json({
+        settlement: ledgerEntry,
+        ordersSettled: pendingOrders.length,
+        totalPendingBefore: totalMerchantAmount,
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process settlement' });
+    }
+  }
+);
+
 // Driver list/login and order routes coordinate the operational side of fulfillment.
 app.get('/api/drivers', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
@@ -4681,13 +4868,6 @@ app.put('/api/orders/:id/status',
           }
         }
       });
-
-      if (normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.DELIVERED) {
-        await appendSettlementRecordsForOrder(updatedOrder, {
-          userId: req.user.id,
-          role: req.user.role
-        });
-      }
 
       const settledOrderIds = await getSettledOrderIds([updatedOrder.id]);
       res.json(serializeOrder(updatedOrder, {
@@ -6229,38 +6409,42 @@ app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), asy
       orderBy: { createdAt: 'desc' }
     });
 
-    if (dbRows.length > 0) {
-      const totalNetIncome = dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
-      const summaryFromDb = {
-        totalNetIncome,
-        netEarnings: totalNetIncome,
-        merchantPayout: totalNetIncome,
-        commissions: 0,
-        discounts: 0,
-        refunds: 0,
-        payoutDue: totalNetIncome,
-      };
+    const ledgerRows = dbRows.length > 0
+      ? dbRows
+      : (await readAccountingPayoutLedger())
+          .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      return res.json({ summary: summaryFromDb, settlements: dbRows });
+    const totalSettled = ledgerRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+    // Calculate pending balance from delivered but unsettled orders.
+    const deliveredOrders = await prisma.order.findMany({
+      where: { storeId, status: 'DELIVERED' },
+      include: { items: { include: { product: { select: { name: true } } } } },
+    });
+    const settledOrderIds = await getSettledOrderIds(deliveredOrders.map((o) => o.id));
+
+    // Also check order IDs stored in period settlement records.
+    const settledFromPeriods = new Set();
+    for (const entry of ledgerRows) {
+      if (entry.orderIds) {
+        try {
+          const ids = JSON.parse(entry.orderIds);
+          if (Array.isArray(ids)) ids.forEach((id) => settledFromPeriods.add(id));
+        } catch {}
+      }
     }
 
-    const ledger = await readAccountingPayoutLedger();
-    const merchantRows = ledger
-      .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const pendingOrders = deliveredOrders.filter((o) => !settledOrderIds.has(o.id) && !settledFromPeriods.has(o.id));
+    const pendingBalance = pendingOrders.reduce((sum, o) => sum + computeMerchantOrderFinancials(o).merchantNetIncome, 0);
 
-    const totalNetIncome = merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
     const summary = {
-      totalNetIncome,
-      netEarnings: totalNetIncome,
-      merchantPayout: totalNetIncome,
-      commissions: 0,
-      discounts: 0,
-      refunds: 0,
-      payoutDue: totalNetIncome,
+      totalSettled,
+      pendingBalance,
+      totalEarnings: totalSettled + pendingBalance,
     };
 
-    res.json({ summary, settlements: merchantRows });
+    res.json({ summary, settlements: ledgerRows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

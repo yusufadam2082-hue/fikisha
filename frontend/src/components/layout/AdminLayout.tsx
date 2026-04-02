@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Store, LayoutDashboard, Settings, LogOut, Navigation, Megaphone } from 'lucide-react';
+import { Store, LayoutDashboard, Settings, LogOut, Navigation, Megaphone, Wallet } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -14,6 +14,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Store Management', path: '/admin/stores', icon: Store },
     { name: 'Driver Management', path: '/admin/drivers', icon: Navigation },
     { name: 'Promotions', path: '/admin/promotions', icon: Megaphone },
+    { name: 'Payouts', path: '/admin/payouts', icon: Wallet },
     { name: 'Settings', path: '/admin/settings', icon: Settings },
   ];
 
