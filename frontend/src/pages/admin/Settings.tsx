@@ -3,8 +3,6 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth, updateProfile } from '../../context/AuthContext';
 
-const SETTINGS_STORAGE_KEY = 'mtaaexpress_admin_settings';
-
 type AdminSettingsState = {
   general: {
     platformName: string;
@@ -74,7 +72,8 @@ const defaultSettings: AdminSettingsState = {
 };
 
 export function Settings() {
-  const { user, updateUser, token } = useAuth();
+  const { user, updateUser } = useAuth();
+  const token = user?.token;
   const [settings, setSettings] = useState<AdminSettingsState>(defaultSettings);
   const [message, setMessage] = useState('');
   const [isSavingSystem, setIsSavingSystem] = useState(false);
