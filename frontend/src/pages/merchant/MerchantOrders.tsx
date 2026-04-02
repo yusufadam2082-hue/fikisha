@@ -45,7 +45,6 @@ function buildReceiptHtml(order: any): string {
   const paymentStatus = order?.paymentStatus || 'N/A';
   const driverName = order?.assignedDriverName || order?.driver?.name || 'Unassigned';
   const orderNotes = order?.customerInfo?.notes || order?.notes || 'None';
-  const showMerchantNetIncome = true;
 
   const itemRows = Array.isArray(order?.items) && order.items.length > 0
     ? order.items.map((item: any) => {
@@ -127,7 +126,7 @@ ${itemNotes ? `<div class="muted">Note: ${escapeHtml(itemNotes)}</div>` : ''}`;
     <div class="row"><span>Platform Fee</span><span>${formatKES(financials.platformFee)}</span></div>
     <div class="row"><span>Discounts</span><span>${formatKES(financials.discountAmount)}</span></div>
     <div class="row bold"><span>Total Paid</span><span>${formatKES(financials.customerTotal)}</span></div>
-    ${showMerchantNetIncome ? `<div class="row bold"><span>Merchant Net Income</span><span>${formatKES(financials.merchantNetIncome)}</span></div>` : ''}
+
     <div class="line"></div>
 
     <div class="row"><span>Payment</span><span>${escapeHtml(paymentMethod)}</span></div>
