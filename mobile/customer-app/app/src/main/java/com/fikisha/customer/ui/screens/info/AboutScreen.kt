@@ -1,4 +1,4 @@
-package com.fikisha.customer.ui.screens.info
+package com.Mtaaexpresscustomer.ui.screens.info
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,7 +32,7 @@ fun AboutScreen(onBackClick: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About Fikisha", fontWeight = FontWeight.Bold) },
+                title = { Text("About Mtaaexpress", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -56,9 +56,9 @@ fun AboutScreen(onBackClick: () -> Unit) {
             InfoCard(
                 contentPadding = PaddingValues(20.dp),
                 blocks = listOf(
-                    "Fikisha is a hyperlocal delivery platform connecting customers with nearby stores and trusted drivers.",
+                    "Mtaaexpress is a hyperlocal delivery platform connecting customers with nearby stores and trusted drivers.",
                     "Our mission is to make local commerce fast, reliable, and accessible with clear order tracking and real-time delivery updates.",
-                    "Contact: help@fikisha.com"
+                    "Contact: help@mtaaexpress.com"
                 )
             )
         }

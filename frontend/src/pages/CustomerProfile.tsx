@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { LocationPickerMap } from '../components/ui/LocationPickerMap';
@@ -40,8 +40,8 @@ interface Order {
   items?: Array<{ name?: string; product?: { name: string } }>;
 }
 
-const ADDRESS_STORAGE_KEY = 'fikisha_addresses';
-const PAYMENT_STORAGE_KEY = 'fikisha_payment_methods';
+const ADDRESS_STORAGE_KEY = 'mtaaexpress_addresses';
+const PAYMENT_STORAGE_KEY = 'mtaaexpress_payment_methods';
 
 function readStoredAddresses(): Address[] {
   const raw = localStorage.getItem(ADDRESS_STORAGE_KEY);
@@ -437,7 +437,7 @@ export function CustomerProfile() {
       {/* Issue 17: hidden file input wired to Change Photo button */}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handlePhotoChange} />
 
-      {/* Issue 19: responsive — .profile-layout switches to column on mobile via CSS */}
+      {/* Issue 19: responsive � .profile-layout switches to column on mobile via CSS */}
       <div className="profile-layout">
         <div className="profile-sidebar">
           <Card style={{ padding: '16px', position: 'sticky', top: '100px' }}>
@@ -465,7 +465,7 @@ export function CustomerProfile() {
                 );
               })}
 
-              {/* Mobile-visible logout button — desktop logout is in the Navbar */}
+              {/* Mobile-visible logout button � desktop logout is in the Navbar */}
               <button
                 type="button"
                 onClick={handleLogout}
@@ -488,7 +488,7 @@ export function CustomerProfile() {
         </div>
 
         <div style={{ flex: 1 }}>
-          {/* â”€â”€ Account tab â”€â”€ */}
+          {/* ── Account tab ── */}
           {activeTab === 'account' && (
             <Card style={{ padding: '32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
@@ -532,35 +532,35 @@ export function CustomerProfile() {
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Full Name</label>
                   {isEditing
                     ? <input className="input-field" value={editedProfile.name} onChange={e => setEditedProfile({ ...editedProfile, name: e.target.value })} style={{ width: '100%' }} />
-                    : <p style={{ fontSize: '1.1rem' }}>{profile.name || '—'}</p>
+                    : <p style={{ fontSize: '1.1rem' }}>{profile.name || '�'}</p>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Username</label>
                   {isEditing
                     ? <input className="input-field" placeholder="@username" value={editedProfile.username} onChange={e => setEditedProfile({ ...editedProfile, username: e.target.value })} style={{ width: '100%' }} />
-                    : <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>@{profile.username || '—'}</p>
+                    : <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>@{profile.username || '�'}</p>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Email</label>
                   {isEditing
                     ? <input type="email" className="input-field" value={editedProfile.email} onChange={e => setEditedProfile({ ...editedProfile, email: e.target.value })} style={{ width: '100%' }} />
-                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Mail size={18} color="var(--text-muted)" /><p>{profile.email || '—'}</p></div>
+                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Mail size={18} color="var(--text-muted)" /><p>{profile.email || '�'}</p></div>
                   }
                 </div>
                 <div>
                   <label className="text-sm" style={{ display: 'block', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 600 }}>Phone</label>
                   {isEditing
                     ? <input type="tel" className="input-field" value={editedProfile.phone} onChange={e => setEditedProfile({ ...editedProfile, phone: e.target.value })} style={{ width: '100%' }} />
-                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={18} color="var(--text-muted)" /><p>{profile.phone || '—'}</p></div>
+                    : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Phone size={18} color="var(--text-muted)" /><p>{profile.phone || '�'}</p></div>
                   }
                 </div>
               </div>
             </Card>
           )}
 
-          {/* â”€â”€ Addresses tab â”€â”€ */}
+          {/* ── Addresses tab ── */}
           {activeTab === 'addresses' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -629,7 +629,7 @@ export function CustomerProfile() {
             </div>
           )}
 
-          {/* â”€â”€ Payments tab â”€â”€ */}
+          {/* ── Payments tab ── */}
           {activeTab === 'payments' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -689,7 +689,7 @@ export function CustomerProfile() {
                     </div>
                     <div style={{ flex: 1 }}>
                       <h3 className="text-h3" style={{ marginBottom: '4px' }}>
-                        {isMpesaPaymentType(pay.type) ? `M-Pesa ${pay.phoneNumber || `•••• ${pay.last4}`}` : `•••• •••• •••• ${pay.last4}`}
+                        {isMpesaPaymentType(pay.type) ? `M-Pesa ${pay.phoneNumber || `���� ${pay.last4}`}` : `���� ���� ���� ${pay.last4}`}
                       </h3>
                       <p className="text-muted">{isMpesaPaymentType(pay.type) ? 'Pay via mobile money STK push' : `Expires ${pay.expiry}`}</p>
                     </div>
@@ -703,12 +703,12 @@ export function CustomerProfile() {
             </div>
           )}
 
-          {/* â”€â”€ Orders tab (issue 16) â”€â”€ */}
+          {/* ── Orders tab (issue 16) ── */}
           {activeTab === 'orders' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <h2 className="text-h2">Order History</h2>
               {ordersLoading ? (
-                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Loading orders…</div>
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Loading orders�</div>
               ) : orders.length === 0 ? (
                 <Card style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <ShoppingBag size={48} style={{ opacity: 0.2, marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />

@@ -41,7 +41,7 @@ export function Navbar() {
         <div className="container flex-between nav-header-mobile" style={{ height: '72px' }}>
           <div className="flex-center" style={{ gap: '16px' }}>
             <Link to={homeByRole} className="text-h2" style={{ color: 'var(--primary)', letterSpacing: '-1px', fontSize: '2.0rem' }}>
-              fikisha.
+              Mtaaexpress
             </Link>
           </div>
 
@@ -75,7 +75,7 @@ export function Navbar() {
     <header className="customer-topbar">
       <nav className="customer-topbar-inner">
         <div className="customer-brand-side">
-          <Link to={homeByRole} className="customer-brand">fikisha.</Link>
+          <Link to={homeByRole} className="customer-brand">Mtaaexpress</Link>
 
           <div className="customer-search-desktop">
             <Search size={16} className="customer-search-icon" />

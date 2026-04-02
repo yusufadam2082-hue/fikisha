@@ -22,7 +22,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       {/* Sidebar */}
       <aside style={{ width: '280px', background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '24px', borderBottom: '1px solid var(--border)' }}>
-          <h2 className="text-h2" style={{ color: 'var(--primary)', letterSpacing: '-1px' }}>fikisha admin.</h2>
+          <h2 className="text-h2" style={{ color: 'var(--primary)', letterSpacing: '-1px' }}>Mtaaexpress admin.</h2>
         </div>
         
         <nav style={{ padding: '24px 16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>

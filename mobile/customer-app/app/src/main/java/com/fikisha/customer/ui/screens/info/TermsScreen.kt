@@ -1,4 +1,4 @@
-package com.fikisha.customer.ui.screens.info
+package com.Mtaaexpresscustomer.ui.screens.info
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,7 +51,7 @@ fun TermsScreen(onBackClick: () -> Unit) {
             InfoCard(
                 contentPadding = PaddingValues(20.dp),
                 blocks = listOf(
-                    "By using Fikisha, you agree to provide accurate account and delivery information and to use the platform lawfully.",
+                    "By using Mtaaexpress, you agree to provide accurate account and delivery information and to use the platform lawfully.",
                     "Stores and drivers are responsible for the quality, preparation, and fulfillment of orders on the platform.",
                     "Platform policies may be updated over time. Continued use means you accept the latest published terms."
                 )

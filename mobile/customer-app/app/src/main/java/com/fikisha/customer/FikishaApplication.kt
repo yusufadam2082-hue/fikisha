@@ -6,7 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "fikisha_prefs")
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "mtaaexpress_prefs")
 
 class FikishaApplication : Application() {
     override fun onCreate() {

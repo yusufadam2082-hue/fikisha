@@ -17,7 +17,10 @@ interface DashboardPayload {
     readyForPickup: number;
     completedToday: number;
     cancelledToday: number;
-    todaysRevenue: number;
+    todaysNetIncome: number;
+    weeklyNetIncome: number;
+    monthlyNetIncome: number;
+    totalNetIncome: number;
   };
   lowStockAlerts: Array<{ id: string; name: string; quantityAvailable?: number | null; lowStockThreshold?: number | null }>;
 }
@@ -30,7 +33,10 @@ const emptyData: DashboardPayload = {
     readyForPickup: 0,
     completedToday: 0,
     cancelledToday: 0,
-    todaysRevenue: 0,
+    todaysNetIncome: 0,
+    weeklyNetIncome: 0,
+    monthlyNetIncome: 0,
+    totalNetIncome: 0,
   },
   lowStockAlerts: [],
 };
@@ -64,9 +70,24 @@ export function MerchantDashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
         <Card style={{ padding: '18px' }}>
-          <p className="text-sm text-muted">Today Revenue</p>
-          <h3 className="text-h2">{formatKES(data.kpis.todaysRevenue || 0)}</h3>
+          <p className="text-sm text-muted">Today’s Net Income</p>
+          <h3 className="text-h2">{formatKES(data.kpis.todaysNetIncome || 0)}</h3>
         </Card>
+        <Card style={{ padding: '18px' }}>
+          <p className="text-sm text-muted">This Week’s Net Income</p>
+          <h3 className="text-h2">{formatKES(data.kpis.weeklyNetIncome || 0)}</h3>
+        </Card>
+        <Card style={{ padding: '18px' }}>
+          <p className="text-sm text-muted">This Month’s Net Income</p>
+          <h3 className="text-h2">{formatKES(data.kpis.monthlyNetIncome || 0)}</h3>
+        </Card>
+        <Card style={{ padding: '18px' }}>
+          <p className="text-sm text-muted">Total Net Income</p>
+          <h3 className="text-h2">{formatKES(data.kpis.totalNetIncome || 0)}</h3>
+        </Card>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
         <Card style={{ padding: '18px' }}>
           <p className="text-sm text-muted">Pending Orders</p>
           <h3 className="text-h2">{data.kpis.pendingOrders}</h3>
@@ -74,6 +95,10 @@ export function MerchantDashboard() {
         <Card style={{ padding: '18px' }}>
           <p className="text-sm text-muted">In Progress</p>
           <h3 className="text-h2">{data.kpis.acceptedInProgress}</h3>
+        </Card>
+        <Card style={{ padding: '18px' }}>
+          <p className="text-sm text-muted">Ready for Pickup</p>
+          <h3 className="text-h2">{data.kpis.readyForPickup}</h3>
         </Card>
         <Card style={{ padding: '18px' }}>
           <p className="text-sm text-muted">Completed Today</p>

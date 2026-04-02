@@ -1,4 +1,4 @@
-const AUTH_STORAGE_KEY = 'fikisha_auth';
+const AUTH_STORAGE_KEY = 'mtaaexpress_auth';
 
 export interface StoredAuth {
   token?: string;

@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth, updateProfile } from '../../context/AuthContext';
 
-const SETTINGS_STORAGE_KEY = 'fikisha_admin_settings';
+const SETTINGS_STORAGE_KEY = 'mtaaexpress_admin_settings';
 
 type AdminSettingsState = {
   general: {
@@ -41,8 +41,8 @@ type AdminSettingsState = {
 
 const defaultSettings: AdminSettingsState = {
   general: {
-    platformName: 'Fikisha',
-    supportEmail: 'support@fikisha.local',
+    platformName: 'Mtaaexpress',
+    supportEmail: 'support@mtaaexpress.local',
     supportPhone: '+255700000000',
     currency: 'USD',
     timezone: 'Africa/Dar_es_Salaam'
@@ -69,7 +69,7 @@ const defaultSettings: AdminSettingsState = {
     sendDelivered: true,
     orderConfirmedTemplate: 'Your order has been confirmed and is now being prepared.',
     outForDeliveryTemplate: 'Great news! Your order is on the way.',
-    deliveredTemplate: 'Delivered. Enjoy your order and thank you for choosing Fikisha.'
+    deliveredTemplate: 'Delivered. Enjoy your order and thank you for choosing Mtaaexpress.'
   }
 };
 
@@ -237,7 +237,7 @@ export function Settings() {
       <div className="flex-between" style={{ marginBottom: '24px' }}>
         <div>
           <h1 className="text-h1">Platform Settings</h1>
-          <p className="text-muted">Global system logic used by Fikisha application.</p>
+          <p className="text-muted">Global system logic used by Mtaaexpress application.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           <Button variant="outline" onClick={handleReset}>Reset defaults</Button>

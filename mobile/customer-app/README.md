@@ -1,6 +1,6 @@
-# Fikisha Customer Android App
+# Mtaaexpress Customer Android App
 
-A native Android customer platform app for the Fikisha delivery service, built with Jetpack Compose.
+A native Android customer platform app for the Mtaaexpress delivery service, built with Jetpack Compose.
 
 ## Features
 

@@ -551,7 +551,7 @@ fun HelpSupportScreen(onBackClick: () -> Unit) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Need help? Our support team is here to assist.", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Email: help@fikisha.com", style = MaterialTheme.typography.bodySmall)
+                    Text("Email: help@mtaaexpress.com", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text("Phone: +254 712 XXX XXX", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(4.dp))

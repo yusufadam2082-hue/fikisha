@@ -6,7 +6,7 @@ export function Terms() {
       <h1 className="text-h1" style={{ marginBottom: '16px' }}>Terms of Service</h1>
       <Card style={{ padding: '24px' }}>
         <p className="text-body" style={{ marginBottom: '12px' }}>
-          By using Fikisha, you agree to provide accurate account and delivery information and to use the platform lawfully.
+          By using Mtaaexpress, you agree to provide accurate account and delivery information and to use the platform lawfully.
         </p>
         <p className="text-body" style={{ marginBottom: '12px' }}>
           Stores and drivers are responsible for the quality, preparation, and fulfillment of orders on the platform.

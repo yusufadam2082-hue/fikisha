@@ -9,7 +9,7 @@ import { AuthProvider } from './context/AuthContext';
 import { resolvedApiBaseUrl } from './utils/apiClient';
 
 axios.defaults.baseURL = resolvedApiBaseUrl;
-console.info('[Fikisha Admin] API base URL:', resolvedApiBaseUrl || '(same-origin)');
+console.info('[Mtaaexpress Admin] API base URL:', resolvedApiBaseUrl || '(same-origin)');
 
 const theme = createTheme({
   palette: {

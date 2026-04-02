@@ -102,7 +102,7 @@ export function LocationSelector() {
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${coords.lat}&lon=${coords.lng}&format=json`,
-        { headers: { 'User-Agent': 'FikishaCustomerWeb/1.0' } }
+        { headers: { 'User-Agent': 'MtaaexpressCustomerWeb/1.0' } }
       );
       if (res.ok) {
         const data = await res.json() as { display_name?: string };

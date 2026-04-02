@@ -6,23 +6,23 @@ plugins {
 val apiBaseUrl =
     (project.findProperty("API_BASE_URL") as String?)?.trim()?.ifEmpty { null }
         ?: System.getenv("API_BASE_URL")?.trim()?.ifEmpty { null }
-        ?: "https://fikisha-sut2.onrender.com/"
+        ?: "https://mtaaexpress-sut2.onrender.com/"
 
 android {
-    namespace = "com.fikisha.customer"
+    namespace = "com.Mtaaexpresscustomer"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.fikisha.customer"
+        applicationId = "com.Mtaaexpresscustomer"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
         buildConfigField("String", "APP_ROLE", "\"CUSTOMER\"")
-        buildConfigField("String", "APP_NAME", "\"Fikisha\"")
+        buildConfigField("String", "APP_NAME", "\"Mtaaexpress\"")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-        resValue("string", "app_name", "Fikisha")
+        resValue("string", "app_name", "Mtaaexpress")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

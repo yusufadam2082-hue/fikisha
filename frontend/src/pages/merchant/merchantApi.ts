@@ -1,4 +1,5 @@
 import { getAuthHeaders, getStoredAuth } from '../../utils/authStorage';
+import { getMerchantOrderFinancials } from '../../utils/merchantFinance';
 
 interface ErrorPayload {
   error?: string;
@@ -9,6 +10,12 @@ interface LegacyOrder {
   id: string;
   status?: string;
   total?: number;
+  deliveryFee?: number;
+  tax?: number;
+  platformFee?: number;
+  discountAmount?: number;
+  merchantNetIncome?: number;
+  customerTotal?: number;
   createdAt?: string;
   items?: Array<{ product?: { name?: string }; productId?: string; quantity?: number; price?: number }>;
   rating?: number | null;
@@ -65,9 +72,21 @@ async function fallbackMerchantGet<T>(url: string): Promise<T | null> {
     const scoped = storeId ? orders.filter((o: any) => o?.store?.id === storeId || o?.storeId === storeId) : orders;
     const pendingOrders = scoped.filter((o) => normalizeStatus(o.status) === 'PENDING').length;
     const completedToday = scoped.filter((o) => normalizeStatus(o.status) === 'DELIVERED').length;
-    const todaysRevenue = scoped
-      .filter((o) => normalizeStatus(o.status) === 'DELIVERED')
-      .reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(dayStart);
+    const dayOfWeek = (dayStart.getDay() + 6) % 7;
+    weekStart.setDate(dayStart.getDate() - dayOfWeek);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const delivered = scoped.filter((o) => normalizeStatus(o.status) === 'DELIVERED');
+    const sumNetIncome = (rows: LegacyOrder[]) => rows.reduce((sum, order) => sum + getMerchantOrderFinancials(order).merchantNetIncome, 0);
+
+    const todaysNetIncome = sumNetIncome(delivered.filter((o) => new Date(o.createdAt || Date.now()) >= dayStart));
+    const weeklyNetIncome = sumNetIncome(delivered.filter((o) => new Date(o.createdAt || Date.now()) >= weekStart));
+    const monthlyNetIncome = sumNetIncome(delivered.filter((o) => new Date(o.createdAt || Date.now()) >= monthStart));
+    const totalNetIncome = sumNetIncome(delivered);
 
     const store = stores.find((s) => s.id === storeId);
     return {
@@ -78,7 +97,10 @@ async function fallbackMerchantGet<T>(url: string): Promise<T | null> {
         readyForPickup: scoped.filter((o) => ['ASSIGNED', 'READY_FOR_PICKUP'].includes(normalizeStatus(o.status))).length,
         completedToday,
         cancelledToday: scoped.filter((o) => normalizeStatus(o.status) === 'CANCELLED').length,
-        todaysRevenue,
+        todaysNetIncome,
+        weeklyNetIncome,
+        monthlyNetIncome,
+        totalNetIncome,
       },
       lowStockAlerts: [],
     } as T;
@@ -98,10 +120,10 @@ async function fallbackMerchantGet<T>(url: string): Promise<T | null> {
     const orders = await fetchJson<LegacyOrder[]>('/api/orders');
     const scoped = storeId ? orders.filter((o: any) => o?.store?.id === storeId || o?.storeId === storeId) : orders;
     const delivered = scoped.filter((o) => normalizeStatus(o.status) === 'DELIVERED');
-    const grossSales = delivered.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const netIncome = delivered.reduce((sum, order) => sum + getMerchantOrderFinancials(order).merchantNetIncome, 0);
     const daily = delivered.reduce<Record<string, number>>((acc, order) => {
       const day = (order.createdAt ? new Date(order.createdAt) : new Date()).toISOString().slice(0, 10);
-      acc[day] = (acc[day] || 0) + Number(order.total || 0);
+      acc[day] = (acc[day] || 0) + getMerchantOrderFinancials(order).merchantNetIncome;
       return acc;
     }, {});
 
@@ -112,8 +134,8 @@ async function fallbackMerchantGet<T>(url: string): Promise<T | null> {
         cancelledOrders: scoped.filter((o) => normalizeStatus(o.status) === 'CANCELLED').length,
         acceptanceRate: scoped.length ? (((scoped.length - scoped.filter((o) => normalizeStatus(o.status) === 'CANCELLED').length) / scoped.length) * 100).toFixed(1) : '0',
         cancellationRate: scoped.length ? ((scoped.filter((o) => normalizeStatus(o.status) === 'CANCELLED').length / scoped.length) * 100).toFixed(1) : '0',
-        grossSales,
-        avgOrderValue: delivered.length ? grossSales / delivered.length : 0,
+        netIncome,
+        avgOrderValue: delivered.length ? netIncome / delivered.length : 0,
       },
       salesOverTime: Object.entries(daily).map(([date, total]) => ({ date, total })),
       topProducts: [],
@@ -122,7 +144,7 @@ async function fallbackMerchantGet<T>(url: string): Promise<T | null> {
 
   if (url === '/api/merchant/payouts') {
     return {
-      summary: { grossSales: 0, netEarnings: 0, payoutDue: 0 },
+      summary: { totalNetIncome: 0, netEarnings: 0, merchantPayout: 0, payoutDue: 0 },
       settlements: [],
     } as T;
   }

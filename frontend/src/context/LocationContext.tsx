@@ -39,8 +39,8 @@ export interface AddressSearchResult {
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
-const ACTIVE_LOCATION_KEY = 'fikisha_active_location';
-const SAVED_LOCATIONS_KEY = 'fikisha_saved_locations';
+const ACTIVE_LOCATION_KEY = 'mtaaexpress_active_location';
+const SAVED_LOCATIONS_KEY = 'mtaaexpress_saved_locations';
 
 function loadActiveLocation(): AppLocation | null {
   try {
@@ -170,7 +170,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-          { headers: { 'User-Agent': 'FikishaCustomerWeb/1.0' } }
+          { headers: { 'User-Agent': 'MtaaexpressCustomerWeb/1.0' } }
         );
         if (res.ok) {
           const data = await res.json() as { display_name?: string };
@@ -202,7 +202,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       const encoded = encodeURIComponent(query);
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=8&addressdetails=1`,
-        { headers: { 'User-Agent': 'FikishaCustomerWeb/1.0' } }
+        { headers: { 'User-Agent': 'MtaaexpressCustomerWeb/1.0' } }
       );
       if (!res.ok) return [];
       const data = await res.json() as Array<{ lat: string; lon: string; display_name?: string }>;
@@ -259,11 +259,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   // Backward compat: derive address string from active location
   const deliveryAddress = activeLocation?.address
-    ?? localStorage.getItem('fikisha_delivery_address')
+    ?? localStorage.getItem('mtaaexpress_delivery_address')
     ?? '';
 
   const setDeliveryAddress = useCallback((address: string) => {
-    localStorage.setItem('fikisha_delivery_address', address);
+    localStorage.setItem('mtaaexpress_delivery_address', address);
   }, []);
 
   return (

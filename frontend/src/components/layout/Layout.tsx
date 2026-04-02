@@ -25,7 +25,7 @@ export function Layout({ children }: LayoutProps) {
       <footer style={{ background: 'var(--surface)', padding: '48px 0', marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
         <div className="container flex-between">
           <div>
-            <h3 className="text-h3" style={{ color: '#a63400', marginBottom: '16px' }}>fikisha.</h3>
+            <h3 className="text-h3" style={{ color: '#a63400', marginBottom: '16px' }}>Mtaaexpress</h3>
             <p className="text-muted">Hyperlocal delivery at your fingertips.</p>
           </div>
           <div className="flex-center" style={{ gap: '24px' }}>

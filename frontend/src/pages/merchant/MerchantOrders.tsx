@@ -3,9 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useStoreContext } from '../../context/StoreContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { BellRing, BarChart3, Clock, DollarSign, ShoppingBag, Store as StoreIcon, ToggleLeft, ToggleRight } from 'lucide-react';
+import { BellRing, BarChart3, Clock, DollarSign, ShoppingBag, Store as StoreIcon, ToggleLeft, ToggleRight, Printer, FileDown } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
+import { getMerchantOrderFinancials } from '../../utils/merchantFinance';
 
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(false);
@@ -17,6 +18,128 @@ function normalizeOrderStatus(status: string): string {
   if (key === 'READYFORPICKUP') return 'READY_FOR_PICKUP';
   if (key === 'OUTFORDELIVERY' || key === 'INTRANSIT' || key === 'ONTHEWAY') return 'OUT_FOR_DELIVERY';
   return key;
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildReceiptHtml(order: any): string {
+  const financials = getMerchantOrderFinancials(order);
+  const storeName = order?.store?.name || 'Store';
+  const storePhone = order?.store?.phone || 'N/A';
+  const storeAddress = order?.store?.address || 'N/A';
+  const orderNumber = order?.orderNumber || order?.id || 'N/A';
+  const createdAt = order?.createdAt ? new Date(order.createdAt).toLocaleString() : new Date().toLocaleString();
+  const customerName = order?.customerInfo?.name || order?.customer?.name || 'N/A';
+  const customerPhone = order?.customerInfo?.phone || order?.customer?.phone || 'N/A';
+  const deliveryAddress = order?.deliveryAddress?.address || order?.deliveryAddress?.fullAddress || order?.customerInfo?.address || 'N/A';
+  const orderType = financials.deliveryFee > 0 ? 'Delivery' : 'Pickup';
+  const paymentMethod = order?.paymentProvider || 'N/A';
+  const paymentStatus = order?.paymentStatus || 'N/A';
+  const driverName = order?.assignedDriverName || order?.driver?.name || 'Unassigned';
+  const orderNotes = order?.customerInfo?.notes || order?.notes || 'None';
+  const showMerchantNetIncome = true;
+
+  const itemRows = Array.isArray(order?.items) && order.items.length > 0
+    ? order.items.map((item: any) => {
+        const qty = Number(item?.quantity || 0);
+        const unitPrice = Number(item?.price || 0);
+        const total = qty * unitPrice;
+        const itemName = item?.name || item?.product?.name || 'Item';
+        const itemNotes = item?.note || item?.notes || item?.specialInstructions || '';
+        return `
+<div class="row"><span>${escapeHtml(itemName)}</span></div>
+<div class="row"><span>${qty} x ${formatKES(unitPrice)}</span><span>${formatKES(total)}</span></div>
+${itemNotes ? `<div class="muted">Note: ${escapeHtml(itemNotes)}</div>` : ''}`;
+      }).join('\n')
+    : '<div class="row"><span>No line items available</span></div>';
+
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Receipt ${escapeHtml(orderNumber)}</title>
+<style>
+  @page { margin: 6mm; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+  }
+  .receipt {
+    width: 100%;
+    max-width: 80mm;
+    margin: 0 auto;
+    padding: 4mm 2mm;
+  }
+  .center { text-align: center; }
+  .bold { font-weight: 700; }
+  .line { border-top: 1px dashed #000; margin: 8px 0; }
+  .row { display: flex; justify-content: space-between; gap: 10px; margin: 2px 0; }
+  .muted { font-size: 11px; margin: 1px 0 4px; }
+  .attach {
+    border: 1px solid #000;
+    padding: 6px;
+    margin: 10px 0;
+    text-align: center;
+    font-weight: 700;
+  }
+  @media print {
+    body { width: 100%; }
+    .receipt { max-width: 80mm; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt">
+    <div class="center bold">${escapeHtml(storeName)}</div>
+    <div class="center">Tel: ${escapeHtml(storePhone)}</div>
+    <div class="center">${escapeHtml(storeAddress)}</div>
+    <div class="line"></div>
+
+    <div class="row"><span>Order #</span><span>${escapeHtml(orderNumber)}</span></div>
+    <div class="row"><span>Date/Time</span><span>${escapeHtml(createdAt)}</span></div>
+    <div class="row"><span>Order Type</span><span>${escapeHtml(orderType)}</span></div>
+    <div class="line"></div>
+
+    <div class="row"><span>Customer</span><span>${escapeHtml(customerName)}</span></div>
+    <div class="row"><span>Phone</span><span>${escapeHtml(customerPhone)}</span></div>
+    <div class="muted">Address: ${escapeHtml(deliveryAddress)}</div>
+    <div class="line"></div>
+
+    <div class="bold">ITEMS</div>
+    ${itemRows}
+    <div class="line"></div>
+
+    <div class="row"><span>Items Subtotal</span><span>${formatKES(financials.itemsSubtotal)}</span></div>
+    <div class="row"><span>Delivery Fee</span><span>${formatKES(financials.deliveryFee)}</span></div>
+    <div class="muted">(Not included in merchant earnings)</div>
+    <div class="row"><span>Platform Fee</span><span>${formatKES(financials.platformFee)}</span></div>
+    <div class="row"><span>Discounts</span><span>${formatKES(financials.discountAmount)}</span></div>
+    <div class="row bold"><span>Total Paid</span><span>${formatKES(financials.customerTotal)}</span></div>
+    ${showMerchantNetIncome ? `<div class="row bold"><span>Merchant Net Income</span><span>${formatKES(financials.merchantNetIncome)}</span></div>` : ''}
+    <div class="line"></div>
+
+    <div class="row"><span>Payment</span><span>${escapeHtml(paymentMethod)}</span></div>
+    <div class="row"><span>Status</span><span>${escapeHtml(paymentStatus)}</span></div>
+    <div class="row"><span>Driver</span><span>${escapeHtml(driverName)}</span></div>
+    <div class="muted">Order Notes: ${escapeHtml(orderNotes)}</div>
+
+    <div class="attach">ATTACH THIS RECEIPT TO ORDER</div>
+    <div class="center">Thank you for serving with Mtaaexpress</div>
+    <div class="center">Support: help@mtaaexpress.com</div>
+  </div>
+</body>
+</html>`;
 }
 
 export function MerchantOrders() {
@@ -81,7 +204,6 @@ export function MerchantOrders() {
   useEffect(() => {
     if (user?.storeId) {
       fetchOrders();
-      // Simple poll every 10 seconds for real-time feel
       const interval = setInterval(fetchOrders, 10000);
       return () => clearInterval(interval);
     }
@@ -164,10 +286,26 @@ export function MerchantOrders() {
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
-        fetchOrders(); // refresh
+        fetchOrders();
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const openReceiptWindow = (order: any, autoPrint: boolean) => {
+    const receiptWindow = window.open('', '_blank', 'width=420,height=900');
+    if (!receiptWindow) return;
+
+    receiptWindow.document.open();
+    receiptWindow.document.write(buildReceiptHtml(order));
+    receiptWindow.document.close();
+
+    if (autoPrint) {
+      setTimeout(() => {
+        receiptWindow.focus();
+        receiptWindow.print();
+      }, 250);
     }
   };
 
@@ -193,7 +331,8 @@ export function MerchantOrders() {
   const performance = useMemo(() => {
     const normalized = orders.map((order) => ({
       ...order,
-      normalizedStatus: normalizeOrderStatus(order.status)
+      normalizedStatus: normalizeOrderStatus(order.status),
+      financials: getMerchantOrderFinancials(order)
     }));
 
     const pending = normalized.filter((order) => order.normalizedStatus === 'PENDING');
@@ -205,9 +344,9 @@ export function MerchantOrders() {
     const acceptanceRate = decisions > 0 ? Math.round((acceptedCount / decisions) * 100) : 0;
 
     const nonCancelledOrders = normalized.filter((order) => order.normalizedStatus !== 'CANCELLED');
-    const grossRevenue = nonCancelledOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
-    const deliveredRevenue = delivered.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
-    const averageOrderValue = nonCancelledOrders.length > 0 ? grossRevenue / nonCancelledOrders.length : 0;
+    const totalNetIncome = nonCancelledOrders.reduce((sum, order) => sum + order.financials.merchantNetIncome, 0);
+    const deliveredNetIncome = delivered.reduce((sum, order) => sum + order.financials.merchantNetIncome, 0);
+    const averageNetIncomePerOrder = nonCancelledOrders.length > 0 ? totalNetIncome / nonCancelledOrders.length : 0;
 
     const todayKey = new Date().toDateString();
     const todaysOrders = normalized.filter((order) => new Date(order.createdAt).toDateString() === todayKey).length;
@@ -220,9 +359,9 @@ export function MerchantOrders() {
       cancelledOrders: cancelled.length,
       deliveredOrders: delivered.length,
       acceptanceRate,
-      grossRevenue,
-      deliveredRevenue,
-      averageOrderValue
+      totalNetIncome,
+      deliveredNetIncome,
+      averageNetIncomePerOrder
     };
   }, [orders]);
 
@@ -293,18 +432,19 @@ export function MerchantOrders() {
             <p className="text-h3">{performance.acceptanceRate}%</p>
           </Card>
           <Card style={{ padding: '14px' }} hoverable={false}>
-            <p className="text-sm text-muted">Avg Order Value</p>
-            <p className="text-h3">{formatKES(performance.averageOrderValue)}</p>
+            <p className="text-sm text-muted">Avg Net Income / Order</p>
+            <p className="text-h3">{formatKES(performance.averageNetIncomePerOrder)}</p>
           </Card>
           <Card style={{ padding: '14px' }} hoverable={false}>
-            <p className="text-sm text-muted">Gross Revenue</p>
-            <p className="text-h3" style={{ color: '#16a34a' }}>{formatKES(performance.grossRevenue)}</p>
+            <p className="text-sm text-muted">Total Net Income</p>
+            <p className="text-h3" style={{ color: '#16a34a' }}>{formatKES(performance.totalNetIncome)}</p>
           </Card>
           <Card style={{ padding: '14px' }} hoverable={false}>
-            <p className="text-sm text-muted">Delivered Revenue</p>
-            <p className="text-h3" style={{ color: '#15803d' }}>{formatKES(performance.deliveredRevenue)}</p>
+            <p className="text-sm text-muted">Delivered Net Income</p>
+            <p className="text-h3" style={{ color: '#15803d' }}>{formatKES(performance.deliveredNetIncome)}</p>
           </Card>
         </div>
+        <p className="text-sm text-muted" style={{ marginTop: '12px' }}>Not included in your earnings: Delivery Fee</p>
         <div style={{ display: 'flex', gap: '16px', marginTop: '14px', color: 'var(--text-muted)' }}>
           <span className="text-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> Delivered: {performance.deliveredOrders}</span>
           <span className="text-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><StoreIcon size={14} /> Cancelled: {performance.cancelledOrders}</span>
@@ -321,15 +461,18 @@ export function MerchantOrders() {
         <div style={{ display: 'grid', gap: '24px' }}>
           {orders.map(order => {
             const normalizedStatus = normalizeOrderStatus(order.status);
+            const financials = getMerchantOrderFinancials(order);
 
             return (
             <Card key={order.id} style={{ padding: '24px' }} hoverable={false}>
               <div className="flex-between" style={{ marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
                 <div>
-                  <h3 className="text-h3">Order #{order.id.split('-')[0]}</h3>
+                  <h3 className="text-h3">Order #{(order.orderNumber || order.id).split('-')[0]}</h3>
                   <p className="text-sm text-muted">{new Date(order.createdAt).toLocaleTimeString()}</p>
                 </div>
-                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Button variant="outline" onClick={() => openReceiptWindow(order, true)}><Printer size={16} /> Print Receipt</Button>
+                  <Button variant="outline" onClick={() => openReceiptWindow(order, true)}><FileDown size={16} /> Download PDF</Button>
                   <span style={{ 
                     padding: '6px 12px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 600,
                     background: normalizedStatus === 'PENDING'
@@ -340,9 +483,9 @@ export function MerchantOrders() {
                           ? 'rgba(59, 130, 246, 0.12)'
                           : normalizedStatus === 'DRIVER_ACCEPTED'
                             ? 'rgba(99, 102, 241, 0.12)'
-                        : normalizedStatus === 'CANCELLED'
-                          ? 'rgba(239, 68, 68, 0.1)'
-                          : 'rgba(34, 197, 94, 0.1)',
+                          : normalizedStatus === 'CANCELLED'
+                            ? 'rgba(239, 68, 68, 0.1)'
+                            : 'rgba(34, 197, 94, 0.1)',
                     color: normalizedStatus === 'PENDING'
                       ? 'var(--text-main)'
                       : normalizedStatus === 'PREPARING'
@@ -351,9 +494,9 @@ export function MerchantOrders() {
                           ? '#2563eb'
                           : normalizedStatus === 'DRIVER_ACCEPTED'
                             ? '#4f46e5'
-                        : normalizedStatus === 'CANCELLED'
-                          ? '#ef4444'
-                          : '#22c55e'
+                          : normalizedStatus === 'CANCELLED'
+                            ? '#ef4444'
+                            : '#22c55e'
                   }}>
                     {normalizedStatus.replace(/_/g, ' ')}
                   </span>
@@ -369,8 +512,11 @@ export function MerchantOrders() {
 
               <div style={{ marginBottom: '24px' }}>
                 <p className="text-sm font-semibold text-muted" style={{ marginBottom: '8px' }}>Customer Details</p>
-                <p className="text-body">{order.customerInfo?.name}</p>
-                <p className="text-body text-muted">{order.customerInfo?.address}</p>
+                <p className="text-body">{order.customerInfo?.name || order.customer?.name}</p>
+                <p className="text-body text-muted">{order.customerInfo?.address || order.deliveryAddress?.address}</p>
+                {(order.customerInfo?.phone || order.customer?.phone) && (
+                  <p className="text-sm text-muted">Phone: {order.customerInfo?.phone || order.customer?.phone}</p>
+                )}
                 {order.assignedDriverName && (
                   <p className="text-sm text-muted" style={{ marginTop: '8px' }}>
                     Assigned driver: <strong style={{ color: 'var(--text-main)' }}>{order.assignedDriverName}</strong>
@@ -386,10 +532,17 @@ export function MerchantOrders() {
                     <span className="font-semibold">{formatKES(item.price * item.quantity)}</span>
                   </div>
                 ))}
-                <div className="flex-between" style={{ marginTop: '16px' }}>
-                  <span className="font-bold">Total</span>
-                  <span className="font-bold text-h3">{formatKES(Number(order.total || 0))}</span>
-                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px', padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-hover)' }}>
+                <p className="text-sm font-semibold text-muted" style={{ marginBottom: '8px' }}>Financial Breakdown</p>
+                <div className="flex-between"><span>Items Total</span><span>{formatKES(financials.itemsSubtotal)}</span></div>
+                <div className="flex-between"><span>Delivery Fee</span><span>{formatKES(financials.deliveryFee)}</span></div>
+                <p className="text-sm text-muted" style={{ margin: '2px 0 8px' }}>Not included in your earnings: Delivery Fee</p>
+                <div className="flex-between"><span>Platform Fee / Commission</span><span>{formatKES(financials.platformFee)}</span></div>
+                <div className="flex-between"><span>Discounts</span><span>{formatKES(financials.discountAmount)}</span></div>
+                <div className="flex-between"><span>Total Paid by Customer</span><span>{formatKES(financials.customerTotal)}</span></div>
+                <div className="flex-between" style={{ marginTop: '8px', fontWeight: 700 }}><span>Merchant Net Income</span><span>{formatKES(financials.merchantNetIncome)}</span></div>
               </div>
 
               {normalizedStatus === 'PENDING' && (

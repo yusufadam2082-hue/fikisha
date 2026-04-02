@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const DEFAULT_REMOTE_API_URL = 'https://fikisha-sut2.onrender.com';
+const DEFAULT_REMOTE_API_URL = 'https://mtaaexpress-sut2.onrender.com';
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 export const resolvedApiBaseUrl = process.env.REACT_APP_API_URL || (isLocalhost ? '' : DEFAULT_REMOTE_API_URL);

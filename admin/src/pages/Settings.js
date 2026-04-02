@@ -26,12 +26,12 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import apiClient, { resolvedApiBaseUrl } from '../utils/apiClient';
 
-const STORAGE_KEY = 'fikisha_admin_settings';
+const STORAGE_KEY = 'mtaaexpress_admin_settings';
 
 const defaultSettings = {
   general: {
-    platformName: 'Fikisha',
-    supportEmail: 'support@fikisha.local',
+    platformName: 'Mtaaexpress',
+    supportEmail: 'support@mtaaexpress.local',
     supportPhone: '+255700000000',
     currency: 'USD',
     timezone: 'Africa/Dar_es_Salaam'
@@ -58,7 +58,7 @@ const defaultSettings = {
     sendDelivered: true,
     orderConfirmedTemplate: 'Your order has been confirmed and is now being prepared.',
     outForDeliveryTemplate: 'Great news! Your order is on the way.',
-    deliveredTemplate: 'Delivered. Enjoy your order and thank you for choosing Fikisha.'
+    deliveredTemplate: 'Delivered. Enjoy your order and thank you for choosing Mtaaexpress.'
   }
 };
 
@@ -128,7 +128,7 @@ function Settings() {
         error: null,
         responseTime
       });
-      console.info('[Fikisha Admin] Backend health check passed', {
+      console.info('[Mtaaexpress Admin] Backend health check passed', {
         responseTime,
         timestamp: new Date().toISOString(),
         apiBaseUrl: resolvedApiBaseUrl
@@ -141,7 +141,7 @@ function Settings() {
         error: error.message || 'Connection failed',
         responseTime: null
       });
-      console.warn('[Fikisha Admin] Backend health check failed', {
+      console.warn('[Mtaaexpress Admin] Backend health check failed', {
         error: error.message,
         timestamp: new Date().toISOString(),
         apiBaseUrl: resolvedApiBaseUrl

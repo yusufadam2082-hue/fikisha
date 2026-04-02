@@ -1,4 +1,4 @@
-package com.fikisha.customer.ui.screens.home
+package com.Mtaaexpresscustomer.ui.screens.home
 
 import android.content.Intent
 import android.net.Uri
@@ -24,16 +24,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.fikisha.customer.data.model.AiRecommendation
-import com.fikisha.customer.data.model.DeliveryQuote
-import com.fikisha.customer.data.model.Order
-import com.fikisha.customer.data.model.Promotion
-import com.fikisha.customer.data.model.Store
-import com.fikisha.customer.data.repository.Repository
+import com.Mtaaexpresscustomer.data.model.AiRecommendation
+import com.Mtaaexpresscustomer.data.model.DeliveryQuote
+import com.Mtaaexpresscustomer.data.model.Order
+import com.Mtaaexpresscustomer.data.model.Promotion
+import com.Mtaaexpresscustomer.data.model.Store
+import com.Mtaaexpresscustomer.data.repository.Repository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.fikisha.customer.ui.viewmodel.LocationViewModel
+import com.Mtaaexpresscustomer.ui.viewmodel.LocationViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -209,7 +209,7 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Fikisha", fontWeight = FontWeight.Bold)
+                        Text("Mtaaexpress", fontWeight = FontWeight.Bold)
                         Text(
                             text = "Fast delivery, right to your door",
                             style = MaterialTheme.typography.bodySmall,

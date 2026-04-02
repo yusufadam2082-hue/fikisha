@@ -95,7 +95,7 @@ function App() {
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Fikisha Admin Portal
+            Mtaaexpress Admin Portal
           </Typography>
           <Typography variant="body2" sx={{ mr: 2, opacity: 0.8 }}>{user.name || user.username}</Typography>
           <Button color="inherit" onClick={logout}>Logout</Button>

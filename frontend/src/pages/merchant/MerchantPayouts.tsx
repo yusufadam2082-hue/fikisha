@@ -13,15 +13,16 @@ interface PayoutRow {
 
 interface PayoutPayload {
   summary: {
-    grossSales: number;
+    totalNetIncome: number;
     netEarnings: number;
+    merchantPayout: number;
     payoutDue: number;
   };
   settlements: PayoutRow[];
 }
 
 const initialPayout: PayoutPayload = {
-  summary: { grossSales: 0, netEarnings: 0, payoutDue: 0 },
+  summary: { totalNetIncome: 0, netEarnings: 0, merchantPayout: 0, payoutDue: 0 },
   settlements: [],
 };
 
@@ -48,10 +49,12 @@ export function MerchantPayouts() {
       {error && <p style={{ color: 'var(--error)', marginBottom: '10px' }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Gross Sales</p><h3 className="text-h2">{formatKES(payload.summary.grossSales)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Total Net Income</p><h3 className="text-h2">{formatKES(payload.summary.totalNetIncome)}</h3></Card>
         <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Net Earnings</p><h3 className="text-h2">{formatKES(payload.summary.netEarnings)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Merchant Payout</p><h3 className="text-h2">{formatKES(payload.summary.merchantPayout)}</h3></Card>
         <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Payout Due</p><h3 className="text-h2">{formatKES(payload.summary.payoutDue)}</h3></Card>
       </div>
+      <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>Not included in your earnings: Delivery Fee</p>
 
       <Card style={{ padding: '16px' }}>
         <h3 className="text-h3" style={{ marginBottom: '10px' }}>Settlement Ledger</h3>

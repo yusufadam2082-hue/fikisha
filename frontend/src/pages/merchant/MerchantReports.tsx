@@ -10,7 +10,7 @@ interface ReportsData {
     cancelledOrders: number;
     acceptanceRate: string;
     cancellationRate: string;
-    grossSales: number;
+    netIncome: number;
     avgOrderValue: number;
   };
   salesOverTime: Array<{ date: string; total: number }>;
@@ -24,7 +24,7 @@ const initialData: ReportsData = {
     cancelledOrders: 0,
     acceptanceRate: '0',
     cancellationRate: '0',
-    grossSales: 0,
+    netIncome: 0,
     avgOrderValue: 0,
   },
   salesOverTime: [],
@@ -69,14 +69,15 @@ export function MerchantReports() {
       {error && <p style={{ color: 'var(--error)', marginBottom: '10px' }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Gross Sales</p><h3 className="text-h2">{formatKES(data.summary.grossSales)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Net Income</p><h3 className="text-h2">{formatKES(data.summary.netIncome)}</h3></Card>
         <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Orders</p><h3 className="text-h2">{data.summary.totalOrders}</h3></Card>
         <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Acceptance Rate</p><h3 className="text-h2">{data.summary.acceptanceRate}%</h3></Card>
-        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Average Order Value</p><h3 className="text-h2">{formatKES(data.summary.avgOrderValue)}</h3></Card>
+        <Card style={{ padding: '16px' }}><p className="text-sm text-muted">Average Net Income / Order</p><h3 className="text-h2">{formatKES(data.summary.avgOrderValue)}</h3></Card>
       </div>
+      <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>Not included in your earnings: Delivery Fee</p>
 
       <Card style={{ padding: '16px', marginBottom: '16px' }}>
-        <h3 className="text-h3" style={{ marginBottom: '10px' }}>Sales Timeline</h3>
+        <h3 className="text-h3" style={{ marginBottom: '10px' }}>Net Income Timeline</h3>
         {data.salesOverTime.length === 0 ? <p className="text-sm text-muted">No sales in selected range.</p> : (
           <div style={{ display: 'grid', gap: '8px' }}>
             {data.salesOverTime.map((row) => (

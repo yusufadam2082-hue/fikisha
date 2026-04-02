@@ -1,6 +1,6 @@
-# Fikisha Merchant Android App
+# Mtaaexpress Merchant Android App
 
-A native Android merchant platform app for the Fikisha delivery service, built with Jetpack Compose.
+A native Android merchant platform app for the Mtaaexpress delivery service, built with Jetpack Compose.
 
 ## Features
 

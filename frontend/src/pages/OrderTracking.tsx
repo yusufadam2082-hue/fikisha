@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation as useRouterLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -201,7 +201,7 @@ export function OrderTracking() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentIntentId, resolvedOrderId]);
 
-  // Issue 12: correct ETA â€” show 0 / "Delivered!" when at step 4
+  // Issue 12: correct ETA — show 0 / "Delivered!" when at step 4
   const etaMinutes = etaEstimate ? etaEstimate.etaMinutes : Math.max(0, 15 - currentStep * 3);
 
   const handleRefreshPayment = async () => {
@@ -424,7 +424,7 @@ export function OrderTracking() {
 
       {/* Issue 14: wired-up action buttons */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        <Button variant="outline" size="lg" onClick={() => showToast('Support is available 24/7 at help@fikisha.com', 'info')}>
+        <Button variant="outline" size="lg" onClick={() => showToast('Support is available 24/7 at help@mtaaexpress.com', 'info')}>
           Contact Support
         </Button>
         <Button size="lg" disabled={currentStep < 3} onClick={() => showToast('Tip sent! Thank you for your generosity.', 'success')}>

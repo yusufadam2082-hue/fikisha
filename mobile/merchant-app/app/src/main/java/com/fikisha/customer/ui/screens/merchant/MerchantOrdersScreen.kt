@@ -74,9 +74,9 @@ private data class MerchantPerformance(
     val cancelledOrders: Int,
     val deliveredOrders: Int,
     val acceptanceRate: Int,
-    val grossRevenue: Double,
-    val deliveredRevenue: Double,
-    val averageOrderValue: Double
+    val totalNetIncome: Double,
+    val deliveredNetIncome: Double,
+    val averageNetIncome: Double
 )
 
 class MerchantOrdersViewModel : ViewModel() {
@@ -142,6 +142,15 @@ class MerchantOrdersViewModel : ViewModel() {
     }
 }
 
+private fun calculateMerchantNetIncome(order: Order): Double {
+    val itemsSubtotal = order.itemsSubtotal
+        ?: order.items.orEmpty().sumOf { it.price * it.quantity }
+    val platformFee = order.platformFee ?: 0.0
+    val discountAmount = order.discountAmount ?: 0.0
+    val fallbackNet = (itemsSubtotal - platformFee - discountAmount).coerceAtLeast(0.0)
+    return (order.merchantNetIncome ?: fallbackNet).coerceAtLeast(0.0)
+}
+
 private fun buildPerformance(orders: List<Order>): MerchantPerformance {
     val normalized = orders.map { it to normalizeMerchantOrderStatus(it.status) }
     val pending = normalized.count { it.second == "PENDING" }
@@ -152,9 +161,9 @@ private fun buildPerformance(orders: List<Order>): MerchantPerformance {
     val decisions = acceptedCount + cancelled
     val acceptanceRate = if (decisions > 0) ((acceptedCount.toFloat() / decisions) * 100).toInt() else 0
     val nonCancelled = normalized.filter { it.second != "CANCELLED" }.map { it.first }
-    val grossRevenue = nonCancelled.sumOf { it.total }
-    val deliveredRevenue = delivered.sumOf { it.first.total }
-    val averageOrderValue = if (nonCancelled.isNotEmpty()) grossRevenue / nonCancelled.size else 0.0
+    val totalNetIncome = nonCancelled.sumOf { calculateMerchantNetIncome(it) }
+    val deliveredNetIncome = delivered.sumOf { calculateMerchantNetIncome(it.first) }
+    val averageNetIncome = if (nonCancelled.isNotEmpty()) totalNetIncome / nonCancelled.size else 0.0
     val todayKey = java.time.LocalDate.now().toString()
     val todaysOrders = orders.count { (it.createdAt ?: "").startsWith(todayKey) }
 
@@ -166,9 +175,9 @@ private fun buildPerformance(orders: List<Order>): MerchantPerformance {
         cancelledOrders = cancelled,
         deliveredOrders = delivered.size,
         acceptanceRate = acceptanceRate,
-        grossRevenue = grossRevenue,
-        deliveredRevenue = deliveredRevenue,
-        averageOrderValue = averageOrderValue
+        totalNetIncome = totalNetIncome,
+        deliveredNetIncome = deliveredNetIncome,
+        averageNetIncome = averageNetIncome
     )
 }
 
@@ -354,7 +363,7 @@ fun MerchantOrdersScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MerchantMetricCard("Acceptance", "${performance.acceptanceRate}%", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                            MerchantMetricCard("Average", formatKes(performance.averageOrderValue), Color(0xFF15803D), Modifier.weight(1f))
+                            MerchantMetricCard("Avg Net", formatKes(performance.averageNetIncome), Color(0xFF15803D), Modifier.weight(1f))
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -372,7 +381,7 @@ fun MerchantOrdersScreen(
                             )
                             AssistChip(
                                 onClick = {},
-                                label = { Text("Gross ${formatKes(performance.grossRevenue)}") },
+                                label = { Text("Net Income ${formatKes(performance.totalNetIncome)}") },
                                 leadingIcon = { Icon(Icons.Default.ToggleOn, contentDescription = null) },
                                 colors = AssistChipDefaults.assistChipColors()
                             )

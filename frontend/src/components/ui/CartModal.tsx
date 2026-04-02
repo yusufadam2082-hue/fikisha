@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useLocation } from '../../context/LocationContext';
 import { useToast } from '../../context/ToastContext';
@@ -56,7 +56,7 @@ export function CartModal() {
     }
 
     setConfirmedAddress(activeLocation?.address || deliveryAddress || '');
-    const storedPaymentMethods = JSON.parse(localStorage.getItem('fikisha_payment_methods') || '[]') as StoredPaymentMethod[];
+    const storedPaymentMethods = JSON.parse(localStorage.getItem('mtaaexpress_payment_methods') || '[]') as StoredPaymentMethod[];
     const validStored = Array.isArray(storedPaymentMethods) ? storedPaymentMethods : [];
     setPaymentMethods(validStored);
     const defaultPayment = validStored.find((method) => method.isDefault) || validStored[0];
@@ -85,9 +85,9 @@ export function CartModal() {
       return 'Cash on Delivery';
     }
     if (isMpesaMethod(selectedPayment)) {
-      return `M-Pesa ${selectedPayment.phoneNumber || `â€¢â€¢â€¢â€¢ ${selectedPayment.last4}`}`;
+      return `M-Pesa ${selectedPayment.phoneNumber || `•••• ${selectedPayment.last4}`}`;
     }
-    return `${selectedPayment.type} â€¢â€¢â€¢â€¢ ${selectedPayment.last4}`;
+    return `${selectedPayment.type} •••• ${selectedPayment.last4}`;
   };
 
   const getSelectedPaymentProvider = () => {
@@ -196,7 +196,7 @@ export function CartModal() {
               currency: 'KES',
               provider: paymentProvider,
               phoneNumber: paymentProvider === 'MPESA' ? user.phone || undefined : undefined,
-              description: `Fikisha order payment for ${items.length} item${items.length === 1 ? '' : 's'}`,
+              description: `Mtaaexpress order payment for ${items.length} item${items.length === 1 ? '' : 's'}`,
               returnUrlBase: window.location.origin,
               metadata: {
                 storeId,
@@ -456,7 +456,7 @@ export function CartModal() {
                 <span className="text-body text-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Clock size={14} /> ETA
                 </span>
-                <span className="text-body">{deliveryQuote.etaMinMinutes}â€“{deliveryQuote.etaMaxMinutes} min</span>
+                <span className="text-body">{deliveryQuote.etaMinMinutes}–{deliveryQuote.etaMaxMinutes} min</span>
               </div>
             )}
             {!showCheckoutConfirm ? (
@@ -505,7 +505,7 @@ export function CartModal() {
                           checked={selectedPaymentId === method.id}
                           onChange={() => setSelectedPaymentId(method.id)}
                         />
-                        <span className="text-sm">{isMpesaMethod(method) ? `M-Pesa - ${method.phoneNumber || `â€¢â€¢â€¢â€¢ ${method.last4}`}` : `${method.type} - **** ${method.last4}`}</span>
+                        <span className="text-sm">{isMpesaMethod(method) ? `M-Pesa - ${method.phoneNumber || `•••• ${method.last4}`}` : `${method.type} - **** ${method.last4}`}</span>
                       </label>
                     ))}
                   </div>

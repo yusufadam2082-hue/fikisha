@@ -157,7 +157,7 @@ export function Home() {
         {
           id: 'fallback-a',
           title: '50% Off First Order',
-          subtitle: 'Use code FIKISHA50 today',
+          subtitle: 'Use code MTAAEXPRESS50 today',
           ctaText: 'Claim Offer',
           ctaLink: null,
           bgColor: 'linear-gradient(160deg, #4b1810 0%, #a63400 100%)',
@@ -191,7 +191,7 @@ export function Home() {
           </h1>
           <p>
             {heroPromo?.subtitle ||
-              'From hot meals to groceries and pharmacies, Fikisha brings your essentials to your door in minutes.'}
+              'From hot meals to groceries and pharmacies, Mtaaexpress brings your essentials to your door in minutes.'}
           </p>
           <div className="customer-hero-actions">
             <button

@@ -1,4 +1,4 @@
-package com.fikisha.customer.ui.screens.profile
+package com.Mtaaexpresscustomer.ui.screens.profile
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,8 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.fikisha.customer.data.api.NetworkModule
-import com.fikisha.customer.data.session.SessionStore
+import com.Mtaaexpresscustomer.data.api.NetworkModule
+import com.Mtaaexpresscustomer.data.session.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -362,7 +362,7 @@ fun ProfileScreen(
 
             item {
                 Text(
-                    text = "Fikisha v1.0.0",
+                    text = "Mtaaexpress v1.0.0",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)

@@ -1,13 +1,13 @@
 services:
   - type: web
-    name: fikisha-backend
+    name: mtaaexpress-backend
     runtime: node
     rootDir: backend
     buildCommand: npm install && npx prisma generate && npx prisma db push
     startCommand: npm start
     healthCheckPath: /health
     disks:
-      - name: fikisha-data
+      - name: mtaaexpress-data
         mountPath: /var/data
         sizeGB: 1
     envVars:
@@ -22,7 +22,7 @@ services:
       - key: MERCHANT_PASSWORD
         sync: false
       - key: DATABASE_URL
-        value: file:/var/data/fikisha.db
+        value: file:/var/data/mtaaexpress.db
       - key: BACKEND_PUBLIC_URL
         sync: false
       - key: STRIPE_SECRET_KEY

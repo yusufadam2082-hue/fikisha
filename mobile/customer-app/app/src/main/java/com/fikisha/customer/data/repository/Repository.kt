@@ -205,7 +205,7 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
             val encoded = URLEncoder.encode(query, "UTF-8")
             val url = "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=8&addressdetails=1"
             val raw = URL(url).openConnection().apply {
-                setRequestProperty("User-Agent", "FikishaCustomerAndroid/1.0")
+                setRequestProperty("User-Agent", "MtaaexpressCustomerAndroid/1.0")
                 connectTimeout = 12000
                 readTimeout = 12000
             }.getInputStream().bufferedReader().use { it.readText() }
@@ -239,7 +239,7 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
         return try {
             val url = "https://nominatim.openstreetmap.org/reverse?lat=$latitude&lon=$longitude&format=json"
             val raw = URL(url).openConnection().apply {
-                setRequestProperty("User-Agent", "FikishaCustomerAndroid/1.0")
+                setRequestProperty("User-Agent", "MtaaexpressCustomerAndroid/1.0")
                 connectTimeout = 12000
                 readTimeout = 12000
             }.getInputStream().bufferedReader().use { it.readText() }

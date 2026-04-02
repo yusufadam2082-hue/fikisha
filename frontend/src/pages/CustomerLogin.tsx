@@ -130,7 +130,7 @@ export function CustomerLogin() {
     <div className="cl-shell">
       <div className="cl-wrapper">
         <div className="cl-brand">
-          <span className="cl-brand-name">fikisha.</span>
+          <span className="cl-brand-name">Mtaaexpress</span>
           <p className="cl-brand-sub">Customer Portal</p>
         </div>
 

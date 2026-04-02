@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FikishaMerchant"
+rootProject.name = "MtaaexpressMerchant"
 include(":app")

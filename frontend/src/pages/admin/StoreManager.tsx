@@ -208,7 +208,7 @@ export function StoreManager() {
     try {
       const encoded = encodeURIComponent(locationSearch.trim());
       const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=6&addressdetails=1`, {
-        headers: { 'User-Agent': 'FikishaAdminWeb/1.0' }
+        headers: { 'User-Agent': 'MtaaexpressAdminWeb/1.0' }
       });
       if (!response.ok) {
         throw new Error('Address lookup failed');
@@ -237,7 +237,7 @@ export function StoreManager() {
 
       try {
         const reverseRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
-          headers: { 'User-Agent': 'FikishaAdminWeb/1.0' }
+          headers: { 'User-Agent': 'MtaaexpressAdminWeb/1.0' }
         });
         if (reverseRes.ok) {
           const reverseData = await reverseRes.json() as { display_name?: string; address?: Record<string, string> };

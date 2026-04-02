@@ -672,7 +672,7 @@ const createStripeCheckoutSession = async ({ req, intent, customer, description 
           currency: intent.currency.toLowerCase(),
           unit_amount: toMinorUnits(intent.amount, intent.currency),
           product_data: {
-            name: description || `Fikisha order payment ${intent.id.slice(0, 8)}`
+            name: description || `Mtaaexpress order payment ${intent.id.slice(0, 8)}`
           }
         }
       }
@@ -751,7 +751,7 @@ const createMpesaPaymentRequest = async ({ req, intent, phoneNumber, description
       PhoneNumber: normalizedPhoneNumber,
       CallBackURL: callbackUrl,
       AccountReference: `FK-${intent.id.slice(0, 8).toUpperCase()}`,
-      TransactionDesc: description || 'Fikisha order payment'
+      TransactionDesc: description || 'Mtaaexpress order payment'
     })
   });
 
@@ -1147,6 +1147,7 @@ const generateNextOrderNumber = async (store) => {
 const serializeOrder = (order, options = {}) => {
   const { paymentSettled = false } = options;
   const normalizedStatus = normalizeOrderStatus(order.status);
+  const orderFinancials = computeMerchantOrderFinancials(order);
   const serialized = {
     ...order,
     orderNumber: order.orderNumber || buildLegacyOrderNumber(order),
@@ -1157,6 +1158,14 @@ const serializeOrder = (order, options = {}) => {
     paymentSettled,
     assignedDriverId: order.driverId || null,
     assignedDriverName: order.driver?.name || null,
+    itemsSubtotal: orderFinancials.itemsSubtotal,
+    deliveryFee: orderFinancials.deliveryFee,
+    platformFee: orderFinancials.platformFee,
+    discountAmount: orderFinancials.discountAmount,
+    merchantTaxAdjustment: orderFinancials.merchantTaxAdjustment,
+    merchantNetIncome: orderFinancials.merchantNetIncome,
+    merchantPayout: orderFinancials.merchantNetIncome,
+    customerTotal: orderFinancials.customerTotal,
     items: order.items?.map((item) => ({
       ...item,
       name: item.product?.name ?? 'Unknown item'
@@ -1337,6 +1346,48 @@ const getSettlementCycleKey = (order) => {
   return referenceDate.toISOString().slice(0, 10);
 };
 
+const computeMerchantOrderFinancials = (order = {}) => {
+  const customerTotal = Number(order.customerTotal ?? order.total ?? 0) || 0;
+  const deliveryFee = Number(order.deliveryFee ?? 0) || 0;
+  const taxAmount = Number(order.taxAmount ?? order.tax ?? 0) || 0;
+  const platformFee = Number(order.platformFee ?? order.platformCommission ?? 0) || 0;
+  const discountAmount = Number(order.discountAmount ?? 0) || 0;
+  const merchantTaxAdjustment = Number(order.merchantTaxAdjustment ?? 0) || 0;
+
+  const itemsFromLines = Array.isArray(order.items)
+    ? order.items.reduce((sum, item) => {
+        const qty = Number(item?.quantity ?? 0) || 0;
+        const price = Number(item?.price ?? 0) || 0;
+        return sum + (qty * price);
+      }, 0)
+    : NaN;
+
+  const derivedItemsSubtotal = Number.isFinite(itemsFromLines)
+    ? itemsFromLines
+    : Math.max(0, customerTotal - deliveryFee - taxAmount + discountAmount);
+
+  const explicitItemsSubtotal = Number(order.itemsSubtotal);
+  const itemsSubtotal = Number.isFinite(explicitItemsSubtotal)
+    ? explicitItemsSubtotal
+    : derivedItemsSubtotal;
+
+  const derivedNet = Math.max(0, itemsSubtotal - platformFee - discountAmount + merchantTaxAdjustment);
+  const explicitNet = Number(order.merchantNetIncome ?? order.merchantPayout);
+  const merchantNetIncome = Number.isFinite(explicitNet)
+    ? Math.max(0, explicitNet)
+    : derivedNet;
+
+  return {
+    itemsSubtotal: Number(itemsSubtotal.toFixed(2)),
+    deliveryFee: Number(deliveryFee.toFixed(2)),
+    platformFee: Number(platformFee.toFixed(2)),
+    discountAmount: Number(discountAmount.toFixed(2)),
+    merchantTaxAdjustment: Number(merchantTaxAdjustment.toFixed(2)),
+    merchantNetIncome: Number(merchantNetIncome.toFixed(2)),
+    customerTotal: Number(customerTotal.toFixed(2))
+  };
+};
+
 const getSettledOrderIds = async (orderIds) => {
   if (!Array.isArray(orderIds) || orderIds.length === 0) {
     return new Set();
@@ -1359,7 +1410,7 @@ const appendSettlementRecordsForOrder = async (order, actor = {}) => {
   const existingEntries = ledger.filter((entry) => entry?.orderId === order.id);
   const nextEntries = [];
   const cycleKey = getSettlementCycleKey(order);
-  const merchantAmount = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tax || 0));
+  const merchantAmount = computeMerchantOrderFinancials(order).merchantNetIncome;
   const driverAmount = Math.max(0, Number(order.deliveryFee || 0));
 
   if (!existingEntries.some((entry) => entry.type === SETTLEMENT_TYPE.MERCHANT) && merchantAmount > 0) {
@@ -2330,7 +2381,7 @@ app.post('/api/drivers',
         data: {
           name,
           // Driver.email is required + unique in schema.
-          email: (email || user.email || `${user.username}@fikisha.local`).trim(),
+          email: (email || user.email || `${user.username}@Mtaaexpresslocal`).trim(),
           phone,
           vehicle,
           license: license || null,
@@ -2530,7 +2581,7 @@ const initDB = async () => {
       },
       create: {
         name: 'Demo Driver',
-        email: 'driver@fikisha.local',
+        email: 'driver@Mtaaexpresslocal',
         phone: '+255700000001',
         vehicle: 'Motorbike',
         userId: driverUser.id
@@ -3148,7 +3199,7 @@ app.post('/api/payments/intents/:id/retry', authMiddleware, roleMiddleware('CUST
       phoneNumber: req.body.phoneNumber || existingMetadata.phoneNumber || customer?.phone || null,
       description: req.body.description
         || existingMetadata.description
-        || (linkedOrder ? `Retry payment for order ${linkedOrder.orderNumber || linkedOrder.id.slice(-6).toUpperCase()} at ${linkedOrder.store?.name || 'Fikisha'}` : null)
+        || (linkedOrder ? `Retry payment for order ${linkedOrder.orderNumber || linkedOrder.id.slice(-6).toUpperCase()} at ${linkedOrder.store?.name || 'Mtaaexpress'}` : null)
     });
 
     const retriedIntent = await prisma.paymentIntent.update({
@@ -4262,7 +4313,7 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
       where,
       include: {
         store: { select: { id: true, name: true, address: true, phone: true } },
-        customer: { select: { name: true } },
+        customer: { select: { name: true, phone: true } },
         driver: { select: { name: true } },
         items: {
           include: {
@@ -4298,7 +4349,7 @@ app.get('/api/orders/:id', authMiddleware, async (req, res) => {
       where: { id: req.params.id },
       include: {
         store: { select: { id: true, name: true, ownerId: true, address: true, phone: true } },
-        customer: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, phone: true } },
         driver: { select: { id: true, name: true } },
         items: {
           include: {
@@ -5881,20 +5932,31 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
 
     const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(dayStart);
+    const dayOfWeek = (dayStart.getDay() + 6) % 7;
+    weekStart.setDate(dayStart.getDate() - dayOfWeek);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [
       store,
       allOrders,
       todaysOrders,
-      deliveredToday,
-      cancelledToday,
       products,
     ] = await Promise.all([
       prisma.store.findUnique({ where: { id: storeId } }),
-      prisma.order.findMany({ where: { storeId }, select: { id: true, status: true, total: true, createdAt: true } }),
+      prisma.order.findMany({
+        where: { storeId },
+        select: {
+          id: true,
+          status: true,
+          total: true,
+          deliveryFee: true,
+          tax: true,
+          createdAt: true,
+          items: { select: { quantity: true, price: true } }
+        }
+      }),
       prisma.order.findMany({ where: { storeId, createdAt: { gte: dayStart } }, select: { id: true, status: true, total: true, createdAt: true } }),
-      prisma.order.findMany({ where: { storeId, status: ORDER_STATUS.DELIVERED, createdAt: { gte: dayStart } }, select: { total: true, createdAt: true, pickedUpAt: true } }),
-      prisma.order.count({ where: { storeId, status: ORDER_STATUS.CANCELLED, createdAt: { gte: dayStart } } }),
       prisma.product.findMany({ where: { storeId }, select: { id: true, name: true, available: true, quantityAvailable: true, lowStockThreshold: true } }),
     ]);
 
@@ -5919,7 +5981,20 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
       if (s === ORDER_STATUS.CANCELLED) { statusCount.cancelled += 1; statusCount.rejected += 1; }
     }
 
-    const todaysRevenue = deliveredToday.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const deliveredOrders = allOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.DELIVERED);
+    const todaysDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= dayStart);
+    const weeklyDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= weekStart);
+    const monthlyDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= monthStart);
+
+    const sumNetIncome = (orders = []) => orders.reduce((sum, order) => {
+      return sum + computeMerchantOrderFinancials(order).merchantNetIncome;
+    }, 0);
+
+    const todaysNetIncome = sumNetIncome(todaysDelivered);
+    const weeklyNetIncome = sumNetIncome(weeklyDelivered);
+    const monthlyNetIncome = sumNetIncome(monthlyDelivered);
+    const totalNetIncome = sumNetIncome(deliveredOrders);
+    const cancelledToday = allOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED && new Date(o.createdAt) >= dayStart).length;
 
     const lowStock = products.filter((p) => {
       if (p.quantityAvailable === null || p.quantityAvailable === undefined) return false;
@@ -5940,9 +6015,14 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
         pendingOrders: statusCount.pending,
         acceptedInProgress: statusCount.accepted + statusCount.readyForPickup,
         readyForPickup: statusCount.readyForPickup,
-        completedToday: statusCount.completed,
+        completedToday: todaysDelivered.length,
         cancelledToday,
-        todaysRevenue,
+        todaysNetIncome,
+        weeklyNetIncome,
+        monthlyNetIncome,
+        totalNetIncome,
+        // Backward-compatible field name for older clients.
+        todaysRevenue: todaysNetIncome,
         averagePrepTimeMinutes: null,
       },
       statuses: statusCount,
@@ -6128,13 +6208,15 @@ app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), asy
     });
 
     if (dbRows.length > 0) {
+      const totalNetIncome = dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
       const summaryFromDb = {
-        grossSales: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
-        netEarnings: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+        totalNetIncome,
+        netEarnings: totalNetIncome,
+        merchantPayout: totalNetIncome,
         commissions: 0,
         discounts: 0,
         refunds: 0,
-        payoutDue: dbRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+        payoutDue: totalNetIncome,
       };
 
       return res.json({ summary: summaryFromDb, settlements: dbRows });
@@ -6145,13 +6227,15 @@ app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), asy
       .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+    const totalNetIncome = merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
     const summary = {
-      grossSales: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
-      netEarnings: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      totalNetIncome,
+      netEarnings: totalNetIncome,
+      merchantPayout: totalNetIncome,
       commissions: 0,
       discounts: 0,
       refunds: 0,
-      payoutDue: merchantRows.reduce((sum, r) => sum + Number(r.amount || 0), 0),
+      payoutDue: totalNetIncome,
     };
 
     res.json({ summary, settlements: merchantRows });
@@ -6173,11 +6257,35 @@ app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHA
       if (to) where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
     }
 
-    const orders = await prisma.order.findMany({ where, include: { items: { include: { product: true } } } });
+    const orders = await prisma.order.findMany({
+      where,
+      include: {
+        items: { include: { product: true } }
+      }
+    });
     const delivered = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.DELIVERED);
     const cancelled = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
-    const grossSales = delivered.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const avgOrderValue = delivered.length ? grossSales / delivered.length : 0;
+
+    const financialTotals = delivered.reduce((acc, order) => {
+      const financials = computeMerchantOrderFinancials(order);
+      acc.itemsSubtotal += financials.itemsSubtotal;
+      acc.deliveryFee += financials.deliveryFee;
+      acc.platformFee += financials.platformFee;
+      acc.discountAmount += financials.discountAmount;
+      acc.merchantNetIncome += financials.merchantNetIncome;
+      acc.customerTotal += financials.customerTotal;
+      return acc;
+    }, {
+      itemsSubtotal: 0,
+      deliveryFee: 0,
+      platformFee: 0,
+      discountAmount: 0,
+      merchantNetIncome: 0,
+      customerTotal: 0
+    });
+
+    const netIncomeTotal = financialTotals.merchantNetIncome;
+    const avgOrderValue = delivered.length ? netIncomeTotal / delivered.length : 0;
 
     const productPerfMap = {};
     for (const order of delivered) {
@@ -6189,10 +6297,11 @@ app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHA
       }
     }
 
-    const dailyMap = {};
+    const dailyNetIncomeMap = {};
     for (const order of delivered) {
       const day = new Date(order.createdAt).toISOString().slice(0, 10);
-      dailyMap[day] = (dailyMap[day] || 0) + Number(order.total || 0);
+      const financials = computeMerchantOrderFinancials(order);
+      dailyNetIncomeMap[day] = (dailyNetIncomeMap[day] || 0) + financials.merchantNetIncome;
     }
 
     res.json({
@@ -6202,10 +6311,16 @@ app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHA
         cancelledOrders: cancelled.length,
         acceptanceRate: orders.length ? (((orders.length - cancelled.length) / orders.length) * 100).toFixed(1) : '0',
         cancellationRate: orders.length ? ((cancelled.length / orders.length) * 100).toFixed(1) : '0',
-        grossSales,
+        itemsSubtotal: financialTotals.itemsSubtotal,
+        deliveryFee: financialTotals.deliveryFee,
+        platformFee: financialTotals.platformFee,
+        discountAmount: financialTotals.discountAmount,
+        merchantNetIncome: financialTotals.merchantNetIncome,
+        customerTotal: financialTotals.customerTotal,
+        netIncome: netIncomeTotal,
         avgOrderValue,
       },
-      salesOverTime: Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total })),
+      salesOverTime: Object.entries(dailyNetIncomeMap).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total })),
       topProducts: Object.values(productPerfMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
     });
   } catch (e) {

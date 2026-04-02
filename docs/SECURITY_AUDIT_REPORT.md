@@ -1,4 +1,4 @@
-# Fikisha Customer App - Security Features Audit Report
+# Mtaaexpress Customer App - Security Features Audit Report
 **Date:** March 19, 2026  
 **Scope:** Android Customer App, Backend API, Data Storage  
 
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This audit examined the Fikisha customer delivery app across multiple security domains. The application demonstrates **strong implementation in several areas** (authentication, authorization, password hashing) but has **critical gaps** in network security (HTTP usage), HTTPS/TLS enforcement, and token refresh mechanisms.
+This audit examined the Mtaaexpress customer delivery app across multiple security domains. The application demonstrates **strong implementation in several areas** (authentication, authorization, password hashing) but has **critical gaps** in network security (HTTP usage), HTTPS/TLS enforcement, and token refresh mechanisms.
 
 ---
 
@@ -171,7 +171,7 @@ fun logout() {
 ### 2.1 Encrypted DataStore (Android)
 **Status:** ✓ Implemented
 
-**File:** [FikishaApplication.kt](customer-app/app/src/main/java/com/fikisha/customer/FikishaApplication.kt)
+**File:** [MtaaexpressApplication.kt](customer-app/app/src/main/java/com/fikisha/customer/MtaaexpressApplication.kt)
 - Uses Android's `DataStore` API (successor to SharedPreferences)
 - Configuration: named `fikisha_prefs`
 
@@ -182,7 +182,7 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "fi
 
 **Encryption Details:**
 - Android DataStore uses automatic encryption via `EncryptedSharedPreferences` when paired with `androidx.security:security-crypto`
-- Default location in app private directory: `/data/data/com.fikisha.customer/files/datastore/fikisha_prefs.pb`
+- Default location in app private directory: `/data/data/com.Mtaaexpresscustomer/files/datastore/fikisha_prefs.pb`
 
 ### 2.2 Stored Data Items
 **Status:** ✓ Documented
@@ -301,7 +301,7 @@ private const val BASE_URL = "http://10.0.2.2:3002/"
 
 **Recommendation:**
 ```kotlin
-private const val BASE_URL = "https://api.fikisha.local/"  // Production domain
+private const val BASE_URL = "https://api.Mtaaexpresslocal/"  // Production domain
 ```
 
 ### 3.3 Certificate Pinning
@@ -381,7 +381,7 @@ private const val BASE_URL = "http://10.0.2.2:3002/"  // Wrong for production bu
 
 **Should be:**
 ```kotlin
-private const val BASE_URL = "https://api.fikisha.production.domain/"
+private const val BASE_URL = "https://api.Mtaaexpressproduction.domain/"
 ```
 
 **Risk:** Production app connecting to development/emulator localhost.
@@ -945,7 +945,7 @@ delete serialized.deliveryOtpVerifiedAt;
 - [LoginScreen.kt](customer-app/app/src/main/java/com/fikisha/customer/ui/screens/login/LoginScreen.kt)
 - [ProfileModels.kt](customer-app/app/src/main/java/com/fikisha/customer/data/model/ProfileModels.kt)
 - [Models.kt](customer-app/app/src/main/java/com/fikisha/customer/data/model/Models.kt)
-- [FikishaApplication.kt](customer-app/app/src/main/java/com/fikisha/customer/FikishaApplication.kt)
+- [MtaaexpressApplication.kt](customer-app/app/src/main/java/com/fikisha/customer/MtaaexpressApplication.kt)
 
 ### Backend (Node.js/TypeScript)
 - [server.js](backend/server.js)

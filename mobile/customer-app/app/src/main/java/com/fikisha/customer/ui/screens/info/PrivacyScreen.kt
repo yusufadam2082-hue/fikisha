@@ -1,4 +1,4 @@
-package com.fikisha.customer.ui.screens.info
+package com.Mtaaexpresscustomer.ui.screens.info
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,9 +51,9 @@ fun PrivacyScreen(onBackClick: () -> Unit) {
             InfoCard(
                 contentPadding = PaddingValues(20.dp),
                 blocks = listOf(
-                    "Fikisha collects account, order, and delivery information needed to process and deliver your requests.",
+                    "Mtaaexpress collects account, order, and delivery information needed to process and deliver your requests.",
                     "We use this information to operate the service, improve reliability, and support customer care.",
-                    "We do not sell personal data. For data access or removal requests, contact help@fikisha.com."
+                    "We do not sell personal data. For data access or removal requests, contact help@mtaaexpress.com."
                 )
             )
         }

@@ -29,7 +29,7 @@ export function AiAssistant() {
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Hi, I am your Fikisha AI assistant. Ask me about order tracking, delivery ETA, promos, or what to order.'
+      text: 'Hi, I am your Mtaaexpress AI assistant. Ask me about order tracking, delivery ETA, promos, or what to order.'
     }
   ]);
 
@@ -157,7 +157,7 @@ export function AiAssistant() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Bot size={18} color="#a63400" />
-              <strong>Fikisha AI Assistant</strong>
+              <strong>Mtaaexpress AI Assistant</strong>
             </div>
             <button type="button" className="btn-icon" onClick={() => setIsOpen(false)}>
               <X size={16} />

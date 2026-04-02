@@ -1,7 +1,7 @@
 {
-  "name": "fikisha-backend",
+  "name": "mtaaexpress-backend",
   "version": "1.0.0",
-  "description": "Backend API for Fikisha delivery platform",
+  "description": "Backend API for Mtaaexpress delivery platform",
   "main": "server.js",
   "type": "module",
   "scripts": {

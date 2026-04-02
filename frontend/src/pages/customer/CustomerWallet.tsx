@@ -10,7 +10,7 @@ export function CustomerWallet() {
         </div>
         <h1 className="text-h2" style={{ marginBottom: '16px' }}>Your Wallet</h1>
         <p className="text-muted" style={{ marginBottom: '32px' }}>
-          We are building something amazing! Soon you will be able to top up your balance, pay seamlessly, and earn cashback with Fikisha Pay.
+          We are building something amazing! Soon you will be able to top up your balance, pay seamlessly, and earn cashback with Mtaaexpress Pay.
         </p>
         <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 'var(--radius-pill)', background: '#a63400', color: 'white', fontWeight: 600, letterSpacing: '1px', fontSize: '0.85rem', textTransform: 'uppercase' }}>
           Coming Soon
