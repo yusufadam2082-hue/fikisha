@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -6,161 +6,237 @@ import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 import { apiUrl } from '../../utils/apiUrl';
 
-interface PendingOrder {
+type PayoutStatus = 'PENDING' | 'PAID' | 'HELD' | 'REVERSED';
+type PayoutTab = 'merchant' | 'driver';
+
+interface EntryRow {
   id: string;
-  orderNumber: string;
-  customerTotal: number;
-  merchantNetIncome: number;
-  deliveryFee: number;
-  platformFee: number;
+  orderId: string;
+  amount: number;
+  status: PayoutStatus;
   createdAt: string;
-  deliveredAt: string;
 }
 
-interface PendingStore {
+interface MerchantRecipient {
   storeId: string;
   storeName: string;
-  orders: PendingOrder[];
-  totalMerchantAmount: number;
-  totalDeliveryFees: number;
-  orderCount: number;
+  pendingBalance: number;
+  paidBalance: number;
+  payableOrdersCount: number;
+  deliveredOrdersCount: number;
+  lastPayoutDate: string | null;
+  entries: EntryRow[];
 }
 
-interface PendingPayload {
-  stores: PendingStore[];
-  grandTotal: number;
-  totalOrders: number;
+interface DriverRecipient {
+  driverId: string;
+  driverName: string;
+  pendingBalance: number;
+  paidBalance: number;
+  completedDeliveriesCount: number;
+  lastPayoutDate: string | null;
+  entries: EntryRow[];
 }
 
-interface SettlementRecord {
+interface PayoutBatch {
   id: string;
-  type?: string;
-  storeName?: string;
-  driverName?: string;
-  amount: number;
-  note?: string;
+  type: 'MERCHANT' | 'DRIVER';
+  recipientId: string;
+  recipientType: string;
+  totalAmount: number;
+  status: PayoutStatus;
+  reference?: string | null;
+  notes?: string | null;
   createdAt: string;
-  cycleKey?: string | null;
+  paidAt?: string | null;
+  items?: Array<{ id: string }>;
 }
 
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(false);
 }
 
+async function readError(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = await response.json();
+    return payload?.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AdminPayouts() {
-  const [pending, setPending] = useState<PendingPayload>({ stores: [], grandTotal: 0, totalOrders: 0 });
-  const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<PayoutTab>('merchant');
+  const [merchantRows, setMerchantRows] = useState<MerchantRecipient[]>([]);
+  const [driverRows, setDriverRows] = useState<DriverRecipient[]>([]);
+  const [batches, setBatches] = useState<PayoutBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
+  const [search, setSearch] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [settleStore, setSettleStore] = useState<PendingStore | null>(null);
-  const [settleAmount, setSettleAmount] = useState('');
-  const [settleNote, setSettleNote] = useState('');
-  const [settling, setSettling] = useState(false);
-  const [settleMessage, setSettleMessage] = useState('');
 
-  async function load() {
+  const [recipientId, setRecipientId] = useState('');
+  const [orderIdsText, setOrderIdsText] = useState('');
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isCreatingBatch, setIsCreatingBatch] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const rows = activeTab === 'merchant' ? merchantRows : driverRows;
+
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return rows;
+
+    if (activeTab === 'merchant') {
+      return (rows as MerchantRecipient[]).filter((row) => row.storeName.toLowerCase().includes(keyword));
+    }
+
+    return (rows as DriverRecipient[]).filter((row) => row.driverName.toLowerCase().includes(keyword));
+  }, [activeTab, rows, search]);
+
+  const pendingTotal = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.pendingBalance || 0), 0),
+    [rows]
+  );
+
+  const paidTotal = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.paidBalance || 0), 0),
+    [rows]
+  );
+
+  async function loadData() {
     setLoading(true);
+    setError('');
+
     try {
       const params = new URLSearchParams();
       if (fromDate) params.set('from', fromDate);
       if (toDate) params.set('to', toDate);
 
-      const [pendingRes, settledRes] = await Promise.all([
-        fetch(apiUrl(`/api/accounting/payouts/pending?${params}`), { headers: getAuthHeaders() }),
-        fetch(apiUrl('/api/accounting/payouts'), { headers: getAuthHeaders() }),
+      const [merchantRes, driverRes, batchRes] = await Promise.all([
+        fetch(apiUrl(`/api/admin/payout-center/merchants?${params}`), { headers: getAuthHeaders() }),
+        fetch(apiUrl(`/api/admin/payout-center/drivers?${params}`), { headers: getAuthHeaders() }),
+        fetch(apiUrl('/api/admin/payout-batches'), { headers: getAuthHeaders() })
       ]);
 
-      if (pendingRes.ok) {
-        const pendingData = await pendingRes.json();
-        setPending(pendingData);
+      if (!merchantRes.ok) {
+        throw new Error(await readError(merchantRes, 'Failed to load merchant payout data'));
+      }
+      if (!driverRes.ok) {
+        throw new Error(await readError(driverRes, 'Failed to load driver payout data'));
       }
 
-      if (settledRes.ok) {
-        const settledData = await settledRes.json();
-        setSettlements(Array.isArray(settledData) ? settledData : []);
+      const merchantPayload = await merchantRes.json();
+      const driverPayload = await driverRes.json();
+      setMerchantRows(Array.isArray(merchantPayload) ? merchantPayload : []);
+      setDriverRows(Array.isArray(driverPayload) ? driverPayload : []);
+
+      if (batchRes.ok) {
+        const batchPayload = await batchRes.json();
+        setBatches(Array.isArray(batchPayload) ? batchPayload : []);
       }
-    } catch {
-      setError('Failed to load payout data');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load payout center data');
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    void loadData();
+  }, [fromDate, toDate]);
 
-  const merchantSettlements = useMemo(
-    () => settlements.filter((s) => s.type === 'MERCHANT_SETTLEMENT'),
-    [settlements]
-  );
-
-  const totalSettled = useMemo(
-    () => merchantSettlements.reduce((sum, s) => sum + Number(s.amount || 0), 0),
-    [merchantSettlements]
-  );
-
-  function openSettle(store: PendingStore) {
-    setSettleStore(store);
-    setSettleAmount(store.totalMerchantAmount.toFixed(2));
-    setSettleNote('');
-    setSettleMessage('');
+  function prepareBatchFromRecipient(row: MerchantRecipient | DriverRecipient) {
+    const entries = row.entries || [];
+    const pendingOrderIds = entries.filter((entry) => entry.status === 'PENDING').map((entry) => entry.orderId);
+    setRecipientId(activeTab === 'merchant' ? (row as MerchantRecipient).storeId : (row as DriverRecipient).driverId);
+    setOrderIdsText(pendingOrderIds.join(', '));
+    setReference('');
+    setNotes('');
+    setMessage('');
   }
 
-  async function handleSettle(event: FormEvent) {
+  async function handleCreateBatch(event: FormEvent) {
     event.preventDefault();
-    if (!settleStore || settling) return;
-    setSettling(true);
-    setSettleMessage('');
+    if (isCreatingBatch) return;
+
+    const orderIds = orderIdsText.split(',').map((value) => value.trim()).filter(Boolean);
+    if (!recipientId || orderIds.length === 0) {
+      setMessage('Recipient and at least one order ID are required.');
+      return;
+    }
+
+    setIsCreatingBatch(true);
+    setMessage('');
 
     try {
-      const from = fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const to = toDate || new Date().toISOString().slice(0, 10);
-
-      const res = await fetch(apiUrl('/api/accounting/payouts/settle'), {
+      const res = await fetch(apiUrl('/api/admin/payout-batches'), {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          storeId: settleStore.storeId,
-          from,
-          to,
-          amount: Number(settleAmount),
-          note: settleNote.trim() || null,
-        }),
+          type: activeTab === 'merchant' ? 'MERCHANT' : 'DRIVER',
+          recipientId,
+          orderIds,
+          reference: reference.trim() || null,
+          notes: notes.trim() || null
+        })
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Settlement failed');
+        throw new Error(await readError(res, 'Failed to create payout batch'));
       }
 
-      const result = await res.json();
-      setSettleMessage(`Settled ${formatKES(Number(settleAmount))} for ${settleStore.storeName} (${result.ordersSettled} orders)`);
-      setSettleStore(null);
-      await load();
+      const payload = await res.json();
+      setMessage(`Created batch ${payload?.batch?.id || ''}`.trim());
+      await loadData();
     } catch (err) {
-      setSettleMessage(err instanceof Error ? err.message : 'Settlement failed');
+      setMessage(err instanceof Error ? err.message : 'Failed to create payout batch');
     } finally {
-      setSettling(false);
+      setIsCreatingBatch(false);
+    }
+  }
+
+  async function updateBatchStatus(batchId: string, action: 'mark-paid' | 'hold' | 'reverse') {
+    try {
+      const res = await fetch(apiUrl(`/api/admin/payout-batches/${batchId}/${action}`), {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (!res.ok) {
+        throw new Error(await readError(res, 'Failed to update payout batch status'));
+      }
+
+      await loadData();
+      setMessage(`Batch ${batchId.slice(0, 8)} updated (${action}).`);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to update payout batch status');
     }
   }
 
   return (
     <div className="animate-fade-in">
-      <h1 className="text-h1" style={{ marginBottom: '16px' }}>Payout Management</h1>
-      <p className="text-sm text-muted" style={{ marginBottom: '16px' }}>
-        Settle merchant earnings for a period. No auto-settlement — you control when payouts happen.
+      <h1 className="text-h1" style={{ marginBottom: '8px' }}>Admin Payout Center</h1>
+      <p className="text-sm text-muted" style={{ marginBottom: '14px' }}>
+        Manual payouts only. Create payout batches from pending delivered orders, then mark batch status.
       </p>
 
       {error && <p style={{ color: 'var(--error)', marginBottom: '10px' }}>{error}</p>}
-      {settleMessage && <p style={{ color: 'var(--primary)', marginBottom: '10px', fontWeight: 600 }}>{settleMessage}</p>}
+      {message && <p style={{ color: 'var(--primary)', marginBottom: '10px', fontWeight: 600 }}>{message}</p>}
 
-      {/* Date filter */}
-      <Card style={{ padding: '16px', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'end', flexWrap: 'wrap' }}>
+      <Card style={{ padding: '14px', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          <Button variant={activeTab === 'merchant' ? 'primary' : 'outline'} onClick={() => setActiveTab('merchant')}>Merchant Payouts</Button>
+          <Button variant={activeTab === 'driver' ? 'primary' : 'outline'} onClick={() => setActiveTab('driver')}>Driver Payouts</Button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+          <div>
+            <label className="text-sm text-muted">Search</label>
+            <input className="input-field" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={activeTab === 'merchant' ? 'Store name' : 'Driver name'} />
+          </div>
           <div>
             <label className="text-sm text-muted">From</label>
             <input className="input-field" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -169,108 +245,126 @@ export function AdminPayouts() {
             <label className="text-sm text-muted">To</label>
             <input className="input-field" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
-          <Button variant="secondary" onClick={() => { setFromDate(''); setToDate(''); setTimeout(() => load(), 0); }}>Clear</Button>
-          <Button onClick={() => load()}>Apply Filter</Button>
+          <div style={{ alignSelf: 'end' }}>
+            <Button variant="secondary" onClick={() => { setSearch(''); setFromDate(''); setToDate(''); }}>Clear Filters</Button>
+          </div>
         </div>
       </Card>
 
-      {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
         <Card style={{ padding: '16px' }}>
           <p className="text-sm text-muted">Pending Balance</p>
-          <h3 className="text-h2" style={{ color: '#b45309' }}>{formatKES(pending.grandTotal)}</h3>
-          <p className="text-sm text-muted">{pending.totalOrders} orders across {pending.stores.length} stores</p>
+          <h3 className="text-h2" style={{ color: '#b45309' }}>{formatKES(pendingTotal)}</h3>
         </Card>
         <Card style={{ padding: '16px' }}>
-          <p className="text-sm text-muted">Total Settled</p>
-          <h3 className="text-h2" style={{ color: '#0f766e' }}>{formatKES(totalSettled)}</h3>
-          <p className="text-sm text-muted">{merchantSettlements.length} settlement records</p>
+          <p className="text-sm text-muted">Paid Balance</p>
+          <h3 className="text-h2" style={{ color: '#0f766e' }}>{formatKES(paidTotal)}</h3>
+        </Card>
+        <Card style={{ padding: '16px' }}>
+          <p className="text-sm text-muted">Recipients</p>
+          <h3 className="text-h2">{filteredRows.length}</h3>
         </Card>
       </div>
 
-      {/* Pending by store */}
-      <Card style={{ padding: '16px', marginBottom: '16px' }}>
-        <h3 className="text-h3" style={{ marginBottom: '12px' }}>Pending Earnings by Store</h3>
+      <Card style={{ padding: '16px', marginBottom: '14px' }}>
+        <h3 className="text-h3" style={{ marginBottom: '12px' }}>
+          {activeTab === 'merchant' ? 'Merchant ledgers' : 'Driver ledgers'}
+        </h3>
         {loading ? (
           <p className="text-sm text-muted">Loading...</p>
-        ) : pending.stores.length === 0 ? (
-          <p className="text-sm text-muted">No pending payouts. All delivered orders are settled.</p>
+        ) : filteredRows.length === 0 ? (
+          <p className="text-sm text-muted">No records found.</p>
         ) : (
           <div style={{ display: 'grid', gap: '10px' }}>
-            {pending.stores.map((store) => (
-              <div key={store.storeId} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
-                <div className="flex-between" style={{ marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div>
-                    <strong>{store.storeName}</strong>
-                    <span className="text-sm text-muted" style={{ marginLeft: '8px' }}>{store.orderCount} orders</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontWeight: 700, color: '#b45309' }}>{formatKES(store.totalMerchantAmount)}</span>
-                    <Button size="sm" onClick={() => openSettle(store)}>Settle</Button>
+            {filteredRows.map((row) => {
+              const isMerchant = activeTab === 'merchant';
+              const id = isMerchant ? (row as MerchantRecipient).storeId : (row as DriverRecipient).driverId;
+              const name = isMerchant ? (row as MerchantRecipient).storeName : (row as DriverRecipient).driverName;
+              const pending = Number(row.pendingBalance || 0);
+              const count = isMerchant ? (row as MerchantRecipient).payableOrdersCount : (row as DriverRecipient).completedDeliveriesCount;
+
+              return (
+                <div key={id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+                  <div className="flex-between" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                    <div>
+                      <strong>{name}</strong>
+                      <p className="text-sm text-muted" style={{ marginBottom: 0 }}>{count} orders/deliveries</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontWeight: 700, color: '#b45309' }}>{formatKES(pending)}</p>
+                      <Button size="sm" onClick={() => prepareBatchFromRecipient(row)}>Create Batch</Button>
+                    </div>
                   </div>
                 </div>
-                <details>
-                  <summary className="text-sm" style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>View {store.orderCount} orders</summary>
-                  <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
-                    {store.orders.map((order) => (
-                      <div key={order.id} className="flex-between text-sm" style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                        <span>{order.orderNumber.slice(0, 8)} • {new Date(order.deliveredAt).toLocaleDateString()}</span>
-                        <span>{formatKES(order.merchantNetIncome)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
 
-      {/* Settlement history */}
+      <Card style={{ padding: '16px', marginBottom: '14px' }}>
+        <h3 className="text-h3" style={{ marginBottom: '12px' }}>Create Payout Batch</h3>
+        <form onSubmit={handleCreateBatch} style={{ display: 'grid', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+            <div>
+              <label className="text-sm text-muted">Recipient ID</label>
+              <input className="input-field" value={recipientId} onChange={(e) => setRecipientId(e.target.value)} placeholder={activeTab === 'merchant' ? 'Store ID' : 'Driver ID'} />
+            </div>
+            <div>
+              <label className="text-sm text-muted">Reference</label>
+              <input className="input-field" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Payment reference" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm text-muted">Order IDs (comma-separated)</label>
+            <textarea className="input-field" rows={3} value={orderIdsText} onChange={(e) => setOrderIdsText(e.target.value)} placeholder="order-id-1, order-id-2" />
+          </div>
+          <div>
+            <label className="text-sm text-muted">Notes</label>
+            <input className="input-field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes" />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button type="submit" disabled={isCreatingBatch}>{isCreatingBatch ? 'Creating...' : 'Create Batch'}</Button>
+          </div>
+        </form>
+      </Card>
+
       <Card style={{ padding: '16px' }}>
-        <h3 className="text-h3" style={{ marginBottom: '12px' }}>Settlement History</h3>
-        {merchantSettlements.length === 0 ? (
-          <p className="text-sm text-muted">No settlements recorded yet.</p>
+        <h3 className="text-h3" style={{ marginBottom: '12px' }}>Batch History</h3>
+        {batches.length === 0 ? (
+          <p className="text-sm text-muted">No payout batches yet.</p>
         ) : (
-          <div style={{ display: 'grid', gap: '8px' }}>
-            {merchantSettlements.map((record) => (
-              <div key={record.id} className="flex-between" style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <strong>{record.storeName || 'Store'}</strong>
-                  <p className="text-sm text-muted">{record.note || 'Settlement'} • {new Date(record.createdAt).toLocaleString()}</p>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {batches.map((batch) => (
+              <div key={batch.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '12px' }}>
+                <div className="flex-between" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                  <div>
+                    <strong>{batch.type} batch</strong>
+                    <p className="text-sm text-muted" style={{ marginBottom: '2px' }}>
+                      {batch.id.slice(0, 8)} - {new Date(batch.createdAt).toLocaleString()} - {batch.status}
+                    </p>
+                    <p className="text-sm text-muted" style={{ marginBottom: 0 }}>Items: {batch.items?.length || 0} - Recipient: {batch.recipientId}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontWeight: 700 }}>{formatKES(Number(batch.totalAmount || 0))}</p>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {batch.status !== 'PAID' && (
+                        <Button size="sm" onClick={() => updateBatchStatus(batch.id, 'mark-paid')}>Mark Paid</Button>
+                      )}
+                      {batch.status !== 'HELD' && batch.status !== 'PAID' && (
+                        <Button size="sm" variant="secondary" onClick={() => updateBatchStatus(batch.id, 'hold')}>Hold</Button>
+                      )}
+                      {batch.status !== 'REVERSED' && (
+                        <Button size="sm" variant="outline" onClick={() => updateBatchStatus(batch.id, 'reverse')}>Reverse</Button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <span style={{ fontWeight: 700, color: '#0f766e' }}>{formatKES(Number(record.amount || 0))}</span>
               </div>
             ))}
           </div>
         )}
       </Card>
-
-      {/* Settle modal */}
-      {settleStore && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <Card style={{ padding: '24px', width: '100%', maxWidth: '420px', margin: '16px' }}>
-            <h3 className="text-h3" style={{ marginBottom: '16px' }}>Settle {settleStore.storeName}</h3>
-            <p className="text-sm text-muted" style={{ marginBottom: '12px' }}>
-              {settleStore.orderCount} pending orders • Total pending: {formatKES(settleStore.totalMerchantAmount)}
-            </p>
-            <form onSubmit={handleSettle} style={{ display: 'grid', gap: '10px' }}>
-              <div>
-                <label className="text-sm text-muted">Amount (KES)</label>
-                <input className="input-field" type="number" step="0.01" value={settleAmount} onChange={(e) => setSettleAmount(e.target.value)} required />
-              </div>
-              <div>
-                <label className="text-sm text-muted">Note (optional)</label>
-                <input className="input-field" placeholder="e.g. Week 14 settlement" value={settleNote} onChange={(e) => setSettleNote(e.target.value)} />
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <Button type="button" variant="secondary" onClick={() => setSettleStore(null)}>Cancel</Button>
-                <Button type="submit" disabled={settling}>{settling ? 'Settling...' : 'Confirm Settlement'}</Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }

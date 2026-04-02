@@ -88,6 +88,18 @@ const SETTLEMENT_TYPE = {
   DRIVER: 'DRIVER_PAYOUT'
 };
 
+const PAYOUT_STATUS = {
+  PENDING: 'PENDING',
+  PAID: 'PAID',
+  HELD: 'HELD',
+  REVERSED: 'REVERSED'
+};
+
+const PAYOUT_BATCH_TYPE = {
+  MERCHANT: 'MERCHANT',
+  DRIVER: 'DRIVER'
+};
+
 const PAYMENT_PROVIDER = {
   MOCK: 'MOCK',
   STRIPE: 'STRIPE',
@@ -1388,12 +1400,162 @@ const computeMerchantOrderFinancials = (order = {}) => {
   };
 };
 
+const isPayoutEligibleOrder = (order = {}) => {
+  const status = normalizeOrderStatus(order.status);
+  const isRefunded = Boolean(order.refundedAt) || Number(order.refundAmount || 0) > 0;
+  return status === ORDER_STATUS.DELIVERED && !isRefunded;
+};
+
+const computeOrderAccountingSnapshot = (order = {}) => {
+  const financials = computeMerchantOrderFinancials(order);
+  const itemSubtotal = Number(financials.itemsSubtotal || 0);
+  const deliveryFee = Number(financials.deliveryFee || 0);
+  const taxAmount = Number(order.taxAmount ?? order.tax ?? 0) || 0;
+  const serviceFee = Number(order.serviceFee ?? 0) || 0;
+  const otherFees = Number(order.otherFees ?? 0) || 0;
+
+  const rawCustomerTotal = Number(order.customerTotal ?? order.total ?? 0);
+  const customerTotal = Number.isFinite(rawCustomerTotal)
+    ? rawCustomerTotal
+    : itemSubtotal + deliveryFee + taxAmount + serviceFee + otherFees;
+
+  const merchantPlatformFee = Number(financials.platformFee || 0);
+  const merchantNetPayout = Math.max(0, itemSubtotal - merchantPlatformFee);
+
+  const explicitDriverPayout = Number(order.driverPayout);
+  const driverPayout = Number.isFinite(explicitDriverPayout)
+    ? Math.max(0, explicitDriverPayout)
+    : Math.max(0, deliveryFee);
+
+  const platformDeliveryMargin = Number((deliveryFee - driverPayout).toFixed(2));
+  const platformRevenue = Number((merchantPlatformFee + platformDeliveryMargin + serviceFee + otherFees).toFixed(2));
+
+  return {
+    itemSubtotal: Number(itemSubtotal.toFixed(2)),
+    deliveryFee: Number(deliveryFee.toFixed(2)),
+    taxAmount: Number(taxAmount.toFixed(2)),
+    serviceFee: Number(serviceFee.toFixed(2)),
+    otherFees: Number(otherFees.toFixed(2)),
+    customerTotal: Number(customerTotal.toFixed(2)),
+    merchantPlatformFee: Number(merchantPlatformFee.toFixed(2)),
+    merchantNetPayout: Number(merchantNetPayout.toFixed(2)),
+    driverPayout: Number(driverPayout.toFixed(2)),
+    platformDeliveryMargin,
+    platformRevenue,
+    payoutEligible: isPayoutEligibleOrder(order)
+  };
+};
+
+const ensureDeliveredOrderAccounting = async (order, actor = {}) => {
+  if (!order) {
+    return null;
+  }
+
+  const accounting = computeOrderAccountingSnapshot(order);
+  const merchantStatus = accounting.payoutEligible ? PAYOUT_STATUS.PENDING : PAYOUT_STATUS.HELD;
+  const driverStatus = accounting.payoutEligible ? PAYOUT_STATUS.PENDING : PAYOUT_STATUS.HELD;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: order.id },
+      data: {
+        itemSubtotal: accounting.itemSubtotal,
+        deliveryFee: accounting.deliveryFee,
+        taxAmount: accounting.taxAmount,
+        serviceFee: accounting.serviceFee,
+        otherFees: accounting.otherFees,
+        customerTotal: accounting.customerTotal,
+        merchantPlatformFee: accounting.merchantPlatformFee,
+        merchantNetPayout: accounting.merchantNetPayout,
+        driverPayout: accounting.driverPayout,
+        platformDeliveryMargin: accounting.platformDeliveryMargin,
+        platformRevenue: accounting.platformRevenue,
+        payoutEligible: accounting.payoutEligible,
+        merchantPayoutStatus: merchantStatus,
+        driverPayoutStatus: driverStatus
+      }
+    });
+
+    if (!accounting.payoutEligible) {
+      return;
+    }
+
+    if (accounting.merchantNetPayout > 0) {
+      await tx.merchantPayoutEntry.upsert({
+        where: { orderId: order.id },
+        update: {
+          amount: accounting.merchantNetPayout,
+          status: merchantStatus,
+          note: 'Pending manual merchant payout generated on delivery completion'
+        },
+        create: {
+          orderId: order.id,
+          storeId: order.storeId,
+          amount: accounting.merchantNetPayout,
+          status: merchantStatus,
+          note: 'Pending manual merchant payout generated on delivery completion'
+        }
+      });
+    }
+
+    if (order.driverId && accounting.driverPayout > 0) {
+      await tx.driverPayoutEntry.upsert({
+        where: { orderId: order.id },
+        update: {
+          amount: accounting.driverPayout,
+          status: driverStatus,
+          note: 'Pending manual driver payout generated on delivery completion'
+        },
+        create: {
+          orderId: order.id,
+          driverId: order.driverId,
+          amount: accounting.driverPayout,
+          status: driverStatus,
+          note: 'Pending manual driver payout generated on delivery completion'
+        }
+      });
+    }
+
+    await tx.platformRevenueEntry.upsert({
+      where: { orderId: order.id },
+      update: {
+        merchantPlatformFee: accounting.merchantPlatformFee,
+        deliveryMargin: accounting.platformDeliveryMargin,
+        serviceFee: accounting.serviceFee,
+        otherFees: accounting.otherFees,
+        totalRevenue: accounting.platformRevenue
+      },
+      create: {
+        orderId: order.id,
+        merchantPlatformFee: accounting.merchantPlatformFee,
+        deliveryMargin: accounting.platformDeliveryMargin,
+        serviceFee: accounting.serviceFee,
+        otherFees: accounting.otherFees,
+        totalRevenue: accounting.platformRevenue
+      }
+    });
+  }).catch(() => {});
+
+  return accounting;
+};
+
 const getSettledOrderIds = async (orderIds) => {
   if (!Array.isArray(orderIds) || orderIds.length === 0) {
     return new Set();
   }
 
   const settledIds = new Set();
+
+  const orderStatusRows = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    select: { id: true, merchantPayoutStatus: true, driverPayoutStatus: true }
+  }).catch(() => []);
+
+  for (const row of orderStatusRows) {
+    if (row?.merchantPayoutStatus === PAYOUT_STATUS.PAID || row?.driverPayoutStatus === PAYOUT_STATUS.PAID) {
+      settledIds.add(row.id);
+    }
+  }
 
   // Prefer DB-backed payout records when available.
   const dbRows = await prisma.payoutLedger.findMany({
@@ -4480,6 +4642,525 @@ app.post('/api/accounting/payouts/settle',
   }
 );
 
+app.get('/api/admin/payout-center/merchants', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { search, status, from, to } = req.query;
+    const where = {
+      ...(status ? { status: String(status).toUpperCase() } : {}),
+      order: {
+        status: ORDER_STATUS.DELIVERED,
+        refundedAt: null,
+        ...(from || to
+          ? {
+              deliveredAt: {
+                ...(from ? { gte: new Date(String(from)) } : {}),
+                ...(to ? { lte: new Date(new Date(String(to)).setHours(23, 59, 59, 999)) } : {})
+              }
+            }
+          : {})
+      }
+    };
+
+    const rows = await prisma.merchantPayoutEntry.findMany({
+      where,
+      include: {
+        order: { select: { id: true, orderNumber: true, deliveredAt: true } },
+        store: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const grouped = new Map();
+    for (const row of rows) {
+      const key = row.storeId;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          storeId: row.storeId,
+          storeName: row.store?.name || 'Unknown store',
+          pendingBalance: 0,
+          paidBalance: 0,
+          payableOrdersCount: 0,
+          deliveredOrdersCount: 0,
+          lastPayoutDate: null,
+          entries: []
+        });
+      }
+
+      const bucket = grouped.get(key);
+      const amount = Number(row.amount || 0);
+      if (row.status === PAYOUT_STATUS.PAID) {
+        bucket.paidBalance += amount;
+        if (!bucket.lastPayoutDate || new Date(row.paidAt || row.updatedAt) > new Date(bucket.lastPayoutDate)) {
+          bucket.lastPayoutDate = row.paidAt || row.updatedAt;
+        }
+      } else if (row.status === PAYOUT_STATUS.PENDING) {
+        bucket.pendingBalance += amount;
+        bucket.payableOrdersCount += 1;
+      }
+      bucket.deliveredOrdersCount += 1;
+      bucket.entries.push(row);
+    }
+
+    let data = Array.from(grouped.values());
+    if (search) {
+      const keyword = String(search).toLowerCase();
+      data = data.filter((row) => row.storeName.toLowerCase().includes(keyword));
+    }
+
+    data.sort((a, b) => b.pendingBalance - a.pendingBalance);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load merchant payout center data' });
+  }
+});
+
+app.get('/api/admin/payout-center/drivers', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { search, status, from, to } = req.query;
+    const where = {
+      ...(status ? { status: String(status).toUpperCase() } : {}),
+      order: {
+        status: ORDER_STATUS.DELIVERED,
+        refundedAt: null,
+        ...(from || to
+          ? {
+              deliveredAt: {
+                ...(from ? { gte: new Date(String(from)) } : {}),
+                ...(to ? { lte: new Date(new Date(String(to)).setHours(23, 59, 59, 999)) } : {})
+              }
+            }
+          : {})
+      }
+    };
+
+    const rows = await prisma.driverPayoutEntry.findMany({
+      where,
+      include: {
+        order: { select: { id: true, orderNumber: true, deliveredAt: true } },
+        driver: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const grouped = new Map();
+    for (const row of rows) {
+      const key = row.driverId;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          driverId: row.driverId,
+          driverName: row.driver?.name || 'Unknown driver',
+          pendingBalance: 0,
+          paidBalance: 0,
+          completedDeliveriesCount: 0,
+          lastPayoutDate: null,
+          entries: []
+        });
+      }
+
+      const bucket = grouped.get(key);
+      const amount = Number(row.amount || 0);
+      if (row.status === PAYOUT_STATUS.PAID) {
+        bucket.paidBalance += amount;
+        if (!bucket.lastPayoutDate || new Date(row.paidAt || row.updatedAt) > new Date(bucket.lastPayoutDate)) {
+          bucket.lastPayoutDate = row.paidAt || row.updatedAt;
+        }
+      } else if (row.status === PAYOUT_STATUS.PENDING) {
+        bucket.pendingBalance += amount;
+      }
+      bucket.completedDeliveriesCount += 1;
+      bucket.entries.push(row);
+    }
+
+    let data = Array.from(grouped.values());
+    if (search) {
+      const keyword = String(search).toLowerCase();
+      data = data.filter((row) => row.driverName.toLowerCase().includes(keyword));
+    }
+
+    data.sort((a, b) => b.pendingBalance - a.pendingBalance);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load driver payout center data' });
+  }
+});
+
+app.get('/api/admin/payout-batches', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const { type, status } = req.query;
+    const batches = await prisma.payoutBatch.findMany({
+      where: {
+        ...(type ? { type: String(type).toUpperCase() } : {}),
+        ...(status ? { status: String(status).toUpperCase() } : {})
+      },
+      include: {
+        items: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200
+    });
+
+    res.json(batches);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load payout batches' });
+  }
+});
+
+app.get('/api/admin/payout-batches/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const batch = await prisma.payoutBatch.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: {
+          include: {
+            order: {
+              select: {
+                id: true,
+                orderNumber: true,
+                status: true,
+                deliveredAt: true,
+                storeId: true,
+                driverId: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!batch) {
+      return res.status(404).json({ error: 'Payout batch not found' });
+    }
+
+    res.json(batch);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load payout batch details' });
+  }
+});
+
+app.post('/api/admin/payout-batches',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  body('type').isIn([PAYOUT_BATCH_TYPE.MERCHANT, PAYOUT_BATCH_TYPE.DRIVER]),
+  body('recipientId').trim().notEmpty(),
+  body('orderIds').isArray({ min: 1 }),
+  body('reference').optional({ nullable: true }).trim(),
+  body('notes').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const { type, recipientId, orderIds, reference, notes } = req.body;
+      const normalizedType = String(type).toUpperCase();
+
+      const payload = await prisma.$transaction(async (tx) => {
+        if (normalizedType === PAYOUT_BATCH_TYPE.MERCHANT) {
+          const entries = await tx.merchantPayoutEntry.findMany({
+            where: {
+              orderId: { in: orderIds },
+              storeId: recipientId,
+              status: PAYOUT_STATUS.PENDING,
+              payoutBatchId: null,
+              order: {
+                status: ORDER_STATUS.DELIVERED,
+                refundedAt: null,
+                payoutEligible: true
+              }
+            },
+            include: {
+              order: { select: { id: true } },
+              store: { select: { id: true, name: true } }
+            }
+          });
+
+          if (entries.length === 0) {
+            throw new Error('No eligible merchant payout entries found for this selection.');
+          }
+
+          const totalAmount = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+          const batch = await tx.payoutBatch.create({
+            data: {
+              type: PAYOUT_BATCH_TYPE.MERCHANT,
+              recipientId,
+              recipientType: 'MERCHANT',
+              totalAmount: Number(totalAmount.toFixed(2)),
+              status: PAYOUT_STATUS.PENDING,
+              reference: reference || null,
+              notes: notes || null,
+              createdBy: req.user.id
+            }
+          });
+
+          await tx.payoutBatchItem.createMany({
+            data: entries.map((entry) => ({
+              batchId: batch.id,
+              orderId: entry.orderId,
+              amount: Number(entry.amount || 0),
+              entryType: PAYOUT_BATCH_TYPE.MERCHANT
+            })),
+            skipDuplicates: true
+          });
+
+          await tx.merchantPayoutEntry.updateMany({
+            where: { id: { in: entries.map((entry) => entry.id) } },
+            data: { payoutBatchId: batch.id, status: PAYOUT_STATUS.PENDING }
+          });
+
+          await tx.order.updateMany({
+            where: { id: { in: entries.map((entry) => entry.orderId) } },
+            data: { merchantPayoutBatchId: batch.id, merchantPayoutStatus: PAYOUT_STATUS.PENDING }
+          });
+
+          return { batch, items: entries };
+        }
+
+        const entries = await tx.driverPayoutEntry.findMany({
+          where: {
+            orderId: { in: orderIds },
+            driverId: recipientId,
+            status: PAYOUT_STATUS.PENDING,
+            payoutBatchId: null,
+            order: {
+              status: ORDER_STATUS.DELIVERED,
+              refundedAt: null,
+              payoutEligible: true
+            }
+          },
+          include: {
+            order: { select: { id: true } },
+            driver: { select: { id: true, name: true } }
+          }
+        });
+
+        if (entries.length === 0) {
+          throw new Error('No eligible driver payout entries found for this selection.');
+        }
+
+        const totalAmount = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+        const batch = await tx.payoutBatch.create({
+          data: {
+            type: PAYOUT_BATCH_TYPE.DRIVER,
+            recipientId,
+            recipientType: 'DRIVER',
+            totalAmount: Number(totalAmount.toFixed(2)),
+            status: PAYOUT_STATUS.PENDING,
+            reference: reference || null,
+            notes: notes || null,
+            createdBy: req.user.id
+          }
+        });
+
+        await tx.payoutBatchItem.createMany({
+          data: entries.map((entry) => ({
+            batchId: batch.id,
+            orderId: entry.orderId,
+            amount: Number(entry.amount || 0),
+            entryType: PAYOUT_BATCH_TYPE.DRIVER
+          })),
+          skipDuplicates: true
+        });
+
+        await tx.driverPayoutEntry.updateMany({
+          where: { id: { in: entries.map((entry) => entry.id) } },
+          data: { payoutBatchId: batch.id, status: PAYOUT_STATUS.PENDING }
+        });
+
+        await tx.order.updateMany({
+          where: { id: { in: entries.map((entry) => entry.orderId) } },
+          data: { driverPayoutBatchId: batch.id, driverPayoutStatus: PAYOUT_STATUS.PENDING }
+        });
+
+        return { batch, items: entries };
+      });
+
+      await auditLog({
+        adminId: req.user.id,
+        action: 'PAYOUT_BATCH_CREATED',
+        entityType: 'PAYOUT_BATCH',
+        entityId: payload.batch.id,
+        after: { batchId: payload.batch.id, type: payload.batch.type, totalAmount: payload.batch.totalAmount, itemCount: payload.items.length },
+        note: payload.batch.notes || `Created ${payload.batch.type} payout batch`,
+        req,
+      });
+
+      res.status(201).json(payload);
+    } catch (error) {
+      res.status(400).json({ error: error.message || 'Failed to create payout batch' });
+    }
+  }
+);
+
+app.post('/api/admin/payout-batches/:id/mark-paid', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const batch = await prisma.payoutBatch.findUnique({ where: { id: req.params.id } });
+    if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
+    if (batch.status === PAYOUT_STATUS.PAID) return res.status(409).json({ error: 'Payout batch already marked as paid' });
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.payoutBatch.update({
+        where: { id: batch.id },
+        data: { status: PAYOUT_STATUS.PAID, paidAt: now, approvedBy: req.user.id }
+      });
+
+      if (batch.type === PAYOUT_BATCH_TYPE.MERCHANT) {
+        const entries = await tx.merchantPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        const orderIds = entries.map((entry) => entry.orderId);
+
+        await tx.merchantPayoutEntry.updateMany({
+          where: { payoutBatchId: batch.id },
+          data: { status: PAYOUT_STATUS.PAID, paidAt: now }
+        });
+
+        await tx.order.updateMany({
+          where: { id: { in: orderIds } },
+          data: { merchantPayoutStatus: PAYOUT_STATUS.PAID, merchantPaidAt: now }
+        });
+      } else {
+        const entries = await tx.driverPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        const orderIds = entries.map((entry) => entry.orderId);
+
+        await tx.driverPayoutEntry.updateMany({
+          where: { payoutBatchId: batch.id },
+          data: { status: PAYOUT_STATUS.PAID, paidAt: now }
+        });
+
+        await tx.order.updateMany({
+          where: { id: { in: orderIds } },
+          data: { driverPayoutStatus: PAYOUT_STATUS.PAID, driverPaidAt: now }
+        });
+      }
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'PAYOUT_BATCH_MARKED_PAID',
+      entityType: 'PAYOUT_BATCH',
+      entityId: batch.id,
+      after: { status: PAYOUT_STATUS.PAID },
+      note: `Marked payout batch ${batch.id} as paid`,
+      req,
+    });
+
+    res.json({ message: 'Payout batch marked as paid', batchId: batch.id });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to mark payout batch as paid' });
+  }
+});
+
+app.post('/api/admin/payout-batches/:id/hold', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const batch = await prisma.payoutBatch.findUnique({ where: { id: req.params.id } });
+    if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.payoutBatch.update({ where: { id: batch.id }, data: { status: PAYOUT_STATUS.HELD, heldAt: now } });
+
+      if (batch.type === PAYOUT_BATCH_TYPE.MERCHANT) {
+        const entries = await tx.merchantPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        await tx.merchantPayoutEntry.updateMany({ where: { payoutBatchId: batch.id }, data: { status: PAYOUT_STATUS.HELD, heldAt: now } });
+        await tx.order.updateMany({ where: { id: { in: entries.map((entry) => entry.orderId) } }, data: { merchantPayoutStatus: PAYOUT_STATUS.HELD } });
+      } else {
+        const entries = await tx.driverPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        await tx.driverPayoutEntry.updateMany({ where: { payoutBatchId: batch.id }, data: { status: PAYOUT_STATUS.HELD, heldAt: now } });
+        await tx.order.updateMany({ where: { id: { in: entries.map((entry) => entry.orderId) } }, data: { driverPayoutStatus: PAYOUT_STATUS.HELD } });
+      }
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'PAYOUT_BATCH_HELD',
+      entityType: 'PAYOUT_BATCH',
+      entityId: batch.id,
+      after: { status: PAYOUT_STATUS.HELD },
+      note: `Held payout batch ${batch.id}`,
+      req,
+    });
+
+    res.json({ message: 'Payout batch placed on hold', batchId: batch.id });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to hold payout batch' });
+  }
+});
+
+app.post('/api/admin/payout-batches/:id/reverse', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const batch = await prisma.payoutBatch.findUnique({ where: { id: req.params.id } });
+    if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.payoutBatch.update({ where: { id: batch.id }, data: { status: PAYOUT_STATUS.REVERSED, reversedAt: now } });
+
+      if (batch.type === PAYOUT_BATCH_TYPE.MERCHANT) {
+        const entries = await tx.merchantPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        await tx.merchantPayoutEntry.updateMany({ where: { payoutBatchId: batch.id }, data: { status: PAYOUT_STATUS.REVERSED, reversedAt: now } });
+        await tx.order.updateMany({ where: { id: { in: entries.map((entry) => entry.orderId) } }, data: { merchantPayoutStatus: PAYOUT_STATUS.REVERSED } });
+      } else {
+        const entries = await tx.driverPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        await tx.driverPayoutEntry.updateMany({ where: { payoutBatchId: batch.id }, data: { status: PAYOUT_STATUS.REVERSED, reversedAt: now } });
+        await tx.order.updateMany({ where: { id: { in: entries.map((entry) => entry.orderId) } }, data: { driverPayoutStatus: PAYOUT_STATUS.REVERSED } });
+      }
+    });
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'PAYOUT_BATCH_REVERSED',
+      entityType: 'PAYOUT_BATCH',
+      entityId: batch.id,
+      after: { status: PAYOUT_STATUS.REVERSED },
+      note: `Reversed payout batch ${batch.id}`,
+      req,
+    });
+
+    res.json({ message: 'Payout batch reversed', batchId: batch.id });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reverse payout batch' });
+  }
+});
+
+app.post('/api/accounting/migrations/backfill-ledgers', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const deliveredOrders = await prisma.order.findMany({
+      where: {
+        status: ORDER_STATUS.DELIVERED
+      },
+      include: {
+        store: { select: { id: true, name: true } },
+        driver: { select: { id: true, name: true } },
+        items: {
+          include: {
+            product: { select: { name: true } }
+          }
+        }
+      },
+      orderBy: { updatedAt: 'asc' }
+    });
+
+    let processed = 0;
+    for (const order of deliveredOrders) {
+      await ensureDeliveredOrderAccounting(order, {
+        userId: req.user.id,
+        role: req.user.role
+      });
+      processed += 1;
+    }
+
+    await auditLog({
+      adminId: req.user.id,
+      action: 'ACCOUNTING_BACKFILL_EXECUTED',
+      entityType: 'SYSTEM',
+      entityId: 'ACCOUNTING_LEDGER_BACKFILL',
+      after: { processedOrders: processed },
+      note: `Backfilled accounting ledgers for ${processed} delivered orders`,
+      req,
+    });
+
+    res.json({ message: 'Accounting ledger backfill completed', processedOrders: processed });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to backfill accounting ledgers' });
+  }
+});
+
 // Driver list/login and order routes coordinate the operational side of fulfillment.
 app.get('/api/drivers', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
@@ -4689,6 +5370,10 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
       return res.status(400).json({ error: 'Store not found' });
     }
 
+    const itemSubtotal = total;
+    const taxAmount = 0;
+    const serviceFee = 0;
+    const otherFees = 0;
     total += store.deliveryFee;
 
     const createInclude = {
@@ -4732,6 +5417,19 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
             orderNumber: candidateOrderNumber,
             total,
             deliveryFee: store.deliveryFee,
+            itemSubtotal,
+            taxAmount,
+            serviceFee,
+            otherFees,
+            customerTotal: total,
+            merchantPlatformFee: 0,
+            merchantNetPayout: itemSubtotal,
+            driverPayout: 0,
+            platformDeliveryMargin: 0,
+            platformRevenue: 0,
+            payoutEligible: false,
+            merchantPayoutStatus: PAYOUT_STATUS.HELD,
+            driverPayoutStatus: PAYOUT_STATUS.HELD,
             customerInfo: JSON.stringify(customerInfo),
             deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
             paymentStatus: paymentIntent
@@ -4919,7 +5617,7 @@ app.put('/api/orders/:id/status',
       });
 
       if (normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.DELIVERED) {
-        await appendSettlementRecordsForOrder(updatedOrder, {
+        await ensureDeliveredOrderAccounting(updatedOrder, {
           userId: req.user.id,
           role: req.user.role
         }).catch(() => {});
@@ -6457,50 +7155,38 @@ app.get('/api/merchant/payouts', authMiddleware, roleMiddleware('MERCHANT'), asy
     const storeId = await resolveMerchantStoreIdForUser(req.user);
     if (!storeId) return res.status(404).json({ error: 'Store not found for merchant' });
 
-    const dbRows = await prisma.payoutLedger.findMany({
-      where: {
-        type: SETTLEMENT_TYPE.MERCHANT,
-        storeId,
-      },
+    const entries = await prisma.merchantPayoutEntry.findMany({
+      where: { storeId },
       orderBy: { createdAt: 'desc' }
     });
 
-    const ledgerRows = dbRows.length > 0
-      ? dbRows
-      : (await readAccountingPayoutLedger())
-          .filter((row) => row.type === SETTLEMENT_TYPE.MERCHANT && row.storeId === storeId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const totalSettled = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PAID)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
-    const totalSettled = ledgerRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const pendingBalance = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PENDING)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
 
-    // Calculate pending balance from delivered but unsettled orders.
-    const deliveredOrders = await prisma.order.findMany({
-      where: { storeId, status: 'DELIVERED' },
-      include: { items: { include: { product: { select: { name: true } } } } },
+    const paidBalance = totalSettled;
+    const heldBalance = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.HELD)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const deliveredOrdersCount = await prisma.order.count({
+      where: { storeId, status: ORDER_STATUS.DELIVERED }
     });
-    const settledOrderIds = await getSettledOrderIds(deliveredOrders.map((o) => o.id));
-
-    // Also check order IDs stored in period settlement records.
-    const settledFromPeriods = new Set();
-    for (const entry of ledgerRows) {
-      if (entry.orderIds) {
-        try {
-          const ids = JSON.parse(entry.orderIds);
-          if (Array.isArray(ids)) ids.forEach((id) => settledFromPeriods.add(id));
-        } catch {}
-      }
-    }
-
-    const pendingOrders = deliveredOrders.filter((o) => !settledOrderIds.has(o.id) && !settledFromPeriods.has(o.id));
-    const pendingBalance = pendingOrders.reduce((sum, o) => sum + computeMerchantOrderFinancials(o).merchantNetIncome, 0);
 
     const summary = {
       totalSettled,
       pendingBalance,
-      totalEarnings: totalSettled + pendingBalance,
+      paidBalance,
+      heldBalance,
+      totalEarnings: totalSettled + pendingBalance + heldBalance,
+      deliveredOrdersCount
     };
 
-    res.json({ summary, settlements: ledgerRows });
+    res.json({ summary, settlements: entries });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -98,6 +98,7 @@ model Store {
   owner       User      @relation("StoreOwner", fields: [ownerId], references: [id])
   products    Product[]
   orders      Order[]
+  merchantPayoutEntries MerchantPayoutEntry[]
   zoneLinks   DeliveryZoneStore[]
   promotions  Promotion[]
   supportTickets SupportTicket[]
@@ -199,9 +200,31 @@ model Order {
   paymentStatus       String   @default("UNPAID")
   paymentProvider     String?
   paymentIntentRef    String?
+  // Accounting snapshot fields persisted at delivery finalization.
+  itemSubtotal        Float    @default(0)
+  taxAmount           Float    @default(0)
+  serviceFee          Float    @default(0)
+  otherFees           Float    @default(0)
+  customerTotal       Float    @default(0)
+  merchantPlatformFee Float    @default(0)
+  merchantNetPayout   Float    @default(0)
+  driverPayout        Float    @default(0)
+  platformDeliveryMargin Float @default(0)
+  platformRevenue     Float    @default(0)
+  payoutEligible      Boolean  @default(false)
+  merchantPayoutStatus String  @default("PENDING")
+  driverPayoutStatus   String  @default("PENDING")
+  merchantPayoutBatchId String?
+  driverPayoutBatchId   String?
+  merchantPaidAt      DateTime?
+  driverPaidAt        DateTime?
   items         OrderItem[]
   notes         OrderNote[]
   paymentIntent PaymentIntent?
+  merchantPayoutEntries MerchantPayoutEntry[]
+  driverPayoutEntries DriverPayoutEntry[]
+  platformRevenueEntries PlatformRevenueEntry[]
+  payoutBatchItems PayoutBatchItem[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -212,6 +235,9 @@ model Order {
   @@index([customerId])
   @@index([driverId])
   @@index([status])
+  @@index([payoutEligible])
+  @@index([merchantPayoutStatus])
+  @@index([driverPayoutStatus])
 }
 
 model OrderItem {
@@ -237,6 +263,7 @@ model Driver {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id])
   orders    Order[]
+  payoutEntries DriverPayoutEntry[]
   available Boolean  @default(true)
   rating    Float    @default(5.0)
   createdAt DateTime @default(now())
@@ -431,6 +458,107 @@ model PayoutLedger {
   @@index([storeId])
   @@index([driverId])
   @@index([cycleKey])
+  @@index([createdAt])
+}
+
+model MerchantPayoutEntry {
+  id            String   @id @default(uuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storeId        String
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  amount         Float
+  status         String   @default("PENDING")
+  payoutBatchId  String?
+  payoutBatch    PayoutBatch? @relation("MerchantBatch", fields: [payoutBatchId], references: [id], onDelete: SetNull)
+  paidAt         DateTime?
+  heldAt         DateTime?
+  reversedAt     DateTime?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([storeId])
+  @@index([status])
+  @@index([payoutBatchId])
+  @@index([createdAt])
+}
+
+model DriverPayoutEntry {
+  id            String   @id @default(uuid())
+  orderId        String   @unique
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driverId       String
+  driver         Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  amount         Float
+  status         String   @default("PENDING")
+  payoutBatchId  String?
+  payoutBatch    PayoutBatch? @relation("DriverBatch", fields: [payoutBatchId], references: [id], onDelete: SetNull)
+  paidAt         DateTime?
+  heldAt         DateTime?
+  reversedAt     DateTime?
+  note           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([status])
+  @@index([payoutBatchId])
+  @@index([createdAt])
+}
+
+model PlatformRevenueEntry {
+  id                    String   @id @default(uuid())
+  orderId               String   @unique
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  merchantPlatformFee   Float    @default(0)
+  deliveryMargin        Float    @default(0)
+  serviceFee            Float    @default(0)
+  otherFees             Float    @default(0)
+  totalRevenue          Float    @default(0)
+  createdAt             DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model PayoutBatch {
+  id            String   @id @default(uuid())
+  type          String
+  recipientId   String
+  recipientType String
+  totalAmount   Float    @default(0)
+  status        String   @default("PENDING")
+  reference     String?
+  notes         String?
+  createdBy     String
+  approvedBy    String?
+  createdAt     DateTime @default(now())
+  paidAt        DateTime?
+  heldAt        DateTime?
+  reversedAt    DateTime?
+  merchantEntries MerchantPayoutEntry[] @relation("MerchantBatch")
+  driverEntries DriverPayoutEntry[] @relation("DriverBatch")
+  items         PayoutBatchItem[]
+
+  @@index([type])
+  @@index([recipientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PayoutBatchItem {
+  id         String   @id @default(uuid())
+  batchId    String
+  batch      PayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount     Float
+  entryType  String
+  createdAt  DateTime @default(now())
+
+  @@unique([batchId, orderId, entryType])
+  @@index([orderId])
+  @@index([entryType])
   @@index([createdAt])
 }
 
