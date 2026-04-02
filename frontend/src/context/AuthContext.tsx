@@ -104,11 +104,17 @@ export function useAuth() {
 
 export async function loginUser(username: string, password: string): Promise<{ token: string; user: User }> {
   // Customer/admin/merchant login shares the same backend endpoint.
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+  } catch {
+    throw new Error('Could not reach the login service. Check the deployed backend URL and CORS configuration.');
+  }
   
   if (!res.ok) {
     const contentType = res.headers.get('content-type');
@@ -124,11 +130,17 @@ export async function loginUser(username: string, password: string): Promise<{ t
 }
 
 export async function registerUser(payload: RegisterPayload): Promise<{ token: string; user: User }> {
-  const res = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    throw new Error('Could not reach the registration service. Check the deployed backend URL and CORS configuration.');
+  }
   
   if (!res.ok) {
     const contentType = res.headers.get('content-type');
@@ -145,11 +157,17 @@ export async function registerUser(payload: RegisterPayload): Promise<{ token: s
 
 export async function loginDriver(username: string, password: string): Promise<{ token: string; driver: any }> {
   // Drivers use a dedicated endpoint because their payload differs from the normal user login.
-  const res = await fetch(`${API_URL}/drivers/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_URL}/drivers/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+  } catch {
+    throw new Error('Could not reach the driver login service. Check the deployed backend URL and CORS configuration.');
+  }
   
   if (!res.ok) {
     const contentType = res.headers.get('content-type');

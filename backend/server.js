@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const DATABASE_URL = process.env.DATABASE_URL || '';
-const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -1605,6 +1605,29 @@ const findAssignableDriver = async (order) => {
 // Security middleware hardens headers, CORS, JSON parsing, and request volume limits.
 app.use(helmet());
 
+const isAllowedCorsOrigin = (origin) => {
+  if (configuredCorsOrigins.includes(origin)) {
+    return true;
+  }
+
+  // In development, allow localhost ports (e.g. 5173/5174) for Vite fallback ports.
+  if (!IS_PRODUCTION && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+    return true;
+  }
+
+  // Bearer-token auth does not rely on browser cookies, so allow secure deployed frontends
+  // even if their hostname changes between Netlify, Render, or preview environments.
+  if (IS_PRODUCTION) {
+    try {
+      return new URL(origin).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+};
+
 const corsOriginValidator = (origin, callback) => {
   // Allow non-browser clients and same-origin calls.
   if (!origin) {
@@ -1612,13 +1635,7 @@ const corsOriginValidator = (origin, callback) => {
     return;
   }
 
-  if (configuredCorsOrigins.includes(origin)) {
-    callback(null, true);
-    return;
-  }
-
-  // In development, allow localhost ports (e.g. 5173/5174) for Vite fallback ports.
-  if (!IS_PRODUCTION && /^http:\/\/localhost:\d+$/.test(origin)) {
+  if (isAllowedCorsOrigin(origin)) {
     callback(null, true);
     return;
   }
