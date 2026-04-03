@@ -35,7 +35,7 @@ function cycleKeyFromDate(value) {
 }
 
 function isPayableOrder(order) {
-  return order?.status !== 'CANCELLED';
+  return order?.status === 'DELIVERED';
 }
 
 function Accounting() {
@@ -116,11 +116,19 @@ function Accounting() {
         storeId,
         storeName: order?.store?.name || 'Unknown Store',
         orderCount: 0,
-        grossRevenue: 0
+        grossRevenue: 0,
+        gmv: 0
       };
 
       entry.orderCount += 1;
-      entry.grossRevenue += Number(order?.total || 0);
+      const orderTotal = Number(order?.total || 0);
+      const deliveryFee = Number(order?.deliveryFee || 0);
+      const subtotal = order.itemSubtotal && Number(order.itemSubtotal) > 0 
+        ? Number(order.itemSubtotal) 
+        : Math.max(0, orderTotal - deliveryFee);
+
+      entry.grossRevenue += subtotal;
+      entry.gmv += orderTotal;
       byStore.set(storeId, entry);
     });
 
@@ -494,7 +502,8 @@ function Accounting() {
                           size="small"
                           variant="contained"
                           color="success"
-                          disabled={row.pendingPayout <= 0}
+                          disabled={row.pendingPayout <= 0 || selectedCycle === 'ALL'}
+                          title={selectedCycle === 'ALL' ? 'Select a specific cycle to log payouts' : 'Record payment for this cycle'}
                           onClick={() => handleMarkStorePaid(row)}
                         >
                           Mark Paid
@@ -546,7 +555,7 @@ function Accounting() {
                           size="small"
                           variant="contained"
                           color="success"
-                          disabled={row.pendingPayout <= 0}
+                          disabled={row.pendingPayout <= 0 || selectedCycle === 'ALL'}
                           onClick={() => handleMarkDriverPaid(row)}
                         >
                           Mark Paid

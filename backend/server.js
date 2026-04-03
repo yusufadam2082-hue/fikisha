@@ -1584,7 +1584,9 @@ const resolvePaymentAction = (provider, intent) => {
 
 const getSettlementCycleKey = (order) => {
   const referenceDate = new Date(order?.updatedAt || order?.createdAt || Date.now());
-  return referenceDate.toISOString().slice(0, 10);
+  const y = referenceDate.getFullYear();
+  const m = String(referenceDate.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 };
 
 const computeMerchantOrderFinancials = (order = {}) => {
@@ -1603,6 +1605,10 @@ const computeMerchantOrderFinancials = (order = {}) => {
       }, 0)
     : NaN;
 
+  // NOTE: If discountAmount is provided, it should represent a customer discount value.
+  // When deriving itemsSubtotal from customerTotal, we ADD the discount back because customerTotal
+  // has already deducted the discount. Then when calculating merchantNetIncome, we SUBTRACT it again
+  // because the merchant bears the cost of customer discounts.
   const derivedItemsSubtotal = Number.isFinite(itemsFromLines)
     ? itemsFromLines
     : Math.max(0, customerTotal - deliveryFee - taxAmount + discountAmount);
