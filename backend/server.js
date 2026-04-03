@@ -73,14 +73,16 @@ if (IS_PRODUCTION) {
     process.exit(1);
   }
 
-  if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === 'admin123') {
-    console.error('ADMIN_PASSWORD must be set to a non-default value in production.');
-    process.exit(1);
-  }
+  if (ALLOW_DEMO_SEED) {
+    if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === 'admin123') {
+      console.error('ADMIN_PASSWORD must be set to a non-default value in production when ALLOW_DEMO_SEED=true.');
+      process.exit(1);
+    }
 
-  if (!process.env.MERCHANT_PASSWORD || process.env.MERCHANT_PASSWORD === 'merchant123') {
-    console.error('MERCHANT_PASSWORD must be set to a non-default value in production.');
-    process.exit(1);
+    if (!process.env.MERCHANT_PASSWORD || process.env.MERCHANT_PASSWORD === 'merchant123') {
+      console.error('MERCHANT_PASSWORD must be set to a non-default value in production when ALLOW_DEMO_SEED=true.');
+      process.exit(1);
+    }
   }
 
   if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
