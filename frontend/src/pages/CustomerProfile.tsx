@@ -41,16 +41,13 @@ interface Order {
   items?: Array<{ name?: string; product?: { name: string } }>;
 }
 
-const ADDRESS_STORAGE_KEY = 'mtaaexpress_addresses';
-const PAYMENT_STORAGE_KEY = 'mtaaexpress_payment_methods';
+const getAddressStorageKey = (userId?: string) => `mtaaexpress_addresses:${userId || 'guest'}`;
+const getPaymentStorageKey = (userId?: string) => `mtaaexpress_payment_methods:${userId || 'guest'}`;
 
-function readStoredAddresses(): Address[] {
-  const raw = localStorage.getItem(ADDRESS_STORAGE_KEY);
+function readStoredAddresses(userId?: string): Address[] {
+  const raw = localStorage.getItem(getAddressStorageKey(userId));
   if (!raw) {
-    return [
-      { id: '1', label: 'Home', street: '123 Main Street, Apt 4B', city: 'New York, NY 10001', isDefault: true },
-      { id: '2', label: 'Work', street: '456 Business Ave, Floor 10', city: 'New York, NY 10002', isDefault: false }
-    ];
+    return [];
   }
 
   try {
@@ -61,13 +58,10 @@ function readStoredAddresses(): Address[] {
   }
 }
 
-function readStoredPayments(): PaymentMethod[] {
-  const raw = localStorage.getItem(PAYMENT_STORAGE_KEY);
+function readStoredPayments(userId?: string): PaymentMethod[] {
+  const raw = localStorage.getItem(getPaymentStorageKey(userId));
   if (!raw) {
-    return [
-      { id: '1', type: 'Visa', last4: '4242', expiry: '12/26', isDefault: true },
-      { id: '2', type: 'M-Pesa', last4: '7123', expiry: 'Mobile Money', isDefault: false, phoneNumber: '254700123123' }
-    ];
+    return [];
   }
 
   try {
@@ -133,9 +127,9 @@ export function CustomerProfile() {
     }));
   }, [user]);
 
-  const [addresses, setAddresses] = useState<Address[]>(() => readStoredAddresses());
+  const [addresses, setAddresses] = useState<Address[]>([]);
 
-  const [payments, setPayments] = useState<PaymentMethod[]>(() => readStoredPayments());
+  const [payments, setPayments] = useState<PaymentMethod[]>([]);
 
   const [editedProfile, setEditedProfile] = useState(profile);
   // Keep editedProfile base in sync with profile when not actively editing.
@@ -298,12 +292,17 @@ export function CustomerProfile() {
   }, [activeTab]);
 
   useEffect(() => {
-    localStorage.setItem(ADDRESS_STORAGE_KEY, JSON.stringify(addresses));
-  }, [addresses]);
+    setAddresses(readStoredAddresses(user?.id));
+    setPayments(readStoredPayments(user?.id));
+  }, [user?.id]);
 
   useEffect(() => {
-    localStorage.setItem(PAYMENT_STORAGE_KEY, JSON.stringify(payments));
-  }, [payments]);
+    localStorage.setItem(getAddressStorageKey(user?.id), JSON.stringify(addresses));
+  }, [addresses, user?.id]);
+
+  useEffect(() => {
+    localStorage.setItem(getPaymentStorageKey(user?.id), JSON.stringify(payments));
+  }, [payments, user?.id]);
 
   // Save profile updates using the authenticated user's own endpoint.
   const handleSaveProfile = async () => {

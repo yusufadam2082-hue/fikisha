@@ -21,6 +21,8 @@ interface StoredPaymentMethod {
   phoneNumber?: string;
 }
 
+const getPaymentStorageKey = (userId?: string) => `mtaaexpress_payment_methods:${userId || 'guest'}`;
+
 function getAuthHeaders(): HeadersInit {
   return buildAuthHeaders(true);
 }
@@ -57,12 +59,12 @@ export function CartModal() {
     }
 
     setConfirmedAddress(activeLocation?.address || deliveryAddress || '');
-    const storedPaymentMethods = JSON.parse(localStorage.getItem('mtaaexpress_payment_methods') || '[]') as StoredPaymentMethod[];
+    const storedPaymentMethods = JSON.parse(localStorage.getItem(getPaymentStorageKey(user?.id)) || '[]') as StoredPaymentMethod[];
     const validStored = Array.isArray(storedPaymentMethods) ? storedPaymentMethods : [];
     setPaymentMethods(validStored);
     const defaultPayment = validStored.find((method) => method.isDefault) || validStored[0];
     setSelectedPaymentId(defaultPayment?.id || 'cod');
-  }, [isCartOpen, deliveryAddress, activeLocation?.address, clearDeliveryQuote]);
+  }, [isCartOpen, deliveryAddress, activeLocation?.address, clearDeliveryQuote, user?.id]);
 
   // Fetch delivery quote when cart opens with an active location and items
   useEffect(() => {

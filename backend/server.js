@@ -3859,7 +3859,26 @@ const refreshStoreReadiness = async (storeId) => {
 
 app.get('/api/stores', async (req, res) => {
   try {
+    let requester = null;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        requester = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+      } catch {
+        requester = null;
+      }
+    }
+
+    const canViewAllStores = requester && ['ADMIN', 'MERCHANT', 'DRIVER'].includes(requester.role);
     const stores = await prisma.store.findMany({
+      where: canViewAllStores
+        ? undefined
+        : {
+            isActive: true,
+            isOpen: true,
+            status: STORE_REVIEW_STATUS.ACTIVE
+          },
       include: {
         products: true,
         owner: {
@@ -5786,6 +5805,10 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
   try {
     const { storeId, items, customerInfo, deliveryAddress, paymentIntentId } = req.body;
 
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'At least one item is required' });
+    }
+
     // Calculate total
     let total = 0;
     const orderItems = [];
@@ -5797,6 +5820,10 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
 
       if (!product) {
         return res.status(400).json({ error: `Product ${item.productId || item.id} not found` });
+      }
+
+      if (product.storeId !== storeId) {
+        return res.status(400).json({ error: 'All cart items must belong to the selected store' });
       }
 
       total += product.price * item.quantity;
@@ -5813,6 +5840,10 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
 
     if (!store) {
       return res.status(400).json({ error: 'Store not found' });
+    }
+
+    if (store.isActive === false || store.isOpen === false || store.status !== STORE_REVIEW_STATUS.ACTIVE) {
+      return res.status(409).json({ error: 'This store is not currently accepting customer orders' });
     }
 
     const itemSubtotal = total;

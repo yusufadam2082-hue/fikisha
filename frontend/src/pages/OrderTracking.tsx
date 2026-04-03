@@ -72,7 +72,7 @@ export function OrderTracking() {
     const endpoint = options?.reconcile
       ? `/api/payments/intents/${encodeURIComponent(intentId)}/reconcile`
       : `/api/payments/intents/${encodeURIComponent(intentId)}`;
-    const res = await fetch(endpoint, {
+    const res = await fetch(apiUrl(endpoint), {
       method: options?.reconcile ? 'POST' : 'GET',
       headers: getAuthHeaders()
     });
