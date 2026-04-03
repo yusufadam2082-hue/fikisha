@@ -1,9 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 .customer-home-shell {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 24px 56px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-height: calc(100vh - 72px);
+  padding: 0 clamp(16px, 2.2vw, 34px) 56px;
   font-family: 'Inter', 'Outfit', sans-serif;
   color: #4e211e;
   background: #f3ecec;
@@ -40,7 +42,7 @@
   position: relative;
   overflow: hidden;
   border-radius: 40px;
-  min-height: 372px;
+  min-height: clamp(360px, 58vh, 640px);
   margin-bottom: 44px;
   padding: 0;
   display: flex;
@@ -90,7 +92,7 @@
 
 .customer-hero-media {
   width: 40%;
-  min-height: 372px;
+  min-height: clamp(360px, 58vh, 640px);
   background: linear-gradient(180deg, rgba(8, 8, 8, 0.08), rgba(8, 8, 8, 0.2));
 }
 
@@ -429,6 +431,7 @@
 
 @media (max-width: 780px) {
   .customer-home-shell {
+    min-height: auto;
     padding: 0 16px 96px;
   }
 
