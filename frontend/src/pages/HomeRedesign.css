@@ -6,7 +6,7 @@
   padding: 0 24px 56px;
   font-family: 'Inter', 'Outfit', sans-serif;
   color: #4e211e;
-  background: #f7efef;
+  background: #f3ecec;
 }
 
 .customer-section {
@@ -33,15 +33,15 @@
 .customer-merchants-head p {
   color: #834c48;
   font-weight: 500;
-  font-size: 0.96rem;
+  font-size: 0.92rem;
 }
 
 .customer-hero {
   position: relative;
   overflow: hidden;
   border-radius: 40px;
-  min-height: 360px;
-  margin-bottom: 52px;
+  min-height: 372px;
+  margin-bottom: 44px;
   padding: 0;
   display: flex;
   align-items: stretch;
@@ -59,7 +59,7 @@
   z-index: 2;
   max-width: none;
   width: 60%;
-  padding: 44px 36px;
+  padding: 40px 34px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -67,7 +67,7 @@
 
 .customer-hero h1 {
   font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
-  font-size: clamp(2rem, 4vw, 3.55rem);
+  font-size: clamp(2rem, 4vw, 3.45rem);
   line-height: 1.01;
   letter-spacing: -0.04em;
   color: #4e211e;
@@ -85,11 +85,12 @@
   font-weight: 500;
   color: rgba(78, 33, 30, 0.86);
   margin-bottom: 24px;
+  white-space: pre-line;
 }
 
 .customer-hero-media {
   width: 40%;
-  min-height: 360px;
+  min-height: 372px;
   background: linear-gradient(180deg, rgba(8, 8, 8, 0.08), rgba(8, 8, 8, 0.2));
 }
 
@@ -152,8 +153,8 @@
 .customer-category-card {
   text-align: left;
   border-radius: 30px;
-  border: 1px solid #ecdedd;
-  background: #f5f4f4;
+  border: 1px solid #e7dfde;
+  background: #f4f2f2;
   min-height: 200px;
   padding: 22px;
   position: relative;
@@ -230,12 +231,17 @@
   width: fit-content;
   border-radius: 999px;
   padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(242, 130, 72, 0.95);
+  color: #fff;
   font-size: 0.64rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 8px;
+}
+
+.reward-pill.fresh {
+  background: rgba(18, 147, 88, 0.95);
 }
 
 .reward-card h3 {
@@ -270,7 +276,7 @@
   background: #f5f1f0;
   color: #7d5753;
   font-weight: 700;
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 8px 12px;
@@ -396,7 +402,7 @@
 .merchant-content p {
   color: #834c48;
   font-weight: 500;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 @media (max-width: 1100px) {

@@ -15,14 +15,12 @@ import { apiUrl } from '../utils/apiUrl';
 import { useLocation, type DeliveryQuote } from '../context/LocationContext';
 import './HomeRedesign.css';
 
-interface Promotion {
+interface RewardCard {
   id: string;
   title: string;
   subtitle: string;
-  ctaText: string;
-  ctaLink: string | null;
-  bgColor: string;
-  image: string | null;
+  badge: string;
+  image: string;
 }
 
 function categoryVisual(name: string) {
@@ -67,7 +65,6 @@ export function Home() {
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [merchantSort, setMerchantSort] = useState<'all' | 'fastest' | 'top-rated'>('all');
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
 
   useEffect(() => {
@@ -106,17 +103,6 @@ export function Home() {
     fetchQuotes();
     return () => controller.abort();
   }, [activeLocation, stores]);
-
-  useEffect(() => {
-    fetch(apiUrl('/api/promotions'))
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Promotion[]) => {
-        if (Array.isArray(data)) {
-          setPromotions(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const searchLower = searchQuery.toLowerCase().trim();
 
@@ -162,42 +148,34 @@ export function Home() {
     [selectedCategory, filteredBySearch, activeLocation, storeQuotes, merchantSort]
   );
 
-  const heroPromo = promotions[0];
-  const rewardPromos = promotions.length > 0
-    ? promotions
-    : [
-        {
-          id: 'fallback-a',
-          title: '50% Off First Order',
-          subtitle: 'Use code MTAAEXPRESS50 today',
-          ctaText: 'Claim Offer',
-          ctaLink: null,
-          bgColor: 'linear-gradient(160deg, #4b1810 0%, #a63400 100%)',
-          image: null,
-        },
-        {
-          id: 'fallback-b',
-          title: 'Free Market Delivery',
-          subtitle: 'Orders over KES 3,000 get zero delivery fee',
-          ctaText: 'Explore Markets',
-          ctaLink: null,
-          bgColor: 'linear-gradient(160deg, #0c3b2a 0%, #006944 100%)',
-          image: null,
-        },
-      ];
+  const rewardCards: RewardCard[] = [
+    {
+      id: 'reward-1',
+      title: '50% Off First Order',
+      subtitle: 'Use code: MTAAEXPRESS50',
+      badge: 'Limited Time',
+      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1400&q=80',
+    },
+    {
+      id: 'reward-2',
+      title: 'Free Market Delivery',
+      subtitle: 'Orders over $30 get zero fees',
+      badge: 'Fresh Pick',
+      image: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=1400&q=80',
+    },
+  ];
 
   return (
     <div className="customer-home-shell">
-      <section
-        className={`customer-hero${heroPromo?.image ? ' has-image' : ''}`}
-      >
+      <section className="customer-hero">
         <div className="customer-hero-copy">
           <h1>
             Fastest delivery in <span>your</span> city.
           </h1>
           <p>
-            {heroPromo?.subtitle ||
-              'From gourmet meals to emergency prescriptions, Mtaaexpress delivers excellence to your doorstep in 30 minutes.'}
+            From gourmet meals to emergency prescriptions,
+            Mtaaexpress delivers excellence to your doorstep
+            in 30 minutes.
           </p>
           <div className="customer-hero-actions">
             <button
@@ -219,7 +197,7 @@ export function Home() {
 
         <div className="customer-hero-media" aria-hidden="true">
           <img
-            src={heroPromo?.image || 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=1400&q=80'}
+            src="https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=1400&q=80"
             alt=""
           />
         </div>
@@ -261,17 +239,15 @@ export function Home() {
           <h2>Exclusive Rewards</h2>
         </div>
         <div className="customer-rewards-row">
-          {rewardPromos.slice(0, 2).map((promo) => (
+          {rewardCards.map((promo) => (
             <article
               key={promo.id}
               className="reward-card"
               style={{
-                background: promo.image
-                  ? `linear-gradient(180deg, rgba(10, 8, 8, 0.15) 0%, rgba(10, 8, 8, 0.75) 100%), url(${promo.image}) center/cover`
-                  : promo.bgColor,
+                background: `linear-gradient(180deg, rgba(10, 8, 8, 0.15) 0%, rgba(10, 8, 8, 0.75) 100%), url(${promo.image}) center/cover`,
               }}
             >
-              <span className="reward-pill">Limited Time</span>
+              <span className={`reward-pill${promo.badge.toLowerCase() === 'fresh pick' ? ' fresh' : ''}`}>{promo.badge}</span>
               <h3>{promo.title}</h3>
               <p>{promo.subtitle}</p>
             </article>
