@@ -1,19 +1,16 @@
-import { Bell, LogOut, MapPin, Search, ShoppingBag, User } from 'lucide-react';
+import { Bell, LogOut, MapPin, Search, User } from 'lucide-react';
 import { Link, useNavigate, useLocation as useRouteLocation } from 'react-router-dom';
-import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useSearch } from '../../context/SearchContext';
 import { useLocation } from '../../context/LocationContext';
 import './CustomerNavRedesign.css';
 
 export function Navbar() {
-  const { items, setIsCartOpen } = useCart();
   const { user, logout } = useAuth();
   const { searchQuery, setSearchQuery, searchInputRef } = useSearch();
   const { activeLocation, openLocationSelector } = useLocation();
   const navigate = useNavigate();
   const routeLocation = useRouteLocation();
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const homeByRole = user?.role === 'ADMIN'
     ? '/admin'
     : user?.role === 'MERCHANT'
@@ -110,18 +107,9 @@ export function Navbar() {
             <Bell size={17} />
           </button>
 
-          <button type="button" className="customer-circle-btn customer-cart-btn" onClick={() => setIsCartOpen(true)} title="Cart">
-            <ShoppingBag size={17} />
-            {itemCount > 0 && <span className="customer-cart-badge">{itemCount}</span>}
-          </button>
-
           <Link to={profilePath} className="customer-avatar" title="Profile">
             <span>{userInitial}</span>
           </Link>
-
-          <button type="button" className="customer-circle-btn customer-logout-btn" onClick={handleLogout} title="Sign out">
-            <LogOut size={16} />
-          </button>
         </div>
       </nav>
     </header>

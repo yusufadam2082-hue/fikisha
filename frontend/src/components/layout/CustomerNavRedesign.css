@@ -5,31 +5,31 @@
   top: 0;
   z-index: 110;
   width: 100%;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(224, 156, 150, 0.28);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(232, 220, 218, 0.9);
 }
 
 .customer-topbar-inner {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 10px 24px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
 }
 
 .customer-brand-side {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
 }
 
 .customer-brand {
   font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
-  font-size: 1.6rem;
+  font-size: 1.55rem;
   line-height: 1;
   color: #a63400;
   letter-spacing: -0.03em;
@@ -38,14 +38,14 @@
 }
 
 .customer-search-desktop {
-  width: min(360px, 34vw);
+  width: min(330px, 31vw);
   display: flex;
   align-items: center;
   gap: 8px;
   border-radius: 999px;
-  background: #f5efec;
-  border: 1px solid transparent;
-  padding: 9px 14px;
+  background: #f3f1f0;
+  border: 1px solid #ece7e6;
+  padding: 8px 14px;
 }
 
 .customer-search-desktop:focus-within {
@@ -63,7 +63,7 @@
   border: none;
   background: transparent;
   outline: none;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   color: #4e211e;
   font-family: 'Inter', 'Outfit', sans-serif;
 }
@@ -75,26 +75,27 @@
 .customer-actions-side {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .customer-nav-links {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-right: 8px;
+  gap: 10px;
+  margin-right: 2px;
 }
 
 .customer-nav-links a,
 .customer-nav-links button {
   font-family: 'Inter', 'Outfit', sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: #834c48;
-  padding: 5px 0;
+  padding: 4px 0;
   border-bottom: 2px solid transparent;
   transition: color 0.2s ease, border-color 0.2s ease;
+  letter-spacing: 0.01em;
 }
 
 .customer-nav-links a:hover,
@@ -108,13 +109,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 230px;
+  max-width: 188px;
   border-radius: 999px;
-  background: #f5efec;
+  background: #f6f4f3;
   color: #6a3430;
-  border: 1px solid #e9c2bc;
-  padding: 8px 11px;
-  font-size: 0.75rem;
+  border: 1px solid #ece4e3;
+  padding: 7px 10px;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -125,45 +126,24 @@
 }
 
 .customer-circle-btn {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #6a3430;
-  background: #f7f0ee;
-  border: 1px solid #ecd1cd;
+  background: #f5f0ee;
+  border: 1px solid #ebdedc;
 }
 
 .customer-circle-btn:hover {
   background: #fff;
 }
 
-.customer-cart-btn {
-  position: relative;
-}
-
-.customer-cart-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 17px;
-  height: 17px;
-  border-radius: 999px;
-  background: #a63400;
-  color: #fff;
-  font-size: 0.65rem;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-}
-
 .customer-avatar {
-  width: 37px;
-  height: 37px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -177,12 +157,6 @@
   font-size: 0.86rem;
   font-weight: 800;
   color: #a63400;
-}
-
-.customer-logout-btn {
-  color: #b31b25;
-  background: #fff2f3;
-  border-color: #ffd3d7;
 }
 
 .customer-mobile-nav {
