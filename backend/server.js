@@ -32,6 +32,7 @@ if (!Number.isNaN(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS >= 0) {
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const MERCHANT_PASSWORD = process.env.MERCHANT_PASSWORD || 'merchant123';
 const ALLOW_DEMO_SEED = (process.env.ALLOW_DEMO_SEED || 'false').toLowerCase() === 'true';
+const ALLOW_MOCK_PAYMENTS = (process.env.ALLOW_MOCK_PAYMENTS || (IS_PRODUCTION ? 'false' : 'true')).toLowerCase() === 'true';
 const ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK = (
   process.env.ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK || (IS_PRODUCTION ? 'false' : 'true')
 ).toLowerCase() === 'true';
@@ -69,6 +70,38 @@ if (IS_PRODUCTION) {
 
   if (ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK) {
     console.error('ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK must be false in production. Payout accounting cannot rely on local files.');
+    process.exit(1);
+  }
+
+  if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === 'admin123') {
+    console.error('ADMIN_PASSWORD must be set to a non-default value in production.');
+    process.exit(1);
+  }
+
+  if (!process.env.MERCHANT_PASSWORD || process.env.MERCHANT_PASSWORD === 'merchant123') {
+    console.error('MERCHANT_PASSWORD must be set to a non-default value in production.');
+    process.exit(1);
+  }
+
+  if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('STRIPE_WEBHOOK_SECRET must be set when Stripe is enabled in production.');
+    process.exit(1);
+  }
+
+  const mpesaIsConfigured = Boolean(
+    process.env.MPESA_CONSUMER_KEY
+    && process.env.MPESA_CONSUMER_SECRET
+    && process.env.MPESA_SHORTCODE
+    && process.env.MPESA_PASSKEY
+  );
+
+  if (mpesaIsConfigured && !process.env.MPESA_WEBHOOK_SECRET) {
+    console.error('MPESA_WEBHOOK_SECRET must be set when M-Pesa is enabled in production.');
+    process.exit(1);
+  }
+
+  if (mpesaIsConfigured && !process.env.MPESA_CALLBACK_URL && !process.env.BACKEND_PUBLIC_URL) {
+    console.error('MPESA_CALLBACK_URL or BACKEND_PUBLIC_URL must be set when M-Pesa is enabled in production.');
     process.exit(1);
   }
 }
@@ -348,6 +381,22 @@ const normalizePaymentProvider = (provider) => {
   return PAYMENT_PROVIDER.MOCK;
 };
 
+const isSupportedPaymentProviderInput = (provider) => {
+  const normalized = String(provider || '').trim().toUpperCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    PAYMENT_PROVIDER.STRIPE,
+    'CARD',
+    PAYMENT_PROVIDER.MPESA,
+    'M-PESA',
+    'M_PESA',
+    PAYMENT_PROVIDER.MOCK
+  ].includes(normalized);
+};
+
 const normalizeCurrency = (currency) => String(currency || 'KES').trim().toUpperCase() || 'KES';
 
 const toMinorUnits = (amount, currency) => {
@@ -357,8 +406,24 @@ const toMinorUnits = (amount, currency) => {
 };
 
 const buildFrontendBaseUrl = (req, overrideUrl) => {
-  const candidate = String(overrideUrl || req.body?.returnUrlBase || req.headers.origin || configuredCorsOrigins[0] || 'http://localhost:5173');
-  return candidate.replace(/\/+$/, '');
+  const fallback = String(configuredCorsOrigins[0] || 'http://localhost:5173').replace(/\/+$/, '');
+  const candidate = String(overrideUrl || req.body?.returnUrlBase || req.headers.origin || fallback).replace(/\/+$/, '');
+
+  try {
+    const url = new URL(candidate);
+    const origin = url.origin.replace(/\/+$/, '');
+    const isConfiguredOrigin = configuredCorsOrigins.includes(origin);
+    const isDevLocalOrigin = !IS_PRODUCTION && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+    const isDevHttpsPreview = !IS_PRODUCTION && url.protocol === 'https:';
+
+    if (isConfiguredOrigin || isDevLocalOrigin || isDevHttpsPreview) {
+      return origin;
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
 };
 
 const buildBackendBaseUrl = (req) => {
@@ -656,6 +721,12 @@ const isMpesaConfigured = () => Boolean(mpesaConsumerKey && mpesaConsumerSecret 
 
 const createStripeCheckoutSession = async ({ req, intent, customer, description }) => {
   if (!stripe) {
+    if (!ALLOW_MOCK_PAYMENTS) {
+      const error = new Error('Stripe payments are not available right now');
+      error.statusCode = 503;
+      throw error;
+    }
+
     const fallbackIntent = {
       ...intent,
       provider: PAYMENT_PROVIDER.MOCK,
@@ -737,6 +808,12 @@ const createMpesaPaymentRequest = async ({ req, intent, phoneNumber, description
   }
 
   if (!isMpesaConfigured()) {
+    if (!ALLOW_MOCK_PAYMENTS) {
+      const error = new Error('M-Pesa payments are not available right now');
+      error.statusCode = 503;
+      throw error;
+    }
+
     const mockProviderRef = createPaymentProviderRef(PAYMENT_PROVIDER.MPESA);
     return {
       providerRef: mockProviderRef,
@@ -819,6 +896,12 @@ const createProviderPayment = async ({ req, intent, customer, phoneNumber, descr
     return createMpesaPaymentRequest({ req, intent, phoneNumber, description });
   }
 
+  if (!ALLOW_MOCK_PAYMENTS) {
+    const error = new Error('Mock payments are disabled');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const providerRef = createPaymentProviderRef(provider);
   const mockIntent = {
     ...intent,
@@ -836,6 +919,53 @@ const createProviderPayment = async ({ req, intent, customer, phoneNumber, descr
     },
     action: resolvePaymentAction(provider, mockIntent)
   };
+};
+
+const reserveInventoryForOrderItems = async (dbClient, orderItems, productSnapshots) => {
+  for (const item of orderItems) {
+    const product = productSnapshots.get(item.productId);
+    if (!product || product.quantityAvailable == null) {
+      continue;
+    }
+
+    const updateResult = await dbClient.product.updateMany({
+      where: {
+        id: item.productId,
+        quantityAvailable: {
+          gte: item.quantity
+        }
+      },
+      data: {
+        quantityAvailable: {
+          decrement: item.quantity
+        }
+      }
+    });
+
+    if (updateResult.count === 0) {
+      const error = new Error(`${product.name} went out of stock during checkout. Please review your cart and try again.`);
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+};
+
+const restoreInventoryForOrderItems = async (dbClient, orderItems) => {
+  for (const item of orderItems) {
+    await dbClient.product.updateMany({
+      where: {
+        id: item.productId,
+        quantityAvailable: {
+          not: null
+        }
+      },
+      data: {
+        quantityAvailable: {
+          increment: Number(item.quantity || 0)
+        }
+      }
+    });
+  }
 };
 
 const syncOrderPaymentFromIntent = async (intent) => {
@@ -2044,15 +2174,12 @@ const isAllowedCorsOrigin = (origin) => {
     return true;
   }
 
-  // Bearer-token auth does not rely on browser cookies, so allow secure deployed frontends
-  // even if their hostname changes between Netlify, Render, or preview environments.
+  // In development, allow secure preview frontends without explicit allow-list updates.
   try {
     const url = new URL(origin);
     const isHttps = url.protocol === 'https:';
-    
-    // In production: accept any HTTPS origin
-    // In development: accept any HTTPS origin (includes deployed preview environments)
-    if (isHttps) {
+
+    if (!IS_PRODUCTION && isHttps) {
       return true;
     }
   } catch {
@@ -2120,7 +2247,30 @@ const authMiddleware = async (req, res, next) => {
   try {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        role: true,
+        email: true,
+        username: true,
+        name: true,
+        phone: true,
+        storeId: true,
+        isActive: true
+      }
+    });
+
+    if (!dbUser || dbUser.isActive === false) {
+      return res.status(401).json({ error: 'Account is inactive or no longer exists' });
+    }
+
+    req.user = {
+      ...decoded,
+      ...dbUser,
+      driverId: decoded.driverId || null
+    };
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -3481,6 +3631,10 @@ app.post('/api/payments/intents',
   validate,
   async (req, res) => {
     try {
+      if (!isSupportedPaymentProviderInput(req.body.provider)) {
+        return res.status(400).json({ error: 'Unsupported payment provider' });
+      }
+
       const idempotencyKey = (req.headers['x-idempotency-key'] || req.body.idempotencyKey || '').toString().trim() || null;
       const provider = normalizePaymentProvider(req.body.provider || PAYMENT_PROVIDER.MOCK);
       const currency = normalizeCurrency(req.body.currency || 'KES');
@@ -3710,6 +3864,10 @@ app.post('/api/payments/intents/:id/retry', authMiddleware, roleMiddleware('CUST
 
 app.post('/api/payments/webhooks/:provider', async (req, res) => {
   try {
+    if (!isSupportedPaymentProviderInput(req.params.provider)) {
+      return res.status(400).json({ error: 'Unsupported payment provider' });
+    }
+
     const provider = normalizePaymentProvider(req.params.provider);
     const webhook = verifyAndParseWebhook(provider, req);
     const providerEventId = webhook.providerEventId;
@@ -3864,13 +4022,42 @@ app.get('/api/stores', async (req, res) => {
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
-        requester = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        requester = await prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: {
+            role: true,
+            isActive: true
+          }
+        });
+
+        if (!requester || requester.isActive === false) {
+          requester = null;
+        }
       } catch {
         requester = null;
       }
     }
 
     const canViewAllStores = requester && ['ADMIN', 'MERCHANT', 'DRIVER'].includes(requester.role);
+    const includeConfig = {
+      products: true,
+      ...(canViewAllStores
+        ? {
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                email: true,
+                phone: true,
+                storeId: true
+              }
+            }
+          }
+        : {})
+    };
+
     const stores = await prisma.store.findMany({
       where: canViewAllStores
         ? undefined
@@ -3879,19 +4066,7 @@ app.get('/api/stores', async (req, res) => {
             isOpen: true,
             status: STORE_REVIEW_STATUS.ACTIVE
           },
-      include: {
-        products: true,
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            email: true,
-            phone: true,
-            storeId: true
-          }
-        }
-      },
+      include: includeConfig,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -4417,24 +4592,55 @@ app.put('/api/stores/:id/credentials',
 
 app.get('/api/stores/:id', async (req, res) => {
   try {
+    let requester = null;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        requester = await prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: {
+            role: true,
+            isActive: true
+          }
+        });
+
+        if (!requester || requester.isActive === false) {
+          requester = null;
+        }
+      } catch {
+        requester = null;
+      }
+    }
+
+    const canViewAllStores = requester && ['ADMIN', 'MERCHANT', 'DRIVER'].includes(requester.role);
     const store = await prisma.store.findUnique({
       where: { id: req.params.id },
       include: {
         products: true,
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            email: true,
-            phone: true,
-            storeId: true
-          }
-        }
+        ...(canViewAllStores
+          ? {
+              owner: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  email: true,
+                  phone: true,
+                  storeId: true
+                }
+              }
+            }
+          : {})
       }
     });
 
     if (!store) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    if (!canViewAllStores && (store.isActive === false || store.isOpen === false || store.status !== STORE_REVIEW_STATUS.ACTIVE)) {
       return res.status(404).json({ error: 'Store not found' });
     }
 
@@ -5812,8 +6018,14 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
     // Calculate total
     let total = 0;
     const orderItems = [];
+    const productSnapshots = new Map();
 
     for (const item of items) {
+      const quantity = Number(item.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+        return res.status(400).json({ error: 'Each item quantity must be a whole number between 1 and 100' });
+      }
+
       const product = await prisma.product.findUnique({
         where: { id: item.productId || item.id }
       });
@@ -5822,14 +6034,32 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
         return res.status(400).json({ error: `Product ${item.productId || item.id} not found` });
       }
 
+      if (product.available === false) {
+        return res.status(409).json({ error: `${product.name} is currently unavailable` });
+      }
+
       if (product.storeId !== storeId) {
         return res.status(400).json({ error: 'All cart items must belong to the selected store' });
       }
 
-      total += product.price * item.quantity;
+      if (product.maxQuantityPerOrder != null && quantity > Number(product.maxQuantityPerOrder)) {
+        return res.status(409).json({ error: `${product.name} is limited to ${product.maxQuantityPerOrder} per order` });
+      }
+
+      if (product.quantityAvailable != null && quantity > Number(product.quantityAvailable)) {
+        return res.status(409).json({ error: `${product.name} does not have enough stock available` });
+      }
+
+      productSnapshots.set(product.id, {
+        id: product.id,
+        name: product.name,
+        quantityAvailable: product.quantityAvailable
+      });
+
+      total += product.price * quantity;
       orderItems.push({
         productId: item.productId || item.id,
-        quantity: item.quantity,
+        quantity,
         price: product.price
       });
     }
@@ -5881,6 +6111,22 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
       if (paymentIntent.orderId) {
         return res.status(409).json({ error: 'Payment intent already linked to an order' });
       }
+
+      const paymentMetadata = parsePaymentMetadata(paymentIntent.metadata);
+      const normalizedIntentAmount = Number(Number(paymentIntent.amount || 0).toFixed(2));
+      const normalizedOrderTotal = Number(total.toFixed(2));
+
+      if (Math.abs(normalizedIntentAmount - normalizedOrderTotal) > 0.01) {
+        return res.status(409).json({ error: 'Payment intent amount no longer matches the current order total. Start checkout again.' });
+      }
+
+      if (normalizeCurrency(paymentIntent.currency || 'KES') !== 'KES') {
+        return res.status(409).json({ error: 'Payment intent currency is invalid for this order. Start checkout again.' });
+      }
+
+      if (paymentMetadata.storeId && String(paymentMetadata.storeId) !== String(storeId)) {
+        return res.status(409).json({ error: 'Payment intent does not belong to the selected store. Start checkout again.' });
+      }
     }
 
     const { storeCode, nextSequence } = await generateNextOrderNumber(store);
@@ -5890,38 +6136,51 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
       const candidateOrderNumber = formatOrderNumber(storeCode, nextSequence + attempt);
 
       try {
-        order = await prisma.order.create({
-          data: {
-            storeId,
-            customerId: req.user.id,
-            orderNumber: candidateOrderNumber,
-            total,
-            deliveryFee: store.deliveryFee,
-            itemSubtotal,
-            taxAmount,
-            serviceFee,
-            otherFees,
-            customerTotal: total,
-            merchantPlatformFee: merchantPlatformFee,
-            merchantNetPayout: merchantNetPayout,
-            driverPayout: 0,
-            platformDeliveryMargin: 0,
-            platformRevenue: 0,
-            payoutEligible: false,
-            merchantPayoutStatus: PAYOUT_STATUS.HELD,
-            driverPayoutStatus: PAYOUT_STATUS.HELD,
-            customerInfo: JSON.stringify(customerInfo),
-            deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
-            paymentStatus: paymentIntent
-              ? (paymentIntent.status === PAYMENT_INTENT_STATUS.SUCCEEDED ? 'PAID' : 'PENDING')
-              : 'UNPAID',
-            paymentProvider: paymentIntent?.provider || null,
-            paymentIntentRef: paymentIntent?.id || null,
-            items: {
-              create: orderItems
-            }
-          },
-          include: createInclude
+        order = await prisma.$transaction(async (tx) => {
+          const createdOrder = await tx.order.create({
+            data: {
+              storeId,
+              customerId: req.user.id,
+              orderNumber: candidateOrderNumber,
+              total,
+              deliveryFee: store.deliveryFee,
+              itemSubtotal,
+              taxAmount,
+              serviceFee,
+              otherFees,
+              customerTotal: total,
+              merchantPlatformFee: merchantPlatformFee,
+              merchantNetPayout: merchantNetPayout,
+              driverPayout: 0,
+              platformDeliveryMargin: 0,
+              platformRevenue: 0,
+              payoutEligible: false,
+              merchantPayoutStatus: PAYOUT_STATUS.HELD,
+              driverPayoutStatus: PAYOUT_STATUS.HELD,
+              customerInfo: JSON.stringify(customerInfo),
+              deliveryAddress: deliveryAddress ? JSON.stringify(deliveryAddress) : null,
+              paymentStatus: paymentIntent
+                ? (paymentIntent.status === PAYMENT_INTENT_STATUS.SUCCEEDED ? 'PAID' : 'PENDING')
+                : 'UNPAID',
+              paymentProvider: paymentIntent?.provider || null,
+              paymentIntentRef: paymentIntent?.id || null,
+              items: {
+                create: orderItems
+              }
+            },
+            include: createInclude
+          });
+
+          await reserveInventoryForOrderItems(tx, orderItems, productSnapshots);
+
+          if (paymentIntent?.id) {
+            await tx.paymentIntent.update({
+              where: { id: paymentIntent.id },
+              data: { orderId: createdOrder.id }
+            });
+          }
+
+          return createdOrder;
         });
         break;
       } catch (error) {
@@ -5940,16 +6199,9 @@ app.post('/api/orders', authMiddleware, roleMiddleware('CUSTOMER'), async (req, 
       return res.status(500).json({ error: 'Failed to allocate order number. Please try again.' });
     }
 
-    if (paymentIntent?.id) {
-      await prisma.paymentIntent.update({
-        where: { id: paymentIntent.id },
-        data: { orderId: order.id }
-      }).catch(() => {});
-    }
-
     res.status(201).json(serializeOrder(order));
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create order' });
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create order' });
   }
 });
 
@@ -5991,6 +6243,16 @@ app.put('/api/orders/:id/status',
       }
 
       const currentStatus = normalizeOrderStatus(existingOrder.status) || ORDER_STATUS.PENDING;
+      const normalizedPaymentStatus = String(existingOrder.paymentStatus || '').trim().toUpperCase();
+      const requiresSuccessfulOnlinePayment = Boolean(existingOrder.paymentProvider);
+      const isPreDispatchStatus = [
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.CONFIRMED,
+        ORDER_STATUS.PREPARING,
+        ORDER_STATUS.ASSIGNED,
+        ORDER_STATUS.READY_FOR_PICKUP,
+        ORDER_STATUS.DRIVER_ACCEPTED
+      ].includes(currentStatus);
       let resolvedDriverId = existingOrder.driverId;
       const updateData = {
         status: currentStatus,
@@ -5999,7 +6261,35 @@ app.put('/api/orders/:id/status',
         deliveredAt: undefined
       };
 
+      if (
+        requiresSuccessfulOnlinePayment
+        && normalizedPaymentStatus !== 'PAID'
+        && normalizedStatus !== ORDER_STATUS.CANCELLED
+      ) {
+        return res.status(409).json({ error: 'This order cannot progress until online payment is confirmed.' });
+      }
+
       if (req.user.role === 'MERCHANT') {
+        if (![ORDER_STATUS.CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.ASSIGNED, ORDER_STATUS.READY_FOR_PICKUP, ORDER_STATUS.CANCELLED].includes(normalizedStatus)) {
+          return res.status(403).json({ error: 'Merchants cannot set that order status.' });
+        }
+
+        if (normalizedStatus === ORDER_STATUS.CONFIRMED) {
+          if (currentStatus !== ORDER_STATUS.PENDING) {
+            return res.status(409).json({ error: 'Only new orders can be confirmed.' });
+          }
+
+          updateData.status = ORDER_STATUS.CONFIRMED;
+        }
+
+        if (normalizedStatus === ORDER_STATUS.PREPARING) {
+          if (currentStatus !== ORDER_STATUS.PENDING && currentStatus !== ORDER_STATUS.CONFIRMED) {
+            return res.status(409).json({ error: 'Only pending or confirmed orders can move to preparing.' });
+          }
+
+          updateData.status = ORDER_STATUS.PREPARING;
+        }
+
         if (normalizedStatus === ORDER_STATUS.ASSIGNED || normalizedStatus === ORDER_STATUS.READY_FOR_PICKUP) {
           if (currentStatus !== ORDER_STATUS.PREPARING && currentStatus !== ORDER_STATUS.READY_FOR_PICKUP) {
             return res.status(409).json({ error: 'Only prepared orders can be assigned to a driver.' });
@@ -6020,11 +6310,29 @@ app.put('/api/orders/:id/status',
           });
         }
 
-        if (normalizedStatus === ORDER_STATUS.CANCELLED && existingOrder.driverId) {
-          await prisma.driver.update({
-            where: { id: existingOrder.driverId },
-            data: { available: true }
-          }).catch(() => {});
+        if (normalizedStatus === ORDER_STATUS.CANCELLED) {
+          if (currentStatus === ORDER_STATUS.DELIVERED) {
+            return res.status(409).json({ error: 'Delivered orders cannot be cancelled. Use refund workflows instead.' });
+          }
+
+          updateData.status = ORDER_STATUS.CANCELLED;
+        }
+      } else if (req.user.role === 'ADMIN') {
+        if (![ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.PREPARING, ORDER_STATUS.CANCELLED].includes(normalizedStatus)) {
+          return res.status(403).json({ error: 'Admins can only set pending, confirmed, preparing, or cancelled statuses directly.' });
+        }
+
+        if (
+          normalizedStatus === ORDER_STATUS.PENDING
+          || normalizedStatus === ORDER_STATUS.CONFIRMED
+          || normalizedStatus === ORDER_STATUS.PREPARING
+          || normalizedStatus === ORDER_STATUS.CANCELLED
+        ) {
+          updateData.status = normalizedStatus;
+        }
+
+        if (normalizedStatus === ORDER_STATUS.CANCELLED && currentStatus === ORDER_STATUS.DELIVERED) {
+          return res.status(409).json({ error: 'Delivered orders cannot be cancelled. Use refund workflows instead.' });
         }
       } else if (req.user.role === 'DRIVER') {
         const driverId = await resolveDriverIdForUser(req.user);
@@ -6103,6 +6411,22 @@ app.put('/api/orders/:id/status',
           }
         }
       });
+
+      if (
+        currentStatus !== ORDER_STATUS.CANCELLED
+        && normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.CANCELLED
+      ) {
+        if (isPreDispatchStatus) {
+          await restoreInventoryForOrderItems(prisma, updatedOrder.items).catch(() => {});
+        }
+
+        if (existingOrder.driverId) {
+          await prisma.driver.update({
+            where: { id: existingOrder.driverId },
+            data: { available: true }
+          }).catch(() => {});
+        }
+      }
 
       if (normalizeOrderStatus(updatedOrder.status) === ORDER_STATUS.DELIVERED) {
         await ensureDeliveredOrderAccounting(updatedOrder, {

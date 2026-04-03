@@ -210,7 +210,13 @@ export function CartModal() {
               metadata: {
                 storeId,
                 cartItemCount: items.length,
-                paymentMethodLabel: getPaymentLabel()
+                checkoutTotal,
+                deliveryFee,
+                paymentMethodLabel: getPaymentLabel(),
+                items: items.map((item) => ({
+                  productId: item.id,
+                  quantity: item.quantity,
+                }))
               }
             })
           });
