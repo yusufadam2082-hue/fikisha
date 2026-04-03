@@ -19,6 +19,19 @@ async function run() {
     return;
   }
 
+  // Check if the entryId column exists yet — it may not if this is the first deploy adding it.
+  const columnExistsRows = await prisma.$queryRawUnsafe(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'PayoutBatchItem'
+      AND column_name = 'entryId'
+    LIMIT 1
+  `);
+  if (!Array.isArray(columnExistsRows) || columnExistsRows.length === 0) {
+    console.log('entryId column does not exist yet; no duplicates to clean up. Skipping.');
+    return;
+  }
+
   const beforeRows = await prisma.$queryRawUnsafe(`
     SELECT COUNT(*)::int AS duplicate_rows
     FROM (
