@@ -17,11 +17,17 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const TRUST_PROXY_HOPS = Number.parseInt(process.env.TRUST_PROXY_HOPS || (IS_PRODUCTION ? '1' : '0'), 10);
 const DATABASE_URL = process.env.DATABASE_URL || '';
 const configuredCorsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+if (!Number.isNaN(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS >= 0) {
+  // Respect reverse-proxy forwarding so IP-based limits use the real client address.
+  app.set('trust proxy', TRUST_PROXY_HOPS);
+}
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const MERCHANT_PASSWORD = process.env.MERCHANT_PASSWORD || 'merchant123';
@@ -1873,6 +1879,7 @@ app.use(express.json({
 const limiter = rateLimit({
   windowMs: IS_PRODUCTION ? 15 * 60 * 1000 : 60 * 1000,
   max: IS_PRODUCTION ? 100 : 5000,
+  skip: (req) => req.path.startsWith('/auth/login') || req.path.startsWith('/auth/register') || req.path.startsWith('/drivers/login'),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests from this IP' }
