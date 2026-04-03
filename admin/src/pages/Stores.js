@@ -35,6 +35,7 @@ import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PlaceIcon from '@mui/icons-material/Place';
 import NavigationIcon from '@mui/icons-material/Navigation';
+import EditIcon from '@mui/icons-material/Edit';
 import apiClient from '../utils/apiClient';
 import { formatKES } from '../utils/currency';
 import { appendStoreSecurityEvent } from '../utils/storeSecurityLog';
@@ -114,6 +115,64 @@ const toBase64 = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+const parseOpeningHours = (store) => {
+  if (store?.openingHours && typeof store.openingHours === 'object') {
+    return store.openingHours;
+  }
+
+  if (typeof store?.operatingHours === 'string' && store.operatingHours.trim()) {
+    try {
+      const parsed = JSON.parse(store.operatingHours);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch {
+      return createDefaultOpeningHours();
+    }
+  }
+
+  return createDefaultOpeningHours();
+};
+
+const createEditDraftFromStore = (store = {}) => ({
+  id: store.id,
+  name: store.name || '',
+  category: store.category || '',
+  description: store.description || '',
+  image: store.image || '',
+  bannerImage: store.bannerImage || '',
+  address: store.address || '',
+  country: store.country || '',
+  city: store.city || '',
+  area: store.area || '',
+  streetAddress: store.streetAddress || '',
+  buildingNumber: store.buildingNumber || '',
+  landmark: store.landmark || '',
+  latitude: store.latitude ?? '',
+  longitude: store.longitude ?? '',
+  deliveryRadiusKm: store.deliveryRadiusKm ?? 3,
+  openingHours: parseOpeningHours(store),
+  orderPreparationTimeMin: store.orderPreparationTimeMin ?? 25,
+  minimumOrderAmount: store.minimumOrderAmount ?? 0,
+  deliveryMethod: store.deliveryMethod || 'PLATFORM_DRIVERS',
+  deliveryFeeType: store.deliveryFeeType || 'FIXED',
+  deliveryFeeValue: store.deliveryFeeValue ?? 0,
+  freeDeliveryThreshold: store.freeDeliveryThreshold ?? 0,
+  allowPickup: Boolean(store.allowPickup),
+  phone: store.phone || '',
+  ownerIdDocument: store.ownerIdDocument || '',
+  businessPermitDocument: store.businessPermitDocument || '',
+  taxPin: store.taxPin || '',
+  proofOfAddressDocument: store.proofOfAddressDocument || '',
+  payoutMethod: store.payoutMethod || 'MPESA',
+  bankName: store.bankName || '',
+  accountName: store.accountName || '',
+  accountNumber: store.accountNumber || '',
+  mpesaNumber: store.mpesaNumber || '',
+  mpesaRegisteredName: store.mpesaRegisteredName || '',
+  reviewNotes: store.reviewNotes || ''
+});
+
 function Stores() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -135,6 +194,9 @@ function Stores() {
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [reviewReason, setReviewReason] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editingStore, setEditingStore] = useState(null);
   const [error, setError] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -221,6 +283,18 @@ function Stores() {
 
   const handleClose = () => {
     setOpen(false);
+    setError('');
+  };
+
+  const handleOpenEdit = (store) => {
+    setEditingStore(createEditDraftFromStore(store));
+    setEditOpen(true);
+    setError('');
+  };
+
+  const handleCloseEdit = () => {
+    setEditOpen(false);
+    setEditingStore(null);
     setError('');
   };
 
@@ -566,6 +640,69 @@ function Stores() {
     }
   };
 
+  const handleSaveStoreInfo = async () => {
+    if (!editingStore?.id) {
+      return;
+    }
+
+    try {
+      setIsSavingEdit(true);
+      setError('');
+      getAuthConfig();
+      await apiClient.put(`/api/stores/${editingStore.id}`, {
+        name: editingStore.name,
+        category: editingStore.category,
+        description: editingStore.description,
+        image: editingStore.image,
+        bannerImage: editingStore.bannerImage,
+        address: editingStore.address,
+        country: editingStore.country,
+        city: editingStore.city,
+        area: editingStore.area,
+        streetAddress: editingStore.streetAddress,
+        buildingNumber: editingStore.buildingNumber,
+        landmark: editingStore.landmark,
+        latitude: editingStore.latitude === '' ? null : Number(editingStore.latitude),
+        longitude: editingStore.longitude === '' ? null : Number(editingStore.longitude),
+        deliveryRadiusKm: Number(editingStore.deliveryRadiusKm) || 0,
+        openingHours: editingStore.openingHours,
+        orderPreparationTimeMin: Number(editingStore.orderPreparationTimeMin) || 0,
+        minimumOrderAmount: Number(editingStore.minimumOrderAmount) || 0,
+        deliveryMethod: editingStore.deliveryMethod,
+        deliveryFeeType: editingStore.deliveryFeeType,
+        deliveryFeeValue: Number(editingStore.deliveryFeeValue) || 0,
+        freeDeliveryThreshold: Number(editingStore.freeDeliveryThreshold) || 0,
+        allowPickup: Boolean(editingStore.allowPickup),
+        phone: editingStore.phone,
+        ownerIdDocument: editingStore.ownerIdDocument,
+        businessPermitDocument: editingStore.businessPermitDocument,
+        taxPin: editingStore.taxPin,
+        proofOfAddressDocument: editingStore.proofOfAddressDocument,
+        payoutMethod: editingStore.payoutMethod,
+        bankName: editingStore.bankName,
+        accountName: editingStore.accountName,
+        accountNumber: editingStore.accountNumber,
+        mpesaNumber: editingStore.mpesaNumber,
+        mpesaRegisteredName: editingStore.mpesaRegisteredName,
+        reviewNotes: editingStore.reviewNotes
+      });
+
+      setSnackbarMessage('Store information updated successfully');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      handleCloseEdit();
+      await fetchStores();
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'Failed to update store information');
+      setError(message);
+      setSnackbarMessage(message);
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Snackbar
@@ -628,6 +765,9 @@ function Stores() {
                             </Button>
                             <Button size="small" variant="outlined" startIcon={<LockResetIcon />} onClick={() => openCredentialsEditor(store)}>
                               Credentials
+                            </Button>
+                            <Button size="small" variant="outlined" startIcon={<EditIcon />} onClick={() => handleOpenEdit(store)}>
+                              View / Update
                             </Button>
                           </Box>
 
@@ -859,6 +999,75 @@ function Stores() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setMapPickerOpen(false)}>Done</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={editOpen} onClose={handleCloseEdit} maxWidth="md" fullWidth>
+        <DialogTitle>View / Update Store Information</DialogTitle>
+        <DialogContent>
+          {editingStore ? (
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              <Grid item xs={12} md={6}><TextField label="Store Name" value={editingStore.name} onChange={(e) => setEditingStore((prev) => ({ ...prev, name: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="Category" value={editingStore.category} onChange={(e) => setEditingStore((prev) => ({ ...prev, category: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12}><TextField label="Description" value={editingStore.description} onChange={(e) => setEditingStore((prev) => ({ ...prev, description: e.target.value }))} fullWidth multiline rows={2} /></Grid>
+              <Grid item xs={12} md={6}><TextField label="Store Logo (base64/url)" value={editingStore.image} onChange={(e) => setEditingStore((prev) => ({ ...prev, image: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="Store Banner (base64/url)" value={editingStore.bannerImage} onChange={(e) => setEditingStore((prev) => ({ ...prev, bannerImage: e.target.value }))} fullWidth /></Grid>
+
+              <Grid item xs={12} md={4}><TextField label="Country" value={editingStore.country} onChange={(e) => setEditingStore((prev) => ({ ...prev, country: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="City / Town" value={editingStore.city} onChange={(e) => setEditingStore((prev) => ({ ...prev, city: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Area / Neighborhood" value={editingStore.area} onChange={(e) => setEditingStore((prev) => ({ ...prev, area: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="Street Address" value={editingStore.streetAddress} onChange={(e) => setEditingStore((prev) => ({ ...prev, streetAddress: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={3}><TextField label="Building / Shop Number" value={editingStore.buildingNumber} onChange={(e) => setEditingStore((prev) => ({ ...prev, buildingNumber: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={3}><TextField label="Landmark" value={editingStore.landmark} onChange={(e) => setEditingStore((prev) => ({ ...prev, landmark: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Latitude" type="number" value={editingStore.latitude} onChange={(e) => setEditingStore((prev) => ({ ...prev, latitude: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Longitude" type="number" value={editingStore.longitude} onChange={(e) => setEditingStore((prev) => ({ ...prev, longitude: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Delivery Radius (KM)" type="number" value={editingStore.deliveryRadiusKm} onChange={(e) => setEditingStore((prev) => ({ ...prev, deliveryRadiusKm: e.target.value }))} fullWidth /></Grid>
+
+              <Grid item xs={12} md={4}><TextField label="Prep Time (min)" type="number" value={editingStore.orderPreparationTimeMin} onChange={(e) => setEditingStore((prev) => ({ ...prev, orderPreparationTimeMin: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Minimum Order Amount" type="number" value={editingStore.minimumOrderAmount} onChange={(e) => setEditingStore((prev) => ({ ...prev, minimumOrderAmount: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Store Phone" value={editingStore.phone} onChange={(e) => setEditingStore((prev) => ({ ...prev, phone: e.target.value }))} fullWidth /></Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <Select value={editingStore.deliveryMethod} onChange={(e) => setEditingStore((prev) => ({ ...prev, deliveryMethod: e.target.value }))}>
+                    {DELIVERY_METHODS.map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <Select value={editingStore.deliveryFeeType} onChange={(e) => setEditingStore((prev) => ({ ...prev, deliveryFeeType: e.target.value }))}>
+                    {DELIVERY_FEE_TYPES.map((feeType) => <MenuItem key={feeType} value={feeType}>{feeType}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4}><TextField label="Delivery Fee Value" type="number" value={editingStore.deliveryFeeValue} onChange={(e) => setEditingStore((prev) => ({ ...prev, deliveryFeeValue: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Free Delivery Threshold" type="number" value={editingStore.freeDeliveryThreshold} onChange={(e) => setEditingStore((prev) => ({ ...prev, freeDeliveryThreshold: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><FormControlLabel control={<Checkbox checked={Boolean(editingStore.allowPickup)} onChange={(e) => setEditingStore((prev) => ({ ...prev, allowPickup: e.target.checked }))} />} label="Allow Pickup" /></Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <Select value={editingStore.payoutMethod} onChange={(e) => setEditingStore((prev) => ({ ...prev, payoutMethod: e.target.value }))}>
+                    {PAYOUT_METHODS.map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4}><TextField label="Bank Name" value={editingStore.bankName} onChange={(e) => setEditingStore((prev) => ({ ...prev, bankName: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Account Name" value={editingStore.accountName} onChange={(e) => setEditingStore((prev) => ({ ...prev, accountName: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="Account Number" value={editingStore.accountNumber} onChange={(e) => setEditingStore((prev) => ({ ...prev, accountNumber: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="M-Pesa Number" value={editingStore.mpesaNumber} onChange={(e) => setEditingStore((prev) => ({ ...prev, mpesaNumber: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={4}><TextField label="M-Pesa Registered Name" value={editingStore.mpesaRegisteredName} onChange={(e) => setEditingStore((prev) => ({ ...prev, mpesaRegisteredName: e.target.value }))} fullWidth /></Grid>
+
+              <Grid item xs={12} md={6}><TextField label="Tax/KRA PIN" value={editingStore.taxPin} onChange={(e) => setEditingStore((prev) => ({ ...prev, taxPin: e.target.value }))} fullWidth /></Grid>
+              <Grid item xs={12} md={6}><TextField label="Review Notes" value={editingStore.reviewNotes} onChange={(e) => setEditingStore((prev) => ({ ...prev, reviewNotes: e.target.value }))} fullWidth multiline rows={2} /></Grid>
+            </Grid>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseEdit}>Close</Button>
+          <Button variant="contained" onClick={handleSaveStoreInfo} disabled={isSavingEdit || !editingStore?.id}>
+            {isSavingEdit ? 'Saving...' : 'Save Updates'}
+          </Button>
         </DialogActions>
       </Dialog>
 
