@@ -431,8 +431,8 @@ export function CustomerProfile() {
   ] as const;
 
   return (
-    <div className="container" style={{ maxWidth: '900px' }}>
-      <h1 className="text-h1" style={{ marginBottom: '32px' }}>My Profile</h1>
+    <div className="container" style={{ maxWidth: '900px', paddingBottom: '48px' }}>
+      <h1 className="text-h1" style={{ marginBottom: '32px', color: '#4e211e' }}>My Profile</h1>
 
       {/* Issue 17: hidden file input wired to Change Photo button */}
       <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handlePhotoChange} />
@@ -568,8 +568,19 @@ export function CustomerProfile() {
                 <Button size="sm" onClick={() => setIsAddingAddress(true)}><Plus size={16} /> Add Address</Button>
               </div>
 
+              {addresses.length === 0 && !isAddingAddress && (
+                <Card style={{ padding: '48px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(8px)' }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                    <MapPin size={36} style={{ color: '#a63400' }} />
+                  </div>
+                  <p className="text-h3" style={{ marginBottom: '8px', color: 'var(--text-main)' }}>No addresses saved</p>
+                  <p className="text-body" style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Add an address for faster checkout.</p>
+                  <Button size="sm" onClick={() => setIsAddingAddress(true)}><Plus size={16} /> Add Address</Button>
+                </Card>
+              )}
+
               {isAddingAddress && (
-                <Card style={{ padding: '24px' }}>
+                <Card style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)' }}>
                   <h3 className="text-h3" style={{ marginBottom: '16px' }}>Add New Address</h3>
                   <div style={{ display: 'grid', gap: '16px' }}>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -599,12 +610,12 @@ export function CustomerProfile() {
               )}
 
               {addresses.map(addr => (
-                <Card key={addr.id} style={{ padding: '24px', position: 'relative' }}>
+                <Card key={addr.id} style={{ padding: '24px', position: 'relative', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)' }}>
                   {addr.isDefault && (
                     <span style={{ position: 'absolute', top: '16px', right: '16px', background: '#a63400', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <MapPin size={24} color="#a63400" />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -637,8 +648,19 @@ export function CustomerProfile() {
                 <Button size="sm" onClick={() => setIsAddingPayment(true)}><Plus size={16} /> Add Payment Method</Button>
               </div>
 
+              {payments.length === 0 && !isAddingPayment && (
+                <Card style={{ padding: '48px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(8px)' }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                    <CreditCard size={36} style={{ color: '#a63400' }} />
+                  </div>
+                  <p className="text-h3" style={{ marginBottom: '8px', color: 'var(--text-main)' }}>No payment methods</p>
+                  <p className="text-body" style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Add a payment method for faster checkout.</p>
+                  <Button size="sm" onClick={() => setIsAddingPayment(true)}><Plus size={16} /> Add Payment Method</Button>
+                </Card>
+              )}
+
               {isAddingPayment && (
-                <Card style={{ padding: '24px' }}>
+                <Card style={{ padding: '24px', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)' }}>
                   <h3 className="text-h3" style={{ marginBottom: '16px' }}>Add Payment Method</h3>
                   <div style={{ display: 'grid', gap: '16px' }}>
                     <select className="input-field" value={newPayment.type} onChange={e => setNewPayment({ ...newPayment, type: e.target.value })} style={{ width: '100%', paddingLeft: '20px' }}>
@@ -679,12 +701,12 @@ export function CustomerProfile() {
               )}
 
               {payments.map(pay => (
-                <Card key={pay.id} style={{ padding: '24px', position: 'relative' }}>
+                <Card key={pay.id} style={{ padding: '24px', position: 'relative', background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)' }}>
                   {pay.isDefault && (
                     <span style={{ position: 'absolute', top: '16px', right: '16px', background: '#a63400', color: 'white', padding: '4px 12px', borderRadius: 'var(--radius-pill)', fontSize: '0.75rem', fontWeight: 600 }}>Default</span>
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-                    <div style={{ width: '64px', height: '40px', borderRadius: 'var(--radius-sm)', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>
+                    <div style={{ width: '64px', height: '40px', borderRadius: 'var(--radius-sm)', background: 'linear-gradient(135deg, #a63400 0%, #ff7948 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '0.75rem' }}>
                       {pay.type}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -708,12 +730,16 @@ export function CustomerProfile() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <h2 className="text-h2">Order History</h2>
               {ordersLoading ? (
-                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>Loading orders�</div>
+                <Card style={{ padding: '48px', textAlign: 'center' }}>
+                  <div style={{ color: 'var(--text-muted)', animation: 'pulse 1.5s infinite' }}>Loading orders...</div>
+                </Card>
               ) : orders.length === 0 ? (
-                <Card style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <ShoppingBag size={48} style={{ opacity: 0.2, marginBottom: '16px', display: 'block', margin: '0 auto 16px' }} />
-                  <p className="text-h3" style={{ marginBottom: '8px' }}>No orders yet</p>
-                  <p className="text-body">Your order history will appear here.</p>
+                <Card style={{ padding: '48px', textAlign: 'center', background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(8px)' }}>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #ffe1d6 0%, #ffd2c1 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                    <ShoppingBag size={36} style={{ color: '#a63400' }} />
+                  </div>
+                  <p className="text-h3" style={{ marginBottom: '8px', color: 'var(--text-main)' }}>No orders yet</p>
+                  <p className="text-body" style={{ color: 'var(--text-muted)' }}>Your order history will appear here once you make your first order.</p>
                 </Card>
               ) : orders.map(order => (
                 <Card key={order.id} style={{ padding: '20px' }}>
