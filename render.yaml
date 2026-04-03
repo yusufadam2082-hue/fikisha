@@ -3,7 +3,7 @@ services:
     name: mtaaexpress-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npx prisma db push
+    buildCommand: npm install && npx prisma generate && npm run prisma:prepush:sanitize && npx prisma db push --accept-data-loss
     startCommand: npm start
     healthCheckPath: /health
     disks:
