@@ -242,3 +242,66 @@
   font-size: inherit;
   font-family: inherit;
 }
+
+/* ─── Responsive polish ───────────────────────────────── */
+@media (max-width: 640px) {
+  .cl-shell {
+    align-items: flex-start;
+    padding: 20px 14px;
+  }
+
+  .cl-wrapper {
+    max-width: 100%;
+  }
+
+  .cl-brand {
+    margin-bottom: 18px;
+  }
+
+  .cl-brand-name {
+    font-size: 2.15rem;
+    letter-spacing: -0.035em;
+  }
+
+  .cl-brand-sub {
+    font-size: 0.8rem;
+  }
+
+  .cl-card {
+    border-radius: 22px;
+    padding: 20px 16px;
+    box-shadow: 0 14px 28px rgba(165, 52, 0, 0.14), 0 2px 8px rgba(165, 52, 0, 0.08);
+  }
+
+  .cl-tabs {
+    margin-bottom: 18px;
+  }
+
+  .cl-tab {
+    padding: 9px 8px;
+    font-size: 0.8rem;
+    gap: 6px;
+  }
+
+  .cl-fields {
+    gap: 10px;
+  }
+
+  .cl-input,
+  .cl-select,
+  .cl-textarea,
+  .cl-btn-primary,
+  .cl-btn-ghost {
+    font-size: 0.88rem;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .cl-footer {
+    margin-top: 14px;
+  }
+
+  .cl-footer p {
+    font-size: 0.8rem;
+  }
+}
