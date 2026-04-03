@@ -150,6 +150,7 @@ export function MerchantOrders() {
   const [ringingOrderIds, setRingingOrderIds] = useState<string[]>([]);
   const [isTogglingStore, setIsTogglingStore] = useState(false);
   const [storeStatusMessage, setStoreStatusMessage] = useState('');
+  const [storeStatusType, setStoreStatusType] = useState<'success' | 'error'>('success');
 
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
@@ -277,6 +278,8 @@ export function MerchantOrders() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      setStoreStatusMessage('');
+      setStoreStatusType('success');
       const res = await fetch(apiUrl(`/api/orders/${orderId}/status`), {
         method: 'PUT',
         headers: {
@@ -286,10 +289,26 @@ export function MerchantOrders() {
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
+        if (newStatus === 'PREPARING') {
+          setStoreStatusMessage('Order accepted and moved to preparing.');
+        } else if (newStatus === 'ASSIGNED') {
+          setStoreStatusMessage('Order marked ready and driver assignment started.');
+        } else if (newStatus === 'CANCELLED') {
+          setStoreStatusMessage('Order cancelled successfully.');
+        }
+        setStoreStatusType('success');
+
         fetchOrders();
+        return;
       }
+
+      const errorPayload = await res.json().catch(() => ({}));
+      setStoreStatusMessage(errorPayload.error || 'Failed to update order status.');
+      setStoreStatusType('error');
     } catch (e) {
       console.error(e);
+      setStoreStatusMessage('Could not reach the server. Please try again.');
+      setStoreStatusType('error');
     }
   };
 
@@ -316,13 +335,16 @@ export function MerchantOrders() {
 
     const currentlyOpen = merchantStore.isOpen !== false;
     setStoreStatusMessage('');
+    setStoreStatusType('success');
     setIsTogglingStore(true);
 
     try {
       await updateStore(merchantStore.id, { isOpen: !currentlyOpen });
       setStoreStatusMessage(!currentlyOpen ? 'Store is now OPEN and visible for new orders.' : 'Store is now CLOSED for new orders.');
+      setStoreStatusType('success');
     } catch (error) {
       setStoreStatusMessage(error instanceof Error ? error.message : 'Failed to update store status');
+      setStoreStatusType('error');
     } finally {
       setIsTogglingStore(false);
     }
@@ -388,7 +410,7 @@ export function MerchantOrders() {
       </div>
 
       {storeStatusMessage && (
-        <p className="text-sm" style={{ color: storeStatusMessage.includes('Failed') ? 'var(--error)' : 'var(--success, #16a34a)', marginBottom: '16px' }}>
+        <p className="text-sm" style={{ color: storeStatusType === 'error' ? 'var(--error)' : 'var(--success, #16a34a)', marginBottom: '16px' }}>
           {storeStatusMessage}
         </p>
       )}
