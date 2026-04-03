@@ -44,6 +44,17 @@ function OrderDetailDrawer({ order, drivers, open, onClose, onAction }) {
   if (!order) return null;
 
   const custInfo = (() => { try { return JSON.parse(order.customerInfo || '{}'); } catch { return {}; } })();
+  const deliveryInfo = (() => {
+    try {
+      return JSON.parse(order.deliveryAddress || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const resolvedDeliveryAddress =
+    deliveryInfo.address
+    || custInfo.address
+    || (typeof order.deliveryAddress === 'string' ? order.deliveryAddress : null);
 
   const doAction = async (url, data, action) => {
     setSaving(true);
@@ -90,7 +101,7 @@ function OrderDetailDrawer({ order, drivers, open, onClose, onAction }) {
         <Grid item xs={6}>{info('Driver', order.driver?.name || 'Unassigned')}</Grid>
         <Grid item xs={6}>{info('Driver Phone', order.driver?.phone)}</Grid>
         <Grid item xs={6}>{info('Payment', custInfo.paymentMethod)}</Grid>
-        <Grid item xs={6}>{info('Delivery Address', order.deliveryAddress)}</Grid>
+        <Grid item xs={6}>{info('Delivery Address', resolvedDeliveryAddress)}</Grid>
         <Grid item xs={6}>{info('Order Total', formatKES(order.total))}</Grid>
         <Grid item xs={6}>{info('Delivery Fee', formatKES(order.deliveryFee))}</Grid>
         <Grid item xs={12}>{info('Placed At', order.createdAt ? new Date(order.createdAt).toLocaleString() : null)}</Grid>

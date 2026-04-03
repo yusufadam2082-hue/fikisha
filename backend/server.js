@@ -6859,13 +6859,51 @@ app.get('/api/admin/orders', authMiddleware, roleMiddleware('ADMIN'), async (req
 app.post('/api/admin/orders/:id/cancel', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
     const { reason } = req.body;
-    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    const order = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            quantity: true
+          }
+        }
+      }
+    });
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.status === 'CANCELLED') return res.status(400).json({ error: 'Order already cancelled' });
+    if (normalizeOrderStatus(order.status) === ORDER_STATUS.DELIVERED) {
+      return res.status(409).json({ error: 'Delivered orders cannot be cancelled. Use refund workflows instead.' });
+    }
 
-    const updated = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { status: 'CANCELLED', cancellationReason: reason || 'Cancelled by admin' },
+    const currentStatus = normalizeOrderStatus(order.status) || ORDER_STATUS.PENDING;
+    const isPreDispatchStatus = [
+      ORDER_STATUS.PENDING,
+      ORDER_STATUS.CONFIRMED,
+      ORDER_STATUS.PREPARING,
+      ORDER_STATUS.ASSIGNED,
+      ORDER_STATUS.READY_FOR_PICKUP,
+      ORDER_STATUS.DRIVER_ACCEPTED
+    ].includes(currentStatus);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const cancelledOrder = await tx.order.update({
+        where: { id: req.params.id },
+        data: { status: 'CANCELLED', cancellationReason: reason || 'Cancelled by admin' },
+      });
+
+      if (isPreDispatchStatus) {
+        await restoreInventoryForOrderItems(tx, order.items);
+      }
+
+      if (order.driverId) {
+        await tx.driver.update({
+          where: { id: order.driverId },
+          data: { available: true }
+        }).catch(() => {});
+      }
+
+      return cancelledOrder;
     });
     await auditLog({ adminId: req.user.id, action: 'ORDER_CANCELLED', entityType: 'ORDER', entityId: order.id, before: { status: order.status }, after: { status: 'CANCELLED', cancellationReason: reason }, note: reason, req });
     res.json(updated);
@@ -6883,6 +6921,12 @@ app.post('/api/admin/orders/:id/refund', authMiddleware, roleMiddleware('ADMIN')
     const order = await prisma.order.findUnique({ where: { id: req.params.id } });
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (order.refundedAt) return res.status(400).json({ error: 'Order already refunded' });
+    if (normalizeOrderStatus(order.status) !== ORDER_STATUS.DELIVERED && normalizeOrderStatus(order.status) !== ORDER_STATUS.CANCELLED) {
+      return res.status(409).json({ error: 'Refunds can only be issued for delivered or cancelled orders' });
+    }
+    if (Number.parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: 'Refund amount must be greater than zero' });
+    }
 
     const updated = await prisma.order.update({
       where: { id: req.params.id },
@@ -6908,9 +6952,36 @@ app.post('/api/admin/orders/:id/assign', authMiddleware, roleMiddleware('ADMIN')
     if (!order)  return res.status(404).json({ error: 'Order not found' });
     if (!driver) return res.status(404).json({ error: 'Driver not found' });
 
-    const updated = await prisma.order.update({
-      where: { id: req.params.id },
-      data: { driverId, status: 'ASSIGNED' },
+    const normalizedStatus = normalizeOrderStatus(order.status) || ORDER_STATUS.PENDING;
+    if (normalizedStatus === ORDER_STATUS.CANCELLED || normalizedStatus === ORDER_STATUS.DELIVERED) {
+      return res.status(409).json({ error: 'Cannot assign a driver to a closed order' });
+    }
+
+    if (order.paymentProvider && String(order.paymentStatus || '').toUpperCase() !== 'PAID') {
+      return res.status(409).json({ error: 'Cannot assign driver until online payment is confirmed' });
+    }
+
+    if (order.driverId !== driverId && driver.available === false) {
+      return res.status(409).json({ error: 'Selected driver is currently unavailable' });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (order.driverId && order.driverId !== driverId) {
+        await tx.driver.update({
+          where: { id: order.driverId },
+          data: { available: true }
+        }).catch(() => {});
+      }
+
+      await tx.driver.update({
+        where: { id: driverId },
+        data: { available: false }
+      });
+
+      return tx.order.update({
+        where: { id: req.params.id },
+        data: { driverId, status: 'ASSIGNED' },
+      });
     });
     await auditLog({ adminId: req.user.id, action: 'DRIVER_FORCE_ASSIGNED', entityType: 'ORDER', entityId: order.id, before: { driverId: order.driverId }, after: { driverId }, note: `Force-assigned driver ${driver.name}`, req });
     res.json(updated);
