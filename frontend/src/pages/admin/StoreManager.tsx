@@ -200,6 +200,14 @@ export function StoreManager() {
     setNewStore(prev => ({ ...prev, [target]: encoded }));
   };
 
+  const handleEditUploadToBase64 = async (file: File | null, target: 'image' | 'bannerImage' | 'ownerIdDocument' | 'businessPermitDocument' | 'proofOfAddressDocument') => {
+    if (!file || !editingStore) {
+      return;
+    }
+    const encoded = await compressImageToBase64(file);
+    setEditingStore({ ...editingStore, [target]: encoded });
+  };
+
   const handleSearchAddress = async () => {
     if (!locationSearch.trim()) {
       setLocationResults([]);
@@ -338,7 +346,38 @@ export function StoreManager() {
         deliveryFee: editingStore.deliveryFee,
         isActive: editingStore.isActive,
         isOpen: editingStore.isOpen,
-        openingHours: editingStore.openingHours
+        bannerImage: editingStore.bannerImage,
+        country: editingStore.country,
+        city: editingStore.city,
+        area: editingStore.area,
+        streetAddress: editingStore.streetAddress,
+        buildingNumber: editingStore.buildingNumber,
+        landmark: editingStore.landmark,
+        latitude: editingStore.latitude,
+        longitude: editingStore.longitude,
+        deliveryRadiusKm: editingStore.deliveryRadiusKm,
+        openingHours: editingStore.openingHours,
+        orderPreparationTimeMin: editingStore.orderPreparationTimeMin,
+        minimumOrderAmount: editingStore.minimumOrderAmount,
+        deliveryMethod: editingStore.deliveryMethod,
+        deliveryFeeType: editingStore.deliveryFeeType,
+        deliveryFeeValue: editingStore.deliveryFeeValue,
+        freeDeliveryThreshold: editingStore.freeDeliveryThreshold,
+        allowPickup: editingStore.allowPickup,
+        ownerIdDocument: editingStore.ownerIdDocument,
+        businessPermitDocument: editingStore.businessPermitDocument,
+        taxPin: editingStore.taxPin,
+        proofOfAddressDocument: editingStore.proofOfAddressDocument,
+        payoutMethod: editingStore.payoutMethod,
+        bankName: editingStore.bankName,
+        accountName: editingStore.accountName,
+        accountNumber: editingStore.accountNumber,
+        mpesaNumber: editingStore.mpesaNumber,
+        mpesaRegisteredName: editingStore.mpesaRegisteredName,
+        acceptedTerms: editingStore.acceptedTerms,
+        acceptedPrivacy: editingStore.acceptedPrivacy,
+        confirmedAccurate: editingStore.confirmedAccurate,
+        confirmedAuthorization: editingStore.confirmedAuthorization
       });
       setEditingStore(null);
       setSelectedStore(stores.find(s => s.id === selectedStore?.id) || null);
@@ -751,28 +790,143 @@ export function StoreManager() {
                 <button className="btn-icon" onClick={() => setEditingStore(null)}><X size={24} /></button>
               </div>
               <form onSubmit={handleUpdateStore} style={{ display: 'grid', gap: '16px' }}>
+                <h3 className="text-h3" style={{ fontSize: '1rem' }}>Store Information</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <input type="text" className="input-field" placeholder="Store Name" value={editingStore.name} onChange={e => setEditingStore({ ...editingStore, name: e.target.value })} />
-                  <input type="text" className="input-field" placeholder="Category" value={editingStore.category || ''} onChange={e => setEditingStore({ ...editingStore, category: e.target.value })} />
+                  <select className="input-field" value={editingStore.category || ''} onChange={e => setEditingStore({ ...editingStore, category: e.target.value })}>
+                    <option value="">Select Category</option>
+                    {STORE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
+                <textarea className="input-field" rows={3} placeholder="Description" value={editingStore.description} onChange={e => setEditingStore({ ...editingStore, description: e.target.value })} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <input type="text" className="input-field" placeholder="Delivery Time" value={editingStore.time} onChange={e => setEditingStore({ ...editingStore, time: e.target.value })} />
                   <input type="number" step="0.01" className="input-field" placeholder="Delivery Fee" value={editingStore.deliveryFee} onChange={e => setEditingStore({ ...editingStore, deliveryFee: parseFloat(e.target.value) || 0 })} />
                 </div>
-                <input type="text" className="input-field" placeholder="Store Image URL" value={editingStore.image} onChange={e => setEditingStore({ ...editingStore, image: e.target.value })} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <input type="text" className="input-field" placeholder="Phone" value={editingStore.phone || ''} onChange={e => setEditingStore({ ...editingStore, phone: e.target.value })} />
-                  <input type="text" className="input-field" placeholder="Address" value={editingStore.address || ''} onChange={e => setEditingStore({ ...editingStore, address: e.target.value })} />
+                  <label className="text-sm" style={{ display: 'grid', gap: '8px' }}>
+                    Store Logo
+                    <input type="file" accept="image/*" onChange={e => handleEditUploadToBase64(e.target.files?.[0] || null, 'image')} />
+                  </label>
+                  <label className="text-sm" style={{ display: 'grid', gap: '8px' }}>
+                    Store Banner
+                    <input type="file" accept="image/*" onChange={e => handleEditUploadToBase64(e.target.files?.[0] || null, 'bannerImage')} />
+                  </label>
                 </div>
+                <input type="text" className="input-field" placeholder="Store Image URL" value={editingStore.image} onChange={e => setEditingStore({ ...editingStore, image: e.target.value })} />
+
+                <h3 className="text-h3" style={{ fontSize: '1rem', marginTop: '8px' }}>Location</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <input className="input-field" placeholder="Country" value={editingStore.country || ''} onChange={e => setEditingStore({ ...editingStore, country: e.target.value })} />
+                  <input className="input-field" placeholder="City / Town" value={editingStore.city || ''} onChange={e => setEditingStore({ ...editingStore, city: e.target.value })} />
+                  <input className="input-field" placeholder="Area / Neighborhood" value={editingStore.area || ''} onChange={e => setEditingStore({ ...editingStore, area: e.target.value })} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px' }}>
+                  <input className="input-field" placeholder="Street Address" value={editingStore.streetAddress || ''} onChange={e => setEditingStore({ ...editingStore, streetAddress: e.target.value })} />
+                  <input className="input-field" placeholder="Building / Shop Number" value={editingStore.buildingNumber || ''} onChange={e => setEditingStore({ ...editingStore, buildingNumber: e.target.value })} />
+                  <input className="input-field" placeholder="Landmark" value={editingStore.landmark || ''} onChange={e => setEditingStore({ ...editingStore, landmark: e.target.value })} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <input type="number" step="0.000001" className="input-field" placeholder="Latitude" value={editingStore.latitude ?? ''} onChange={e => setEditingStore({ ...editingStore, latitude: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                  <input type="number" step="0.000001" className="input-field" placeholder="Longitude" value={editingStore.longitude ?? ''} onChange={e => setEditingStore({ ...editingStore, longitude: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <input className="input-field" placeholder="Phone" value={editingStore.phone || ''} onChange={e => setEditingStore({ ...editingStore, phone: e.target.value })} />
+                  <input className="input-field" placeholder="Address" value={editingStore.address || ''} onChange={e => setEditingStore({ ...editingStore, address: e.target.value })} />
+                </div>
+
+                <h3 className="text-h3" style={{ fontSize: '1rem', marginTop: '8px' }}>Operating & Delivery</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
                     <label className="text-sm font-semibold" style={{ display: 'block', marginBottom: '8px' }}>Opening Time</label>
-                    <input type="time" className="input-field" value={editingStore.openingHours?.open || '09:00'} onChange={e => setEditingStore({ ...editingStore, openingHours: { ...editingStore.openingHours!, open: e.target.value } })} />
+                    <input type="time" className="input-field" value={(editingStore.openingHours as any)?.open || '09:00'} onChange={e => setEditingStore({ ...editingStore, openingHours: { ...(editingStore.openingHours as any || {}), open: e.target.value } as any })} />
                   </div>
                   <div>
                     <label className="text-sm font-semibold" style={{ display: 'block', marginBottom: '8px' }}>Closing Time</label>
-                    <input type="time" className="input-field" value={editingStore.openingHours?.close || '22:00'} onChange={e => setEditingStore({ ...editingStore, openingHours: { ...editingStore.openingHours!, close: e.target.value } })} />
+                    <input type="time" className="input-field" value={(editingStore.openingHours as any)?.close || '22:00'} onChange={e => setEditingStore({ ...editingStore, openingHours: { ...(editingStore.openingHours as any || {}), close: e.target.value } as any })} />
                   </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <input type="number" className="input-field" min={1} placeholder="Prep time (minutes)" value={editingStore.orderPreparationTimeMin ?? ''} onChange={e => setEditingStore({ ...editingStore, orderPreparationTimeMin: e.target.value === '' ? null : parseInt(e.target.value, 10) })} />
+                  <input type="number" className="input-field" min={0} step="0.01" placeholder="Minimum order" value={editingStore.minimumOrderAmount ?? ''} onChange={e => setEditingStore({ ...editingStore, minimumOrderAmount: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                  <input type="number" className="input-field" min={0} step="0.1" placeholder="Delivery Radius (KM)" value={editingStore.deliveryRadiusKm ?? ''} onChange={e => setEditingStore({ ...editingStore, deliveryRadiusKm: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <select className="input-field" value={editingStore.deliveryMethod || 'PLATFORM_DRIVERS'} onChange={e => setEditingStore({ ...editingStore, deliveryMethod: e.target.value })}>
+                    <option value="PLATFORM_DRIVERS">Platform drivers</option>
+                    <option value="OWN_RIDERS">Own riders</option>
+                    <option value="BOTH">Both</option>
+                  </select>
+                  <select className="input-field" value={editingStore.deliveryFeeType || 'FIXED'} onChange={e => setEditingStore({ ...editingStore, deliveryFeeType: e.target.value })}>
+                    <option value="FIXED">Fixed fee</option>
+                    <option value="DISTANCE_BASED">Distance-based</option>
+                    <option value="FREE_OVER_THRESHOLD">Free over threshold</option>
+                  </select>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="checkbox" checked={Boolean(editingStore.allowPickup)} onChange={e => setEditingStore({ ...editingStore, allowPickup: e.target.checked })} />
+                    Allow pickup
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <input type="number" className="input-field" min={0} step="0.01" placeholder="Delivery fee value" value={editingStore.deliveryFeeValue ?? ''} onChange={e => setEditingStore({ ...editingStore, deliveryFeeValue: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                  <input type="number" className="input-field" min={0} step="0.01" placeholder="Free delivery threshold" value={editingStore.freeDeliveryThreshold ?? ''} onChange={e => setEditingStore({ ...editingStore, freeDeliveryThreshold: e.target.value === '' ? null : parseFloat(e.target.value) })} />
+                </div>
+
+                <h3 className="text-h3" style={{ fontSize: '1rem', marginTop: '8px' }}>Verification & Compliance</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <label className="text-sm" style={{ display: 'grid', gap: '8px' }}>
+                    Owner National ID / Passport
+                    <input type="file" accept="image/*,.pdf" onChange={e => handleEditUploadToBase64(e.target.files?.[0] || null, 'ownerIdDocument')} />
+                  </label>
+                  <label className="text-sm" style={{ display: 'grid', gap: '8px' }}>
+                    Business Permit / License
+                    <input type="file" accept="image/*,.pdf" onChange={e => handleEditUploadToBase64(e.target.files?.[0] || null, 'businessPermitDocument')} />
+                  </label>
+                </div>
+                <input className="input-field" placeholder="Tax/KRA PIN" value={editingStore.taxPin || ''} onChange={e => setEditingStore({ ...editingStore, taxPin: e.target.value })} />
+                <label className="text-sm" style={{ display: 'grid', gap: '8px' }}>
+                  Proof of Address (optional)
+                  <input type="file" accept="image/*,.pdf" onChange={e => handleEditUploadToBase64(e.target.files?.[0] || null, 'proofOfAddressDocument')} />
+                </label>
+
+                <h3 className="text-h3" style={{ fontSize: '1rem', marginTop: '8px' }}>Payout Setup</h3>
+                <select className="input-field" value={editingStore.payoutMethod || 'MPESA'} onChange={e => setEditingStore({ ...editingStore, payoutMethod: e.target.value })}>
+                  <option value="BANK">Bank</option>
+                  <option value="MPESA">M-Pesa</option>
+                  <option value="WALLET">Wallet</option>
+                </select>
+                {(editingStore.payoutMethod || 'MPESA') === 'BANK' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    <input className="input-field" placeholder="Bank Name" value={editingStore.bankName || ''} onChange={e => setEditingStore({ ...editingStore, bankName: e.target.value })} />
+                    <input className="input-field" placeholder="Account Name" value={editingStore.accountName || ''} onChange={e => setEditingStore({ ...editingStore, accountName: e.target.value })} />
+                    <input className="input-field" placeholder="Account Number" value={editingStore.accountNumber || ''} onChange={e => setEditingStore({ ...editingStore, accountNumber: e.target.value })} />
+                  </div>
+                )}
+                {(editingStore.payoutMethod || 'MPESA') === 'MPESA' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <input className="input-field" placeholder="M-Pesa Number" value={editingStore.mpesaNumber || ''} onChange={e => setEditingStore({ ...editingStore, mpesaNumber: e.target.value })} />
+                    <input className="input-field" placeholder="M-Pesa Registered Name" value={editingStore.mpesaRegisteredName || ''} onChange={e => setEditingStore({ ...editingStore, mpesaRegisteredName: e.target.value })} />
+                  </div>
+                )}
+
+                <h3 className="text-h3" style={{ fontSize: '1rem', marginTop: '8px' }}>Legal & Status</h3>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={Boolean(editingStore.acceptedTerms)} onChange={e => setEditingStore({ ...editingStore, acceptedTerms: e.target.checked })} />
+                    Accepted Terms & Conditions
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={Boolean(editingStore.acceptedPrivacy)} onChange={e => setEditingStore({ ...editingStore, acceptedPrivacy: e.target.checked })} />
+                    Accepted Privacy Policy
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={Boolean(editingStore.confirmedAccurate)} onChange={e => setEditingStore({ ...editingStore, confirmedAccurate: e.target.checked })} />
+                    Confirmed information is accurate
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={Boolean(editingStore.confirmedAuthorization)} onChange={e => setEditingStore({ ...editingStore, confirmedAuthorization: e.target.checked })} />
+                    Confirmed authorization to register business
+                  </label>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
@@ -784,7 +938,7 @@ export function StoreManager() {
                     Store is Active
                   </label>
                 </div>
-                <textarea className="input-field" rows={3} placeholder="Description" value={editingStore.description} onChange={e => setEditingStore({ ...editingStore, description: e.target.value })} />
+
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                   <Button type="button" variant="outline" onClick={() => setEditingStore(null)}>Cancel</Button>
                   <Button type="submit"><Save size={16} /> Save Changes</Button>
