@@ -443,7 +443,7 @@ function Stores() {
       appendStoreSecurityEvent({
         storeId: createRes.data?.id,
         type: 'STORE_CREATED',
-        message: `Store ${createRes.data?.name || name} created`,
+        message: `Store ${createRes.data?.name || draft.name} created`,
         metadata: {
           ownerUsername: createRes.data?.owner?.username || ''
         }
