@@ -2352,11 +2352,11 @@ const authMiddleware = async (req, res, next) => {
         name: true,
         phone: true,
         storeId: true,
-        isActive: true
+        banned: true
       }
     });
 
-    if (!dbUser || dbUser.isActive === false) {
+    if (!dbUser || dbUser.banned === true) {
       return res.status(401).json({ error: 'Account is inactive or no longer exists' });
     }
 
@@ -4142,11 +4142,11 @@ app.get('/api/stores', async (req, res) => {
           where: { id: decoded.id },
           select: {
             role: true,
-            isActive: true
+            banned: true
           }
         });
 
-        if (!requester || requester.isActive === false) {
+        if (!requester || requester.banned === true) {
           requester = null;
         }
       } catch {
@@ -4731,11 +4731,11 @@ app.get('/api/stores/:id', async (req, res) => {
           where: { id: decoded.id },
           select: {
             role: true,
-            isActive: true
+            banned: true
           }
         });
 
-        if (!requester || requester.isActive === false) {
+        if (!requester || requester.banned === true) {
           requester = null;
         }
       } catch {
