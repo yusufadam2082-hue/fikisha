@@ -973,10 +973,73 @@ const syncOrderPaymentFromIntent = async (intent) => {
     return;
   }
 
+  const nextPaymentStatus = paymentIntentToOrderPaymentStatus(intent.status);
+  const normalizedIntentStatus = String(intent.status || '').trim().toUpperCase();
+  const shouldAutoCancelForPaymentFailure =
+    normalizedIntentStatus === PAYMENT_INTENT_STATUS.FAILED
+    || normalizedIntentStatus === PAYMENT_INTENT_STATUS.CANCELLED;
+
+  if (shouldAutoCancelForPaymentFailure) {
+    const order = await prisma.order.findUnique({
+      where: { id: intent.orderId },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            quantity: true
+          }
+        }
+      }
+    });
+
+    const normalizedOrderStatus = normalizeOrderStatus(order?.status);
+    if (
+      order
+      && normalizedOrderStatus !== ORDER_STATUS.CANCELLED
+      && normalizedOrderStatus !== ORDER_STATUS.DELIVERED
+    ) {
+      const currentStatus = normalizedOrderStatus || ORDER_STATUS.PENDING;
+      const isPreDispatchStatus = [
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.CONFIRMED,
+        ORDER_STATUS.PREPARING,
+        ORDER_STATUS.ASSIGNED,
+        ORDER_STATUS.READY_FOR_PICKUP,
+        ORDER_STATUS.DRIVER_ACCEPTED
+      ].includes(currentStatus);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: intent.orderId },
+          data: {
+            paymentStatus: nextPaymentStatus,
+            paymentProvider: intent.provider,
+            paymentIntentRef: intent.id,
+            status: ORDER_STATUS.CANCELLED,
+            cancellationReason: order.cancellationReason || 'Cancelled automatically because payment was not completed'
+          }
+        });
+
+        if (isPreDispatchStatus) {
+          await restoreInventoryForOrderItems(tx, order.items);
+        }
+
+        if (order.driverId) {
+          await tx.driver.update({
+            where: { id: order.driverId },
+            data: { available: true }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+
+      return;
+    }
+  }
+
   await prisma.order.update({
     where: { id: intent.orderId },
     data: {
-      paymentStatus: paymentIntentToOrderPaymentStatus(intent.status),
+      paymentStatus: nextPaymentStatus,
       paymentProvider: intent.provider,
       paymentIntentRef: intent.id
     }
