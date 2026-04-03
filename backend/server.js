@@ -4051,6 +4051,20 @@ const buildOperatingHoursPayload = (input) => {
   return JSON.stringify(input);
 };
 
+const toNullableNumber = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toNumberOrDefault = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const parseRequestedDocs = (value) => {
   if (Array.isArray(value)) {
     return JSON.stringify(value.filter(Boolean));
@@ -4243,9 +4257,9 @@ app.post('/api/stores',
         const createdStore = await tx.store.create({
           data: {
             name: storeName,
-            rating: req.body.rating ?? 5,
+            rating: toNumberOrDefault(req.body.rating, 5),
             time: req.body.time ?? '20-30 min',
-            deliveryFee: req.body.deliveryFee ?? 2.99,
+            deliveryFee: toNumberOrDefault(req.body.deliveryFee, 2.99),
             category,
             image: req.body.image || req.body.logoImage || '',
             bannerImage: req.body.bannerImage || null,
@@ -4257,21 +4271,21 @@ app.post('/api/stores',
             streetAddress: req.body.streetAddress || null,
             buildingNumber: req.body.buildingNumber || null,
             landmark: req.body.landmark || null,
-            latitude: req.body.latitude === undefined ? null : Number(req.body.latitude),
-            longitude: req.body.longitude === undefined ? null : Number(req.body.longitude),
-            deliveryRadiusKm: req.body.deliveryRadiusKm === undefined ? null : Number(req.body.deliveryRadiusKm),
+            latitude: toNullableNumber(req.body.latitude),
+            longitude: toNullableNumber(req.body.longitude),
+            deliveryRadiusKm: toNullableNumber(req.body.deliveryRadiusKm),
             phone: req.body.storePhone || null,
             status: STORE_REVIEW_STATUS.PENDING_REVIEW,
             isOpen: false,
             isActive: false,
             onboardingCompleted: Boolean(req.body.onboardingCompleted),
             operatingHours: buildOperatingHoursPayload(req.body.openingHours),
-            orderPreparationTimeMin: req.body.orderPreparationTimeMin === undefined ? null : Number(req.body.orderPreparationTimeMin),
-            minimumOrderAmount: req.body.minimumOrderAmount === undefined ? null : Number(req.body.minimumOrderAmount),
+            orderPreparationTimeMin: toNullableNumber(req.body.orderPreparationTimeMin),
+            minimumOrderAmount: toNullableNumber(req.body.minimumOrderAmount),
             deliveryMethod: req.body.deliveryMethod || null,
             deliveryFeeType: req.body.deliveryFeeType || null,
-            deliveryFeeValue: req.body.deliveryFeeValue === undefined ? null : Number(req.body.deliveryFeeValue),
-            freeDeliveryThreshold: req.body.freeDeliveryThreshold === undefined ? null : Number(req.body.freeDeliveryThreshold),
+            deliveryFeeValue: toNullableNumber(req.body.deliveryFeeValue),
+            freeDeliveryThreshold: toNullableNumber(req.body.freeDeliveryThreshold),
             allowPickup: Boolean(req.body.allowPickup),
             ownerIdDocument: req.body.ownerIdDocument || null,
             businessPermitDocument: req.body.businessPermitDocument || null,
@@ -4336,7 +4350,7 @@ app.post('/api/stores',
       }
 
       console.error('Failed to create store:', error);
-      res.status(500).json({ error: 'Failed to create store' });
+      res.status(500).json({ error: error?.message || 'Failed to create store' });
     }
   }
 );
