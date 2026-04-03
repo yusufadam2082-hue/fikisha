@@ -4227,101 +4227,115 @@ app.post('/api/stores',
         return res.status(409).json({ error: 'Merchant email already exists' });
       }
 
-      const owner = await prisma.user.create({
-        data: {
-          username: ownerUsername,
-          password: await bcrypt.hash(ownerPassword, 12),
-          role: 'MERCHANT',
-          name: ownerName,
-          email: ownerEmail,
-          phone: ownerPhone
-        }
-      });
+      const hashedPassword = await bcrypt.hash(ownerPassword, 12);
+      const store = await prisma.$transaction(async (tx) => {
+        const owner = await tx.user.create({
+          data: {
+            username: ownerUsername,
+            password: hashedPassword,
+            role: 'MERCHANT',
+            name: ownerName,
+            email: ownerEmail,
+            phone: ownerPhone
+          }
+        });
 
-      const store = await prisma.store.create({
-        data: {
-          name: storeName,
-          rating: req.body.rating ?? 5,
-          time: req.body.time ?? '20-30 min',
-          deliveryFee: req.body.deliveryFee ?? 2.99,
-          category,
-          image: req.body.image || req.body.logoImage || '',
-          bannerImage: req.body.bannerImage || null,
-          description: req.body.description,
-          address: req.body.address || req.body.streetAddress || null,
-          country: req.body.country || null,
-          city: req.body.city || null,
-          area: req.body.area || null,
-          streetAddress: req.body.streetAddress || null,
-          buildingNumber: req.body.buildingNumber || null,
-          landmark: req.body.landmark || null,
-          latitude: req.body.latitude === undefined ? null : Number(req.body.latitude),
-          longitude: req.body.longitude === undefined ? null : Number(req.body.longitude),
-          deliveryRadiusKm: req.body.deliveryRadiusKm === undefined ? null : Number(req.body.deliveryRadiusKm),
-          phone: req.body.storePhone || null,
-          status: STORE_REVIEW_STATUS.PENDING_REVIEW,
-          isOpen: false,
-          isActive: false,
-          onboardingCompleted: Boolean(req.body.onboardingCompleted),
-          operatingHours: buildOperatingHoursPayload(req.body.openingHours),
-          orderPreparationTimeMin: req.body.orderPreparationTimeMin === undefined ? null : Number(req.body.orderPreparationTimeMin),
-          minimumOrderAmount: req.body.minimumOrderAmount === undefined ? null : Number(req.body.minimumOrderAmount),
-          deliveryMethod: req.body.deliveryMethod || null,
-          deliveryFeeType: req.body.deliveryFeeType || null,
-          deliveryFeeValue: req.body.deliveryFeeValue === undefined ? null : Number(req.body.deliveryFeeValue),
-          freeDeliveryThreshold: req.body.freeDeliveryThreshold === undefined ? null : Number(req.body.freeDeliveryThreshold),
-          allowPickup: Boolean(req.body.allowPickup),
-          ownerIdDocument: req.body.ownerIdDocument || null,
-          businessPermitDocument: req.body.businessPermitDocument || null,
-          taxPin: req.body.taxPin || null,
-          proofOfAddressDocument: req.body.proofOfAddressDocument || null,
-          payoutMethod: req.body.payoutMethod || null,
-          bankName: req.body.bankName || null,
-          accountName: req.body.accountName || null,
-          accountNumber: req.body.accountNumber || null,
-          mpesaNumber: req.body.mpesaNumber || null,
-          mpesaRegisteredName: req.body.mpesaRegisteredName || null,
-          acceptedTerms: Boolean(req.body.acceptedTerms),
-          acceptedPrivacy: Boolean(req.body.acceptedPrivacy),
-          confirmedAccurate: Boolean(req.body.confirmedAccurate),
-          confirmedAuthorization: Boolean(req.body.confirmedAuthorization),
-          onboardingDraft: req.body.onboardingDraft || null,
-          reviewNotes: req.body.reviewNotes || null,
-          ownerId: owner.id
-        },
-        include: {
-          products: true,
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              username: true,
-              email: true,
-              phone: true,
-              storeId: true
+        const createdStore = await tx.store.create({
+          data: {
+            name: storeName,
+            rating: req.body.rating ?? 5,
+            time: req.body.time ?? '20-30 min',
+            deliveryFee: req.body.deliveryFee ?? 2.99,
+            category,
+            image: req.body.image || req.body.logoImage || '',
+            bannerImage: req.body.bannerImage || null,
+            description: req.body.description,
+            address: req.body.address || req.body.streetAddress || null,
+            country: req.body.country || null,
+            city: req.body.city || null,
+            area: req.body.area || null,
+            streetAddress: req.body.streetAddress || null,
+            buildingNumber: req.body.buildingNumber || null,
+            landmark: req.body.landmark || null,
+            latitude: req.body.latitude === undefined ? null : Number(req.body.latitude),
+            longitude: req.body.longitude === undefined ? null : Number(req.body.longitude),
+            deliveryRadiusKm: req.body.deliveryRadiusKm === undefined ? null : Number(req.body.deliveryRadiusKm),
+            phone: req.body.storePhone || null,
+            status: STORE_REVIEW_STATUS.PENDING_REVIEW,
+            isOpen: false,
+            isActive: false,
+            onboardingCompleted: Boolean(req.body.onboardingCompleted),
+            operatingHours: buildOperatingHoursPayload(req.body.openingHours),
+            orderPreparationTimeMin: req.body.orderPreparationTimeMin === undefined ? null : Number(req.body.orderPreparationTimeMin),
+            minimumOrderAmount: req.body.minimumOrderAmount === undefined ? null : Number(req.body.minimumOrderAmount),
+            deliveryMethod: req.body.deliveryMethod || null,
+            deliveryFeeType: req.body.deliveryFeeType || null,
+            deliveryFeeValue: req.body.deliveryFeeValue === undefined ? null : Number(req.body.deliveryFeeValue),
+            freeDeliveryThreshold: req.body.freeDeliveryThreshold === undefined ? null : Number(req.body.freeDeliveryThreshold),
+            allowPickup: Boolean(req.body.allowPickup),
+            ownerIdDocument: req.body.ownerIdDocument || null,
+            businessPermitDocument: req.body.businessPermitDocument || null,
+            taxPin: req.body.taxPin || null,
+            proofOfAddressDocument: req.body.proofOfAddressDocument || null,
+            payoutMethod: req.body.payoutMethod || null,
+            bankName: req.body.bankName || null,
+            accountName: req.body.accountName || null,
+            accountNumber: req.body.accountNumber || null,
+            mpesaNumber: req.body.mpesaNumber || null,
+            mpesaRegisteredName: req.body.mpesaRegisteredName || null,
+            acceptedTerms: Boolean(req.body.acceptedTerms),
+            acceptedPrivacy: Boolean(req.body.acceptedPrivacy),
+            confirmedAccurate: Boolean(req.body.confirmedAccurate),
+            confirmedAuthorization: Boolean(req.body.confirmedAuthorization),
+            onboardingDraft: req.body.onboardingDraft || null,
+            reviewNotes: req.body.reviewNotes || null,
+            ownerId: owner.id
+          },
+          include: {
+            products: true,
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                email: true,
+                phone: true,
+                storeId: true
+              }
             }
           }
-        }
+        });
+
+        await tx.user.update({
+          where: { id: owner.id },
+          data: { storeId: createdStore.id }
+        });
+
+        return createdStore;
       });
 
-      await prisma.user.update({
-        where: { id: owner.id },
-        data: { storeId: store.id }
+      await refreshStoreReadiness(store.id).catch((readinessError) => {
+        console.warn('Store readiness refresh failed after store creation:', readinessError?.message || readinessError);
       });
-
-      await refreshStoreReadiness(store.id);
 
       await appendStoreSecurityLog({
         storeId: store.id,
         type: 'STORE_CREATED',
         actorUserId: req.user.id,
         actorRole: req.user.role,
-        message: `Store created with merchant account ${owner.username}`,
-        metadata: { ownerId: owner.id, ownerUsername: owner.username }
+        message: `Store created with merchant account ${store.owner?.username || ownerUsername}`,
+        metadata: { ownerId: store.owner?.id || null, ownerUsername: store.owner?.username || ownerUsername }
+      }).catch((logError) => {
+        console.warn('Store security log append failed after store creation:', logError?.message || logError);
       });
 
       res.status(201).json(store);
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return res.status(409).json({ error: 'Store owner account already exists. Update username/email and try again.' });
+      }
+
+      console.error('Failed to create store:', error);
       res.status(500).json({ error: 'Failed to create store' });
     }
   }
