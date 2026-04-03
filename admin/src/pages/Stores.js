@@ -540,13 +540,21 @@ function Stores() {
     }
   };
 
-  const handleStoreReviewAction = async (storeId, action) => {
+  const handleStoreReviewAction = async (storeId, action, forceActivate = false) => {
+    if (action === 'activate' && forceActivate) {
+      const confirmed = window.confirm('Force activate this store even if docs, payout setup, or products are missing?');
+      if (!confirmed) {
+        return;
+      }
+    }
+
     try {
       getAuthConfig();
       await apiClient.post(`/api/admin/stores/${storeId}/review`, {
         action,
         reason: reviewReason[storeId] || undefined,
-        requestedDocs: action === 'request_documents' ? ['owner_id_document', 'business_permit', 'tax_pin', 'payout_setup'] : undefined
+        requestedDocs: action === 'request_documents' ? ['owner_id_document', 'business_permit', 'tax_pin', 'payout_setup'] : undefined,
+        forceActivate: action === 'activate' ? forceActivate : undefined
       });
       setSnackbarMessage('Store review action saved');
       setSnackbarSeverity('success');
@@ -784,6 +792,7 @@ function Stores() {
                             <Button size="small" variant="outlined" color="error" onClick={() => handleStoreReviewAction(store.id, 'reject')}>Reject</Button>
                             <Button size="small" variant="outlined" color="error" onClick={() => handleStoreReviewAction(store.id, 'suspend')}>Suspend</Button>
                             <Button size="small" variant="outlined" color="success" onClick={() => handleStoreReviewAction(store.id, 'activate')}>Activate</Button>
+                            <Button size="small" variant="outlined" color="warning" onClick={() => handleStoreReviewAction(store.id, 'activate', true)}>Force Activate</Button>
                           </Box>
                         </Box>
                       </TableCell>
