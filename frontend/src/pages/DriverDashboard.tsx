@@ -322,7 +322,7 @@ export function DriverDashboard() {
                   </span>
                   {activeTab === 'completed' && (
                     <span className="text-sm" style={{ color: '#16a34a', fontWeight: 700 }}>
-                      Earned {formatKES(Number(order.driverPayout ?? order.deliveryFee || 0))}
+                      Earned {formatKES(Number(order.driverPayout ?? order.deliveryFee ?? 0))}
                     </span>
                   )}
                 </div>
@@ -392,7 +392,7 @@ export function DriverDashboard() {
                 )}
                 {normalizeOrderStatus(order.status) === 'DELIVERED' && (
                   <div style={{ width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'rgba(34, 197, 94, 0.08)', color: '#16a34a', fontWeight: 700, textAlign: 'center' }}>
-                    Completed{order.paymentSettled ? ' • Payout settled' : ''} • Driver payout: {formatKES(Number(order.driverPayout ?? order.deliveryFee || 0))}
+                    Completed{order.paymentSettled ? ' • Payout settled' : ''} • Driver payout: {formatKES(Number(order.driverPayout ?? order.deliveryFee ?? 0))}
                   </div>
                 )}
               </div>
