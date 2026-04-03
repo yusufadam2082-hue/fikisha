@@ -5375,6 +5375,73 @@ app.get('/api/driver/payouts', authMiddleware, roleMiddleware('DRIVER'), async (
   }
 });
 
+app.get('/api/driver/availability', authMiddleware, roleMiddleware('DRIVER'), async (req, res) => {
+  try {
+    const driverId = await resolveDriverIdForUser(req.user);
+    if (!driverId) {
+      return res.status(404).json({ error: 'Driver profile not found' });
+    }
+
+    const driver = await prisma.driver.findUnique({
+      where: { id: driverId },
+      select: { id: true, available: true }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver profile not found' });
+    }
+
+    return res.json({ driverId: driver.id, available: Boolean(driver.available) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch driver availability' });
+  }
+});
+
+app.put('/api/driver/availability',
+  authMiddleware,
+  roleMiddleware('DRIVER'),
+  body('available').isBoolean(),
+  validate,
+  async (req, res) => {
+    try {
+      const driverId = await resolveDriverIdForUser(req.user);
+      if (!driverId) {
+        return res.status(404).json({ error: 'Driver profile not found' });
+      }
+
+      const nextAvailable = req.body.available === true || req.body.available === 'true';
+
+      if (!nextAvailable) {
+        const activeOrders = await prisma.order.count({
+          where: {
+            OR: [
+              { driverId },
+              { driverId: req.user.id }
+            ],
+            status: { in: ACTIVE_DRIVER_STATUSES }
+          }
+        });
+
+        if (activeOrders > 0) {
+          return res.status(409).json({
+            error: 'You cannot go offline while you have assigned or active deliveries.'
+          });
+        }
+      }
+
+      const updated = await prisma.driver.update({
+        where: { id: driverId },
+        data: { available: nextAvailable },
+        select: { id: true, available: true }
+      });
+
+      return res.json({ driverId: updated.id, available: Boolean(updated.available) });
+    } catch (error) {
+      return res.status(500).json({ error: 'Failed to update driver availability' });
+    }
+  }
+);
+
 app.post('/api/admin/payout-batches/:id/hold', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
     const batch = await prisma.payoutBatch.findUnique({ where: { id: req.params.id } });

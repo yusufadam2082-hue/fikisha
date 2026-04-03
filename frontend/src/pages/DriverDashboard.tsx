@@ -22,6 +22,9 @@ function normalizeOrderStatus(status: string): string {
 
 export function DriverDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [isOnline, setIsOnline] = useState(true);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [payoutSummary, setPayoutSummary] = useState({
     pendingBalance: 0,
     paidBalance: 0,
@@ -35,6 +38,57 @@ export function DriverDashboard() {
   const [otpVerified, setOtpVerified] = useState<Record<string, boolean>>({});
   const { stores } = useStoreContext();
   const { showToast } = useToast();
+
+  const fetchDriverAvailability = async () => {
+    try {
+      setAvailabilityLoading(true);
+      const res = await fetch(apiUrl('/api/driver/availability'), {
+        headers: getAuthHeaders()
+      });
+
+      if (!res.ok || res.status === 204) {
+        return;
+      }
+
+      const payload = await res.json();
+      setIsOnline(Boolean(payload?.available));
+    } catch (error) {
+      console.error('Failed to fetch driver availability:', error);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  const toggleAvailability = async () => {
+    const nextAvailability = !isOnline;
+    try {
+      setAvailabilitySaving(true);
+      const res = await fetch(apiUrl('/api/driver/availability'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ available: nextAvailability })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to update your availability.', 'error');
+        return;
+      }
+
+      const payload = await res.json();
+      const available = Boolean(payload?.available);
+      setIsOnline(available);
+      showToast(available ? 'You are now online and can receive deliveries.' : 'You are now offline and hidden from new assignments.', 'success');
+    } catch (error) {
+      console.error('Failed to update driver availability:', error);
+      showToast('Could not reach the server.', 'error');
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -85,11 +139,14 @@ export function DriverDashboard() {
   };
 
   useEffect(() => {
+    fetchDriverAvailability();
     fetchOrders();
     fetchDriverPayouts();
+    const availabilityInterval = setInterval(fetchDriverAvailability, 30000);
     const ordersInterval = setInterval(fetchOrders, 10000);
     const payoutsInterval = setInterval(fetchDriverPayouts, 30000);
     return () => {
+      clearInterval(availabilityInterval);
       clearInterval(ordersInterval);
       clearInterval(payoutsInterval);
     };
@@ -193,10 +250,31 @@ export function DriverDashboard() {
       <div className="flex-between" style={{ marginBottom: '32px' }}>
         <div>
           <h1 className="text-h1" style={{ marginBottom: '8px' }}>Driver Dashboard</h1>
-          <p className="text-muted">You are currently online and accepting orders.</p>
+          <p className="text-muted">
+            {isOnline
+              ? 'You are currently online and accepting orders.'
+              : 'You are currently offline and hidden from new assignments.'}
+          </p>
         </div>
-        <div style={{ padding: '8px 16px', background: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', borderRadius: 'var(--radius-pill)', fontWeight: 600 }}>
-          Online
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              padding: '8px 16px',
+              background: isOnline ? 'rgba(34, 197, 94, 0.1)' : 'rgba(234, 88, 12, 0.12)',
+              color: isOnline ? '#22c55e' : '#ea580c',
+              borderRadius: 'var(--radius-pill)',
+              fontWeight: 600
+            }}
+          >
+            {availabilityLoading ? 'Checking...' : isOnline ? 'Online' : 'Offline'}
+          </div>
+          <Button
+            variant="outline"
+            onClick={toggleAvailability}
+            disabled={availabilityLoading || availabilitySaving}
+          >
+            {availabilitySaving ? 'Saving...' : isOnline ? 'Go Offline' : 'Go Online'}
+          </Button>
         </div>
       </div>
 
