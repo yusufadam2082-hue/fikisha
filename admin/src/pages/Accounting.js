@@ -221,16 +221,22 @@ function Accounting() {
         acc.driverPayouts += row.driverPayout;
         acc.driverPaidOut += row.paidAmount;
         acc.driverPending += row.pendingPayout;
+        acc.deliveryMargin += row.driverPayout > 0 ? row.grossEarnings - row.driverPayout : 0;
         return acc;
       },
       {
         driverPayouts: 0,
         driverPaidOut: 0,
-        driverPending: 0
+        driverPending: 0,
+        deliveryMargin: 0
       }
     );
 
-    return { ...storeTotals, ...driverTotals };
+    return { 
+      ...storeTotals, 
+      ...driverTotals,
+      totalPlatformRevenue: storeTotals.platformRevenue + driverTotals.deliveryMargin
+    };
   }, [storeRows, driverRows]);
 
   const payoutHistory = useMemo(() => {
@@ -417,8 +423,20 @@ function Accounting() {
             </Card>
             <Card>
               <CardContent>
-                <Typography color="text.secondary" variant="body2">Platform Revenue</Typography>
+                <Typography color="text.secondary" variant="body2">Platform Revenue (Merchant Fees)</Typography>
                 <Typography variant="h6">{formatKES(totals.platformRevenue)}</Typography>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">Delivery Margin</Typography>
+                <Typography variant="h6">{formatKES(totals.deliveryMargin)}</Typography>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" variant="body2">Total Platform Revenue</Typography>
+                <Typography variant="h6">{formatKES(totals.totalPlatformRevenue)}</Typography>
               </CardContent>
             </Card>
             <Card>
