@@ -448,6 +448,8 @@ model PayoutLedger {
   driverName  String?
   cycleKey    String?
   amount      Float
+  orderCount  Int?
+  orderIds    String?
   note        String?
   actorUserId String?
   actorRole   String?
@@ -551,6 +553,7 @@ model PayoutBatchItem {
   id         String   @id @default(uuid())
   batchId    String
   batch      PayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  entryId    String
   orderId    String
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amount     Float
@@ -558,6 +561,7 @@ model PayoutBatchItem {
   createdAt  DateTime @default(now())
 
   @@unique([batchId, orderId, entryType])
+  @@unique([entryType, entryId])
   @@index([orderId])
   @@index([entryType])
   @@index([createdAt])

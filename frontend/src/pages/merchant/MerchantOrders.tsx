@@ -471,8 +471,8 @@ export function MerchantOrders() {
                   <p className="text-sm text-muted">{new Date(order.createdAt).toLocaleTimeString()}</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Button variant="outline" onClick={() => openReceiptWindow(order, true)}><Printer size={16} /> Print Receipt</Button>
-                  <Button variant="outline" onClick={() => openReceiptWindow(order, true)}><FileDown size={16} /> Download PDF</Button>
+                  <Button variant="outline" onClick={() => openReceiptWindow(order, true)}><Printer size={16} /> Print Order Slip</Button>
+                  <Button variant="outline" onClick={() => openReceiptWindow(order, false)}><FileDown size={16} /> Preview Slip</Button>
                   <span style={{ 
                     padding: '6px 12px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 600,
                     background: normalizedStatus === 'PENDING'

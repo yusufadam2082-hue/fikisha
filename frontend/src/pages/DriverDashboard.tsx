@@ -22,6 +22,13 @@ function normalizeOrderStatus(status: string): string {
 
 export function DriverDashboard() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [payoutSummary, setPayoutSummary] = useState({
+    pendingBalance: 0,
+    paidBalance: 0,
+    heldBalance: 0,
+    totalEarnings: 0,
+    completedDeliveriesCount: 0
+  });
   const [activeTab, setActiveTab] = useState<'available' | 'active' | 'completed'>('available');
   const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
   const [otpVerifying, setOtpVerifying] = useState<Record<string, boolean>>({});
@@ -52,8 +59,34 @@ export function DriverDashboard() {
     }
   };
 
+  const fetchDriverPayouts = async () => {
+    try {
+      const res = await fetch(apiUrl('/api/driver/payouts'), {
+        headers: getAuthHeaders()
+      });
+
+      if (!res.ok || res.status === 204) {
+        return;
+      }
+
+      const payload = await res.json();
+      if (payload?.summary) {
+        setPayoutSummary({
+          pendingBalance: Number(payload.summary.pendingBalance || 0),
+          paidBalance: Number(payload.summary.paidBalance || 0),
+          heldBalance: Number(payload.summary.heldBalance || 0),
+          totalEarnings: Number(payload.summary.totalEarnings || 0),
+          completedDeliveriesCount: Number(payload.summary.completedDeliveriesCount || 0)
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch driver payouts:', error);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
+    fetchDriverPayouts();
     const interval = setInterval(fetchOrders, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -81,6 +114,7 @@ export function DriverDashboard() {
           showToast('Delivery completed successfully.', 'success');
         }
         fetchOrders(); // refresh
+        fetchDriverPayouts();
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.error || 'Failed to update order status.', 'error');
@@ -133,23 +167,23 @@ export function DriverDashboard() {
   const completedOrders = orders.filter(o => normalizeOrderStatus(o.status) === 'DELIVERED');
 
   const revenueSummary = useMemo(() => {
-    const totalRevenue = completedOrders.reduce((sum, order) => sum + (Number(order.deliveryFee) || 0), 0);
+    const totalRevenue = completedOrders.reduce((sum, order) => sum + (Number(order.driverPayout ?? order.deliveryFee) || 0), 0);
     const todaysCompleted = completedOrders.filter((order) => {
       const orderDate = new Date(order.updatedAt || order.createdAt);
       const today = new Date();
       return orderDate.toDateString() === today.toDateString();
     });
 
-    const todaysRevenue = todaysCompleted.reduce((sum, order) => sum + (Number(order.deliveryFee) || 0), 0);
+    const todaysRevenue = todaysCompleted.reduce((sum, order) => sum + (Number(order.driverPayout ?? order.deliveryFee) || 0), 0);
 
     return {
       totalRevenue,
       todaysRevenue,
-      totalCompleted: completedOrders.length,
+      totalCompleted: payoutSummary.completedDeliveriesCount || completedOrders.length,
       todaysCompleted: todaysCompleted.length,
       averagePayout: completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0
     };
-  }, [completedOrders]);
+  }, [completedOrders, payoutSummary.completedDeliveriesCount]);
 
   return (
     <div className="container" style={{ maxWidth: '800px', padding: '0 24px' }}>
@@ -204,11 +238,27 @@ export function DriverDashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <Card style={{ padding: '20px' }} hoverable={false}>
             <div className="flex-between" style={{ marginBottom: '8px' }}>
+              <span className="text-sm text-muted">Pending Payout</span>
+              <DollarSign size={18} color="#b45309" />
+            </div>
+            <p className="text-h2" style={{ color: '#b45309' }}>{formatKES(payoutSummary.pendingBalance)}</p>
+            <p className="text-sm text-muted">Awaiting admin settlement</p>
+          </Card>
+          <Card style={{ padding: '20px' }} hoverable={false}>
+            <div className="flex-between" style={{ marginBottom: '8px' }}>
               <span className="text-sm text-muted">Total Revenue</span>
               <DollarSign size={18} color="#16a34a" />
             </div>
-            <p className="text-h2" style={{ color: '#16a34a' }}>{formatKES(revenueSummary.totalRevenue)}</p>
-            <p className="text-sm text-muted">Based on platform payout per completed order</p>
+            <p className="text-h2" style={{ color: '#16a34a' }}>{formatKES(payoutSummary.totalEarnings || revenueSummary.totalRevenue)}</p>
+            <p className="text-sm text-muted">Driver earnings only</p>
+          </Card>
+          <Card style={{ padding: '20px' }} hoverable={false}>
+            <div className="flex-between" style={{ marginBottom: '8px' }}>
+              <span className="text-sm text-muted">Paid Out</span>
+              <DollarSign size={18} color="#0f766e" />
+            </div>
+            <p className="text-h2" style={{ color: '#0f766e' }}>{formatKES(payoutSummary.paidBalance)}</p>
+            <p className="text-sm text-muted">Settled by admin</p>
           </Card>
           <Card style={{ padding: '20px' }} hoverable={false}>
             <div className="flex-between" style={{ marginBottom: '8px' }}>
@@ -272,7 +322,7 @@ export function DriverDashboard() {
                   </span>
                   {activeTab === 'completed' && (
                     <span className="text-sm" style={{ color: '#16a34a', fontWeight: 700 }}>
-                      Earned {formatKES(Number(order.deliveryFee || 0))}
+                      Earned {formatKES(Number(order.driverPayout ?? order.deliveryFee || 0))}
                     </span>
                   )}
                 </div>
@@ -342,7 +392,7 @@ export function DriverDashboard() {
                 )}
                 {normalizeOrderStatus(order.status) === 'DELIVERED' && (
                   <div style={{ width: '100%', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'rgba(34, 197, 94, 0.08)', color: '#16a34a', fontWeight: 700, textAlign: 'center' }}>
-                    Completed{order.paymentSettled ? ' • Payout settled' : ''} • Platform payout: {formatKES(Number(order.deliveryFee || 0))}
+                    Completed{order.paymentSettled ? ' • Payout settled' : ''} • Driver payout: {formatKES(Number(order.driverPayout ?? order.deliveryFee || 0))}
                   </div>
                 )}
               </div>

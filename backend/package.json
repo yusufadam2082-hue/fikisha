@@ -11,6 +11,8 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:generate": "prisma generate",
+    "payouts:backfill": "node scripts/backfill-payout-ledgers.js",
+    "payouts:verify": "node scripts/payout-ledger-verify.js",
     "test": "vitest",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix"

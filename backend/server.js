@@ -31,6 +31,10 @@ if (!Number.isNaN(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS >= 0) {
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const MERCHANT_PASSWORD = process.env.MERCHANT_PASSWORD || 'merchant123';
+const ALLOW_DEMO_SEED = (process.env.ALLOW_DEMO_SEED || 'false').toLowerCase() === 'true';
+const ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK = (
+  process.env.ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK || (IS_PRODUCTION ? 'false' : 'true')
+).toLowerCase() === 'true';
 
 if (!JWT_SECRET) {
   console.error('JWT_SECRET environment variable is required');
@@ -61,6 +65,11 @@ if (IS_PRODUCTION) {
 
   if (!isSqlite && !isManagedDb) {
     console.warn('DATABASE_URL does not match known managed DB URL schemes. Verify persistence configuration.');
+  }
+
+  if (ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK) {
+    console.error('ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK must be false in production. Payout accounting cannot rely on local files.');
+    process.exit(1);
   }
 }
 
@@ -1281,7 +1290,7 @@ const resolveMerchantStoreIdForUser = async (user) => {
   return currentUser?.storeId || user.storeId || null;
 };
 
-// Security and accounting data is persisted in JSON files so the API can append audit records cheaply.
+// Security logs stay file-backed, while payout ledger data is DB-backed with legacy JSON fallback support.
 const readStoreSecurityLogs = async () => {
   try {
     const raw = await readFile(STORE_SECURITY_LOG_PATH, 'utf-8');
@@ -1317,7 +1326,57 @@ const appendStoreSecurityLog = async ({ storeId, type, actorUserId, actorRole, m
   await writeFile(STORE_SECURITY_LOG_PATH, JSON.stringify(currentLogs, null, 2));
 };
 
-const readAccountingPayoutLedger = async () => {
+let payoutLedgerBackfillAttempted = false;
+
+const parseLedgerOrderIds = (rawValue) => {
+  if (!rawValue) {
+    return [];
+  }
+
+  if (Array.isArray(rawValue)) {
+    return rawValue.filter((value) => typeof value === 'string' && value.trim().length > 0);
+  }
+
+  if (typeof rawValue === 'string') {
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((value) => typeof value === 'string' && value.trim().length > 0);
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const normalizeLedgerEntry = (entry = {}) => {
+  const orderIds = parseLedgerOrderIds(entry.orderIds);
+  const normalizedAmount = Number(entry.amount || 0);
+  const normalizedCount = Number(entry.orderCount);
+
+  return {
+    id: typeof entry.id === 'string' && entry.id ? entry.id : randomUUID(),
+    type: entry.type || SETTLEMENT_TYPE.MERCHANT,
+    orderId: entry.orderId || null,
+    storeId: entry.storeId || null,
+    storeName: entry.storeName || null,
+    driverId: entry.driverId || null,
+    driverName: entry.driverName || null,
+    cycleKey: entry.cycleKey || null,
+    amount: Number.isFinite(normalizedAmount) ? Number(normalizedAmount.toFixed(2)) : 0,
+    orderCount: Number.isFinite(normalizedCount) ? Math.max(0, Math.round(normalizedCount)) : (orderIds.length || null),
+    orderIds: orderIds.length > 0 ? JSON.stringify(orderIds) : null,
+    note: entry.note || null,
+    actorUserId: entry.actorUserId || null,
+    actorRole: entry.actorRole || null,
+    source: entry.source || 'AUTO',
+    createdAt: entry.createdAt ? new Date(entry.createdAt) : new Date()
+  };
+};
+
+const readLegacyAccountingPayoutLedgerFile = async () => {
   try {
     const raw = await readFile(ACCOUNTING_PAYOUT_LEDGER_PATH, 'utf-8');
     const parsed = JSON.parse(raw);
@@ -1332,9 +1391,173 @@ const readAccountingPayoutLedger = async () => {
   }
 };
 
-const writeAccountingPayoutLedger = async (records) => {
+const writeLegacyAccountingPayoutLedgerFile = async (records) => {
   const safeRecords = Array.isArray(records) ? records : [];
   await writeFile(ACCOUNTING_PAYOUT_LEDGER_PATH, JSON.stringify(safeRecords, null, 2));
+};
+
+const backfillPayoutLedgerFromLegacyFile = async () => {
+  if (payoutLedgerBackfillAttempted) {
+    return;
+  }
+
+  payoutLedgerBackfillAttempted = true;
+
+  const legacyRecords = await readLegacyAccountingPayoutLedgerFile();
+  if (legacyRecords.length === 0) {
+    return;
+  }
+
+  const existingCount = await prisma.payoutLedger.count().catch(() => 0);
+  if (existingCount > 0) {
+    return;
+  }
+
+  const normalized = legacyRecords.map(normalizeLedgerEntry);
+  for (const entry of normalized) {
+    await prisma.payoutLedger.upsert({
+      where: { id: entry.id },
+      update: {
+        type: entry.type,
+        orderId: entry.orderId,
+        storeId: entry.storeId,
+        storeName: entry.storeName,
+        driverId: entry.driverId,
+        driverName: entry.driverName,
+        cycleKey: entry.cycleKey,
+        amount: entry.amount,
+        orderCount: entry.orderCount,
+        orderIds: entry.orderIds,
+        note: entry.note,
+        actorUserId: entry.actorUserId,
+        actorRole: entry.actorRole,
+        source: entry.source,
+        createdAt: entry.createdAt
+      },
+      create: {
+        id: entry.id,
+        type: entry.type,
+        orderId: entry.orderId,
+        storeId: entry.storeId,
+        storeName: entry.storeName,
+        driverId: entry.driverId,
+        driverName: entry.driverName,
+        cycleKey: entry.cycleKey,
+        amount: entry.amount,
+        orderCount: entry.orderCount,
+        orderIds: entry.orderIds,
+        note: entry.note,
+        actorUserId: entry.actorUserId,
+        actorRole: entry.actorRole,
+        source: entry.source,
+        createdAt: entry.createdAt
+      }
+    }).catch(() => {});
+  }
+};
+
+const readAccountingPayoutLedger = async () => {
+  await backfillPayoutLedgerFromLegacyFile();
+
+  let dbRows = [];
+  try {
+    dbRows = await prisma.payoutLedger.findMany({
+      orderBy: { createdAt: 'asc' }
+    });
+  } catch (error) {
+    if (IS_PRODUCTION) {
+      throw new Error(`Database payout ledger read failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  if (dbRows.length > 0) {
+    return dbRows.map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt instanceof Date ? entry.createdAt.toISOString() : entry.createdAt
+    }));
+  }
+
+  if (!ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK) {
+    return [];
+  }
+
+  return readLegacyAccountingPayoutLedgerFile();
+};
+
+const writeAccountingPayoutLedger = async (records) => {
+  const safeRecords = Array.isArray(records)
+    ? records.map((entry) => normalizeLedgerEntry(entry))
+    : [];
+
+  const ids = safeRecords.map((entry) => entry.id);
+
+  await prisma.$transaction(async (tx) => {
+    if (ids.length === 0) {
+      await tx.payoutLedger.deleteMany({});
+      return;
+    }
+
+    await tx.payoutLedger.deleteMany({
+      where: {
+        id: {
+          notIn: ids
+        }
+      }
+    });
+
+    for (const entry of safeRecords) {
+      await tx.payoutLedger.upsert({
+        where: { id: entry.id },
+        update: {
+          type: entry.type,
+          orderId: entry.orderId,
+          storeId: entry.storeId,
+          storeName: entry.storeName,
+          driverId: entry.driverId,
+          driverName: entry.driverName,
+          cycleKey: entry.cycleKey,
+          amount: entry.amount,
+          orderCount: entry.orderCount,
+          orderIds: entry.orderIds,
+          note: entry.note,
+          actorUserId: entry.actorUserId,
+          actorRole: entry.actorRole,
+          source: entry.source,
+          createdAt: entry.createdAt
+        },
+        create: {
+          id: entry.id,
+          type: entry.type,
+          orderId: entry.orderId,
+          storeId: entry.storeId,
+          storeName: entry.storeName,
+          driverId: entry.driverId,
+          driverName: entry.driverName,
+          cycleKey: entry.cycleKey,
+          amount: entry.amount,
+          orderCount: entry.orderCount,
+          orderIds: entry.orderIds,
+          note: entry.note,
+          actorUserId: entry.actorUserId,
+          actorRole: entry.actorRole,
+          source: entry.source,
+          createdAt: entry.createdAt
+        }
+      });
+    }
+  }).catch((error) => {
+    console.error('Failed to persist accounting payout ledger in database:', error?.message || error);
+    if (IS_PRODUCTION) {
+      throw error;
+    }
+  });
+
+  if (ENABLE_LEGACY_PAYOUT_LEDGER_FALLBACK) {
+    await writeLegacyAccountingPayoutLedgerFile(safeRecords.map((entry) => ({
+      ...entry,
+      createdAt: entry.createdAt instanceof Date ? entry.createdAt.toISOString() : entry.createdAt
+    })));
+  }
 };
 
 const createPaymentProviderRef = (provider) => {
@@ -1669,23 +1892,6 @@ const appendSettlementRecordsForOrder = async (order, actor = {}) => {
   }
 
   await writeAccountingPayoutLedger([...ledger, ...nextEntries]);
-
-  await prisma.payoutLedger.createMany({
-    data: nextEntries.map((entry) => ({
-      type: entry.type,
-      orderId: entry.orderId || null,
-      storeId: entry.storeId || null,
-      storeName: entry.storeName || null,
-      driverId: entry.driverId || null,
-      driverName: entry.driverName || null,
-      cycleKey: entry.cycleKey || null,
-      amount: Number(entry.amount || 0),
-      note: entry.note || null,
-      actorUserId: entry.actorUserId || null,
-      actorRole: entry.actorRole || null,
-      source: 'AUTO'
-    }))
-  }).catch(() => {});
 
   return [...existingEntries, ...nextEntries];
 };
@@ -2707,6 +2913,11 @@ app.delete('/api/drivers/:id',
 // Initialize database with seed data
 const initDB = async () => {
   try {
+    if (IS_PRODUCTION && !ALLOW_DEMO_SEED) {
+      console.log('Skipping demo seed initialization in production (ALLOW_DEMO_SEED=false).');
+      return;
+    }
+
     // Create categories
     const categories = [
       { name: 'Restaurants', image: '🍔', slug: 'restaurants' },
@@ -4348,15 +4559,6 @@ app.get('/api/accounting/payouts',
   async (req, res) => {
     try {
       const { cycleKey } = req.query;
-      const dbRows = await prisma.payoutLedger.findMany({
-        where: cycleKey ? { cycleKey: String(cycleKey) } : undefined,
-        orderBy: { createdAt: 'desc' }
-      });
-
-      if (dbRows.length > 0) {
-        return res.json(dbRows);
-      }
-
       const ledger = await readAccountingPayoutLedger();
       const filtered = cycleKey
         ? ledger.filter((entry) => entry.cycleKey === cycleKey)
@@ -4408,23 +4610,6 @@ app.post('/api/accounting/payouts',
       ledger.push(record);
       await writeAccountingPayoutLedger(ledger);
 
-      await prisma.payoutLedger.create({
-        data: {
-          type: isDriver ? SETTLEMENT_TYPE.DRIVER : SETTLEMENT_TYPE.MERCHANT,
-          orderId: null,
-          storeId: storeId || null,
-          storeName: storeName || null,
-          driverId: driverId || null,
-          driverName: driverName || null,
-          cycleKey: cycleKey || null,
-          amount: Number(amount),
-          note: note || (isDriver ? 'Settled driver payout' : 'Settled merchant balance'),
-          actorUserId: req.user.id,
-          actorRole: req.user.role,
-          source: 'MANUAL'
-        }
-      }).catch(() => {});
-
       res.status(201).json(record);
     } catch (error) {
       res.status(500).json({ error: 'Failed to record payout' });
@@ -4444,12 +4629,6 @@ app.delete('/api/accounting/payouts',
         : [];
 
       await writeAccountingPayoutLedger(nextLedger);
-
-      await prisma.payoutLedger.deleteMany({
-        where: cycleKey
-          ? { cycleKey: String(cycleKey) }
-          : {}
-      }).catch(() => {});
 
       res.json({
         message: cycleKey
@@ -4609,25 +4788,6 @@ app.post('/api/accounting/payouts/settle',
       const ledger = await readAccountingPayoutLedger();
       ledger.push(ledgerEntry);
       await writeAccountingPayoutLedger(ledger);
-
-      await prisma.payoutLedger.create({
-        data: {
-          type: SETTLEMENT_TYPE.MERCHANT,
-          orderId: null,
-          storeId: store.id,
-          storeName: store.name,
-          driverId: null,
-          driverName: null,
-          cycleKey,
-          amount: settleAmount,
-          orderCount: pendingOrders.length,
-          orderIds: JSON.stringify(pendingOrders.map((o) => o.id)),
-          note: ledgerEntry.note,
-          actorUserId: req.user.id,
-          actorRole: req.user.role,
-          source: 'MANUAL',
-        },
-      }).catch(() => {});
 
       await auditLog({
         adminId: req.user.id,
@@ -4792,6 +4952,50 @@ app.get('/api/admin/payout-center/drivers', authMiddleware, roleMiddleware('ADMI
   }
 });
 
+app.get('/api/admin/payout-reconciliation/summary', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  try {
+    const [merchantEntries, driverEntries, platformEntries] = await Promise.all([
+      prisma.merchantPayoutEntry.findMany({ select: { amount: true, status: true } }),
+      prisma.driverPayoutEntry.findMany({ select: { amount: true, status: true } }),
+      prisma.platformRevenueEntry.findMany({ select: { totalRevenue: true } })
+    ]);
+
+    const merchantPending = merchantEntries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PENDING)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    const merchantPaid = merchantEntries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PAID)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const driverPending = driverEntries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PENDING)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+    const driverPaid = driverEntries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PAID)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const totalPlatformRevenue = platformEntries
+      .reduce((sum, entry) => sum + Number(entry.totalRevenue || 0), 0);
+
+    res.json({
+      merchant: {
+        pending: Number(merchantPending.toFixed(2)),
+        paid: Number(merchantPaid.toFixed(2))
+      },
+      driver: {
+        pending: Number(driverPending.toFixed(2)),
+        paid: Number(driverPaid.toFixed(2))
+      },
+      platform: {
+        totalRevenue: Number(totalPlatformRevenue.toFixed(2))
+      },
+      liabilitiesOutstanding: Number((merchantPending + driverPending).toFixed(2))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load payout reconciliation summary' });
+  }
+});
+
 app.get('/api/admin/payout-batches', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
     const { type, status } = req.query;
@@ -4902,6 +5106,7 @@ app.post('/api/admin/payout-batches',
               await tx.payoutBatchItem.create({
                 data: {
                   batchId: batch.id,
+                  entryId: entry.id,
                   orderId: entry.orderId,
                   amount: Number(entry.amount || 0),
                   entryType: PAYOUT_BATCH_TYPE.MERCHANT
@@ -4967,6 +5172,7 @@ app.post('/api/admin/payout-batches',
             await tx.payoutBatchItem.create({
               data: {
                 batchId: batch.id,
+                entryId: entry.id,
                 orderId: entry.orderId,
                 amount: Number(entry.amount || 0),
                 entryType: PAYOUT_BATCH_TYPE.DRIVER
@@ -5013,16 +5219,43 @@ app.post('/api/admin/payout-batches/:id/mark-paid', authMiddleware, roleMiddlewa
     const batch = await prisma.payoutBatch.findUnique({ where: { id: req.params.id } });
     if (!batch) return res.status(404).json({ error: 'Payout batch not found' });
     if (batch.status === PAYOUT_STATUS.PAID) return res.status(409).json({ error: 'Payout batch already marked as paid' });
+    const reference = typeof req.body?.reference === 'string' ? req.body.reference.trim() : '';
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : '';
 
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.payoutBatch.update({
         where: { id: batch.id },
-        data: { status: PAYOUT_STATUS.PAID, paidAt: now, approvedBy: req.user.id }
+        data: {
+          status: PAYOUT_STATUS.PAID,
+          paidAt: now,
+          approvedBy: req.user.id,
+          reference: reference || batch.reference,
+          notes: notes || batch.notes
+        }
       });
 
       if (batch.type === PAYOUT_BATCH_TYPE.MERCHANT) {
-        const entries = await tx.merchantPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        const entries = await tx.merchantPayoutEntry.findMany({
+          where: { payoutBatchId: batch.id },
+          include: {
+            order: {
+              select: {
+                status: true,
+                refundedAt: true,
+                payoutEligible: true
+              }
+            }
+          }
+        });
+        const ineligible = entries.filter((entry) => {
+          const status = normalizeOrderStatus(entry.order?.status);
+          return !entry.order?.payoutEligible || status !== ORDER_STATUS.DELIVERED || Boolean(entry.order?.refundedAt);
+        });
+        if (ineligible.length > 0) {
+          throw new Error('Batch contains ineligible merchant orders (cancelled/refunded/not delivered).');
+        }
+
         const orderIds = entries.map((entry) => entry.orderId);
 
         await tx.merchantPayoutEntry.updateMany({
@@ -5035,7 +5268,26 @@ app.post('/api/admin/payout-batches/:id/mark-paid', authMiddleware, roleMiddlewa
           data: { merchantPayoutStatus: PAYOUT_STATUS.PAID, merchantPaidAt: now }
         });
       } else {
-        const entries = await tx.driverPayoutEntry.findMany({ where: { payoutBatchId: batch.id } });
+        const entries = await tx.driverPayoutEntry.findMany({
+          where: { payoutBatchId: batch.id },
+          include: {
+            order: {
+              select: {
+                status: true,
+                refundedAt: true,
+                payoutEligible: true
+              }
+            }
+          }
+        });
+        const ineligible = entries.filter((entry) => {
+          const status = normalizeOrderStatus(entry.order?.status);
+          return !entry.order?.payoutEligible || status !== ORDER_STATUS.DELIVERED || Boolean(entry.order?.refundedAt);
+        });
+        if (ineligible.length > 0) {
+          throw new Error('Batch contains ineligible driver deliveries (cancelled/refunded/not delivered).');
+        }
+
         const orderIds = entries.map((entry) => entry.orderId);
 
         await tx.driverPayoutEntry.updateMany({
@@ -5055,14 +5307,65 @@ app.post('/api/admin/payout-batches/:id/mark-paid', authMiddleware, roleMiddlewa
       action: 'PAYOUT_BATCH_MARKED_PAID',
       entityType: 'PAYOUT_BATCH',
       entityId: batch.id,
-      after: { status: PAYOUT_STATUS.PAID },
+      after: { status: PAYOUT_STATUS.PAID, reference: reference || batch.reference || null },
       note: `Marked payout batch ${batch.id} as paid`,
       req,
     });
 
     res.json({ message: 'Payout batch marked as paid', batchId: batch.id });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to mark payout batch as paid' });
+    res.status(400).json({ error: error?.message || 'Failed to mark payout batch as paid' });
+  }
+});
+
+app.get('/api/driver/payouts', authMiddleware, roleMiddleware('DRIVER'), async (req, res) => {
+  try {
+    const driverId = await resolveDriverIdForUser(req.user);
+    if (!driverId) {
+      return res.status(404).json({ error: 'Driver profile not found' });
+    }
+
+    const entries = await prisma.driverPayoutEntry.findMany({
+      where: { driverId },
+      include: {
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            deliveredAt: true,
+            status: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const pendingBalance = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PENDING)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const paidBalance = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.PAID)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const heldBalance = entries
+      .filter((entry) => entry.status === PAYOUT_STATUS.HELD)
+      .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+
+    const completedDeliveriesCount = entries.filter((entry) => entry.order?.status === ORDER_STATUS.DELIVERED).length;
+
+    res.json({
+      summary: {
+        pendingBalance,
+        paidBalance,
+        heldBalance,
+        totalEarnings: Number((pendingBalance + paidBalance + heldBalance).toFixed(2)),
+        completedDeliveriesCount
+      },
+      payouts: entries
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load driver payout data' });
   }
 });
 
@@ -5142,7 +5445,8 @@ app.post('/api/accounting/migrations/backfill-ledgers', authMiddleware, roleMidd
   try {
     const deliveredOrders = await prisma.order.findMany({
       where: {
-        status: ORDER_STATUS.DELIVERED
+        status: ORDER_STATUS.DELIVERED,
+        refundedAt: null
       },
       include: {
         store: { select: { id: true, name: true } },
