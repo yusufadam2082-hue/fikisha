@@ -2302,6 +2302,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({
+  limit: '8mb',
   verify: (req, _res, buffer) => {
     req.rawBody = buffer;
   }
@@ -2391,6 +2392,13 @@ const validate = (req, res, next) => {
 // Error handler
 const errorHandler = (err, req, res, next) => {
   console.error(err);
+
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({
+      error: 'Submitted files are too large. Reduce image/document size and try again.'
+    });
+  }
+
   res.status(500).json({
     error: 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { details: err.message })
