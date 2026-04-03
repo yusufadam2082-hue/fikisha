@@ -575,6 +575,16 @@ const buildAdminPaymentRetryHistory = async (intent) => {
     if (!childIdsByParent.has(entry.retrySourceIntentId)) {
       childIdsByParent.set(entry.retrySourceIntentId, []);
     }
+
+    const getOrderCompletionTimestamp = (order) => {
+      const candidate = order?.deliveredAt || order?.updatedAt || order?.createdAt;
+      if (!candidate) {
+        return null;
+      }
+
+      const parsed = new Date(candidate);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
     childIdsByParent.get(entry.retrySourceIntentId).push(entry.id);
   });
 
@@ -7160,7 +7170,7 @@ app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), 
     const where = Object.keys(dateFilter).length ? { createdAt: dateFilter } : {};
 
     const [allOrders, topStores, driverStats] = await Promise.all([
-      prisma.order.findMany({ where, select: { total: true, deliveryFee: true, status: true, refundAmount: true, createdAt: true, store: { select: { name: true, category: true } } } }),
+      prisma.order.findMany({ where, select: { total: true, deliveryFee: true, status: true, refundAmount: true, createdAt: true, updatedAt: true, deliveredAt: true, store: { select: { name: true, category: true } } } }),
       prisma.order.groupBy({ by: ['storeId'], where: { ...where, status: 'DELIVERED' }, _count: { id: true }, _sum: { total: true }, orderBy: { _sum: { total: 'desc' } }, take: 10 }),
       prisma.driver.findMany({ include: { orders: { where: { ...where }, select: { status: true } }, _count: true } }),
     ]);
@@ -7175,7 +7185,11 @@ app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), 
     // Revenue by day (last 30 days bucketed)
     const dayMap = {};
     deliveredOrders.forEach(o => {
-      const day = o.createdAt.toISOString().slice(0,10);
+      const completedAt = getOrderCompletionTimestamp(o);
+      if (!completedAt) {
+        return;
+      }
+      const day = completedAt.toISOString().slice(0,10);
       dayMap[day] = (dayMap[day] || 0) + o.total;
     });
 
@@ -7855,10 +7869,12 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
           deliveryFee: true,
           tax: true,
           createdAt: true,
+          updatedAt: true,
+          deliveredAt: true,
           items: { select: { quantity: true, price: true } }
         }
       }),
-      prisma.order.findMany({ where: { storeId, createdAt: { gte: dayStart } }, select: { id: true, status: true, total: true, createdAt: true } }),
+      prisma.order.findMany({ where: { storeId, createdAt: { gte: dayStart } }, select: { id: true, status: true, total: true, createdAt: true, updatedAt: true, deliveredAt: true } }),
       prisma.product.findMany({ where: { storeId }, select: { id: true, name: true, available: true, quantityAvailable: true, lowStockThreshold: true } }),
     ]);
 
@@ -7884,9 +7900,18 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
     }
 
     const deliveredOrders = allOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.DELIVERED);
-    const todaysDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= dayStart);
-    const weeklyDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= weekStart);
-    const monthlyDelivered = deliveredOrders.filter((o) => new Date(o.createdAt) >= monthStart);
+    const todaysDelivered = deliveredOrders.filter((o) => {
+      const completedAt = getOrderCompletionTimestamp(o);
+      return completedAt && completedAt >= dayStart;
+    });
+    const weeklyDelivered = deliveredOrders.filter((o) => {
+      const completedAt = getOrderCompletionTimestamp(o);
+      return completedAt && completedAt >= weekStart;
+    });
+    const monthlyDelivered = deliveredOrders.filter((o) => {
+      const completedAt = getOrderCompletionTimestamp(o);
+      return completedAt && completedAt >= monthStart;
+    });
 
     const sumNetIncome = (orders = []) => orders.reduce((sum, order) => {
       return sum + computeMerchantOrderFinancials(order).merchantNetIncome;
@@ -7896,7 +7921,14 @@ app.get('/api/merchant/dashboard', authMiddleware, roleMiddleware('MERCHANT'), a
     const weeklyNetIncome = sumNetIncome(weeklyDelivered);
     const monthlyNetIncome = sumNetIncome(monthlyDelivered);
     const totalNetIncome = sumNetIncome(deliveredOrders);
-    const cancelledToday = allOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED && new Date(o.createdAt) >= dayStart).length;
+    const cancelledToday = allOrders.filter((o) => {
+      if (normalizeOrderStatus(o.status) !== ORDER_STATUS.CANCELLED) {
+        return false;
+      }
+
+      const updatedAt = o.updatedAt ? new Date(o.updatedAt) : null;
+      return updatedAt && !Number.isNaN(updatedAt.getTime()) && updatedAt >= dayStart;
+    }).length;
 
     const lowStock = products.filter((p) => {
       if (p.quantityAvailable === null || p.quantityAvailable === undefined) return false;
@@ -8193,7 +8225,12 @@ app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHA
 
     const dailyNetIncomeMap = {};
     for (const order of delivered) {
-      const day = new Date(order.createdAt).toISOString().slice(0, 10);
+      const completedAt = getOrderCompletionTimestamp(order);
+      if (!completedAt) {
+        continue;
+      }
+
+      const day = completedAt.toISOString().slice(0, 10);
       const financials = computeMerchantOrderFinancials(order);
       dailyNetIncomeMap[day] = (dailyNetIncomeMap[day] || 0) + financials.merchantNetIncome;
     }
