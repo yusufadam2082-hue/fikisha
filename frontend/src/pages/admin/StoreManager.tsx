@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStoreContext, type Store, type Product, type CreateStoreInput } from '../../context/StoreContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Plus, Edit2, ChevronLeft, Search, Trash2, ToggleLeft, ToggleRight, X, Save, BarChart3, Package, DollarSign, Star, Clock, MapPin, Filter, Navigation, CheckCircle2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, ChevronLeft, Search, Trash2, ToggleLeft, ToggleRight, X, Save, BarChart3, Package, DollarSign, Star, Clock, MapPin, Filter, Navigation, CheckCircle2, ShieldCheck, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
 import { compressImageToBase64 } from '../../utils/imageUpload';
 import { LocationPickerMap } from '../../components/ui/LocationPickerMap';
@@ -107,6 +107,7 @@ export function StoreManager() {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [reviewReason, setReviewReason] = useState<Record<string, string>>({});
+  const [viewingDocsForStore, setViewingDocsForStore] = useState<Store | null>(null);
 
   // Add/Edit Product
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -1236,6 +1237,13 @@ export function StoreManager() {
                   <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'suspend')}>Suspend</Button>
                   <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate')}><ShieldCheck size={14} /> Activate</Button>
                 </div>
+                {(store.ownerIdDocument || store.businessPermitDocument || store.taxPin || store.proofOfAddressDocument || store.payoutMethod) && (
+                  <div>
+                    <Button size="sm" variant="outline" onClick={() => setViewingDocsForStore(store)} style={{ color: 'var(--primary)' }}>
+                      <FileText size={14} /> Review Documents
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1260,6 +1268,123 @@ export function StoreManager() {
           <p className="text-muted">No stores match your search criteria.</p>
         </Card>
       )}
+
+      {/* Document Review Modal */}
+      {viewingDocsForStore && (() => {
+        const s = viewingDocsForStore;
+        const renderDocField = (label: string, doc: string | null | undefined) => {
+          if (!doc) {
+            return (
+              <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'var(--surface-hover)', textAlign: 'center' }}>
+                <p className="text-sm font-semibold" style={{ marginBottom: '4px' }}>{label}</p>
+                <p className="text-sm text-muted">Not submitted</p>
+              </div>
+            );
+          }
+          const isPdf = doc.startsWith('data:application/pdf') || doc.includes('application/pdf');
+          return (
+            <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold" style={{ marginBottom: '8px' }}>{label}</p>
+              {isPdf ? (
+                <a href={doc} download={`${label}.pdf`} target="_blank" rel="noreferrer noopener"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--primary)', fontSize: '0.875rem' }}>
+                  <ExternalLink size={14} /> Open PDF
+                </a>
+              ) : (
+                <a href={doc} target="_blank" rel="noreferrer noopener">
+                  <img src={doc} alt={label}
+                    style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: 'var(--radius-sm)', cursor: 'zoom-in', display: 'block' }} />
+                </a>
+              )}
+            </div>
+          );
+        };
+
+        const hasDocs = s.verificationCompleted;
+        const hasPayout = s.payoutCompleted;
+        const isReady = s.goLiveReady;
+
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+            onClick={() => setViewingDocsForStore(null)}
+          >
+            <div
+              style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '32px', maxWidth: '720px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div>
+                  <h2 className="text-h2">Documents &amp; Verification</h2>
+                  <p className="text-sm text-muted">{s.name}</p>
+                </div>
+                <button className="btn-icon" onClick={() => setViewingDocsForStore(null)}><X size={24} /></button>
+              </div>
+
+              {/* Readiness Checklist */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--surface-hover)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', fontWeight: 600, color: hasDocs ? '#16a34a' : '#dc2626' }}>
+                  {hasDocs ? <CheckCircle2 size={16} /> : <X size={16} />} Required Docs
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', fontWeight: 600, color: hasPayout ? '#16a34a' : '#dc2626' }}>
+                  {hasPayout ? <CheckCircle2 size={16} /> : <X size={16} />} Payout Setup
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', fontWeight: 600, color: isReady ? '#16a34a' : '#dc2626' }}>
+                  {isReady ? <CheckCircle2 size={16} /> : <X size={16} />} Go-Live Ready
+                </span>
+              </div>
+
+              {/* Document Previews */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                {renderDocField('Owner National ID / Passport', s.ownerIdDocument)}
+                {renderDocField('Business Permit / License', s.businessPermitDocument)}
+                {renderDocField('Proof of Address', s.proofOfAddressDocument)}
+                <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  <p className="text-sm font-semibold" style={{ marginBottom: '4px' }}>Tax / KRA PIN</p>
+                  {s.taxPin
+                    ? <p className="text-body" style={{ fontFamily: 'monospace', letterSpacing: '0.05em' }}>{s.taxPin}</p>
+                    : <p className="text-sm text-muted">Not provided</p>}
+                </div>
+              </div>
+
+              {/* Payout Details */}
+              <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', marginBottom: '24px' }}>
+                <p className="text-sm font-semibold" style={{ marginBottom: '12px' }}>Payout Details</p>
+                {s.payoutMethod ? (
+                  <div style={{ display: 'grid', gap: '6px' }}>
+                    <p className="text-sm"><strong>Method:</strong> {s.payoutMethod}</p>
+                    {s.payoutMethod === 'BANK' && (
+                      <>
+                        <p className="text-sm"><strong>Bank:</strong> {s.bankName || '—'}</p>
+                        <p className="text-sm"><strong>Account Name:</strong> {s.accountName || '—'}</p>
+                        <p className="text-sm"><strong>Account Number:</strong> {s.accountNumber || '—'}</p>
+                      </>
+                    )}
+                    {s.payoutMethod === 'MPESA' && (
+                      <>
+                        <p className="text-sm"><strong>M-Pesa Number:</strong> {s.mpesaNumber || '—'}</p>
+                        <p className="text-sm"><strong>Registered Name:</strong> {s.mpesaRegisteredName || '—'}</p>
+                      </>
+                    )}
+                    {s.payoutMethod === 'WALLET' && (
+                      <p className="text-sm text-muted">Platform wallet payout</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted">No payout method configured</p>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <Button variant="outline" onClick={() => setViewingDocsForStore(null)}>Close</Button>
+                <Button onClick={() => { handleStoreReviewAction(s.id, 'approve'); setViewingDocsForStore(null); }}>
+                  <CheckCircle2 size={16} /> Approve Store
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
