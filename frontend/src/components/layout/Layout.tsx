@@ -18,11 +18,11 @@ export function Layout({ children }: LayoutProps) {
       <CartModal />
       <LocationSelector />
       <AiAssistant />
-      <main style={{ flex: 1, padding: '32px 0' }} className="animate-fade-in">
+      <main style={{ flex: 1, paddingTop: '96px', paddingBottom: '32px' }} className="animate-fade-in">
         {children}
       </main>
 
-      <footer style={{ background: 'var(--surface)', padding: '48px 0', marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
+      <footer style={{ background: 'var(--surface-container-low)', padding: '48px 0', marginTop: 'auto', borderTop: '1px solid var(--outline-variant)' }}>
         <div className="container flex-between">
           <div>
             <h3 className="text-h3" style={{ color: '#a63400', marginBottom: '16px' }}>Mtaaexpress</h3>
