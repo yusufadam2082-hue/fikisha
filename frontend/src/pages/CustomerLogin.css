@@ -1,74 +1,77 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   --cl-primary: #a63400;
   --cl-primary-strong: #922c00;
-  --cl-accent: #ff7948;
+  --cl-primary-container: #ff7948;
   --cl-text: #4e211e;
-  --cl-muted: #834c48;
+  --cl-text-muted: #834c48;
   --cl-surface: #ffffff;
-  --cl-surface-soft: #f7f0ee;
-  --cl-border: #ecd1cd;
+  --cl-surface-soft: #f5f4f3;
+  --cl-surface-container: #ffe2df;
+  --cl-border: #e8e5e4;
+  --cl-outline: #a36762;
+  --cl-outline-variant: #e09c96;
+  --cl-secondary: #006944;
 }
 
-/* ─── Shell ───────────────────────────────────────────── */
+/* Shell */
 .cl-shell {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(125deg, #fff1ee 0%, #ffd6ca 52%, #ffe9e3 100%);
-  padding: 32px 20px;
-  font-family: 'Inter', 'Outfit', sans-serif;
+  background: linear-gradient(180deg, var(--cl-surface-container) 0%, var(--cl-surface) 100%);
+  padding: 24px 16px;
+  font-family: 'Inter', sans-serif;
 }
 
-/* ─── Wrapper ─────────────────────────────────────────── */
+/* Wrapper */
 .cl-wrapper {
   width: 100%;
-  max-width: 500px;
+  max-width: 420px;
 }
 
-/* ─── Brand ───────────────────────────────────────────── */
+/* Brand */
 .cl-brand {
   text-align: center;
   margin-bottom: 32px;
 }
 
 .cl-brand-name {
-  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
-  font-size: 2.8rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2rem;
   font-weight: 800;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.03em;
   color: var(--cl-primary);
   line-height: 1;
   display: block;
 }
 
 .cl-brand-sub {
-  margin-top: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--cl-muted);
+  margin-top: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--cl-text-muted);
 }
 
-/* ─── Card ────────────────────────────────────────────── */
+/* Card */
 .cl-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(224, 156, 150, 0.28);
-  border-radius: 34px;
-  padding: 32px;
-  box-shadow: 0 20px 40px rgba(165, 52, 0, 0.18);
+  background: var(--cl-surface);
+  border: 1px solid var(--cl-outline-variant);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(166, 52, 0, 0.1);
 }
 
-/* ─── Tab switcher ────────────────────────────────────── */
+/* Tab switcher */
 .cl-tabs {
   display: flex;
-  gap: 6px;
-  padding: 5px;
+  gap: 4px;
+  padding: 4px;
   background: var(--cl-surface-soft);
-  border-radius: 14px;
-  margin-bottom: 28px;
+  border-radius: 12px;
+  margin-bottom: 24px;
 }
 
 .cl-tab {
@@ -76,66 +79,70 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 10px;
+  gap: 6px;
+  padding: 12px 16px;
   border-radius: 10px;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 700;
-  color: var(--cl-muted);
-  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--cl-text-muted);
+  transition: all 0.2s ease;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-family: 'Inter', 'Outfit', sans-serif;
+  font-family: 'Inter', sans-serif;
+}
+
+.cl-tab:hover {
+  color: var(--cl-text);
 }
 
 .cl-tab.active {
   background: var(--cl-surface);
   color: var(--cl-primary);
-  box-shadow: 0 6px 14px rgba(166, 52, 0, 0.16);
+  box-shadow: 0 2px 8px rgba(166, 52, 0, 0.1);
 }
 
-/* ─── Fields ──────────────────────────────────────────── */
+/* Fields */
 .cl-fields {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 12px;
 }
 
 .cl-input,
 .cl-select,
 .cl-textarea {
   width: 100%;
-  font-family: 'Inter', 'Outfit', sans-serif;
-  font-size: 0.9rem;
-  border-radius: 14px;
-  border: 1px solid var(--cl-border);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+  border-radius: 12px;
+  border: 1px solid var(--cl-outline);
   background: var(--cl-surface);
   color: var(--cl-text);
-  padding: 13px 16px;
+  padding: 14px 16px;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .cl-input::placeholder,
 .cl-textarea::placeholder {
-  color: #9b6661;
+  color: var(--cl-outline);
 }
 
 .cl-input:focus,
 .cl-select:focus,
 .cl-textarea:focus {
-  border-color: var(--cl-accent);
-  box-shadow: 0 0 0 3px rgba(255, 121, 72, 0.18);
+  border-color: var(--cl-primary-container);
+  box-shadow: 0 0 0 3px rgba(166, 52, 0, 0.1);
 }
 
 .cl-select {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23834c48' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23834c48' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-right: 38px;
+  background-position: right 12px center;
+  padding-right: 40px;
   cursor: pointer;
 }
 
@@ -145,55 +152,63 @@
   line-height: 1.5;
 }
 
-/* ─── Error ───────────────────────────────────────────── */
+/* Error */
 .cl-error {
-  font-size: 0.84rem;
-  font-weight: 500;
-  color: #c0392b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--error, #b31b25);
   background: #fff2f2;
   border: 1px solid #fcd4d4;
   border-radius: 10px;
-  padding: 9px 12px;
+  padding: 12px 14px;
 }
 
-/* ─── Buttons ─────────────────────────────────────────── */
+/* Primary Button */
 .cl-btn-primary {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px;
+  padding: 16px 24px;
   border-radius: 16px;
-  font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
-  font-size: 0.95rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1rem;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(125deg, var(--cl-primary-strong) 0%, var(--cl-accent) 100%);
-  box-shadow: 0 10px 22px rgba(166, 52, 0, 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  background: linear-gradient(90deg, var(--cl-primary) 0%, var(--cl-primary-container) 100%);
+  box-shadow: 0 8px 20px rgba(166, 52, 0, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   border: none;
   cursor: pointer;
+  margin-top: 8px;
 }
 
 .cl-btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(166, 52, 0, 0.34);
+  box-shadow: 0 12px 28px rgba(166, 52, 0, 0.35);
+}
+
+.cl-btn-primary:active {
+  transform: translateY(0);
 }
 
 .cl-btn-primary:disabled {
-  opacity: 0.52;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* Divider */
 .cl-divider {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 4px 0;
-  color: #9b6661;
-  font-size: 0.8rem;
-  font-weight: 500;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--cl-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .cl-divider::before,
@@ -201,49 +216,46 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: #efd6d2;
+  background: var(--cl-outline-variant);
 }
 
+/* Ghost Button */
 .cl-btn-ghost {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 13px;
-  border-radius: 16px;
-  font-family: 'Inter', 'Outfit', sans-serif;
-  font-size: 0.9rem;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
   font-weight: 700;
-  color: #6a3430;
+  color: var(--cl-text);
   background: var(--cl-surface-soft);
   border: 1px solid var(--cl-border);
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .cl-btn-ghost:hover {
-  transform: translateY(-1px);
+  background: var(--cl-surface);
   border-color: var(--cl-primary);
   color: var(--cl-primary);
-  background: #fff;
 }
 
-/* ─── Footer links ────────────────────────────────────── */
+/* Footer */
 .cl-footer {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  margin-top: 24px;
+  text-align: center;
 }
 
 .cl-footer p {
-  text-align: center;
-  font-size: 0.84rem;
-  color: var(--cl-muted);
+  font-size: 0.875rem;
+  color: var(--cl-text-muted);
+  font-weight: 500;
 }
 
-.cl-footer a,
 .cl-footer-link {
   color: var(--cl-primary);
   font-weight: 700;
@@ -253,13 +265,19 @@
   padding: 0;
   font-size: inherit;
   font-family: inherit;
+  margin-left: 4px;
 }
 
-/* ─── Responsive polish ───────────────────────────────── */
-@media (max-width: 640px) {
+.cl-footer-link:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
   .cl-shell {
+    padding: 16px 12px;
     align-items: flex-start;
-    padding: 20px 14px;
+    padding-top: 32px;
   }
 
   .cl-wrapper {
@@ -267,53 +285,37 @@
   }
 
   .cl-brand {
-    margin-bottom: 18px;
+    margin-bottom: 24px;
   }
 
   .cl-brand-name {
-    font-size: 2.15rem;
-    letter-spacing: -0.035em;
-  }
-
-  .cl-brand-sub {
-    font-size: 0.8rem;
+    font-size: 1.75rem;
   }
 
   .cl-card {
-    border-radius: 22px;
+    border-radius: 20px;
     padding: 20px 16px;
-    box-shadow: 0 14px 28px rgba(165, 52, 0, 0.14), 0 2px 8px rgba(165, 52, 0, 0.08);
+    box-shadow: 0 4px 16px rgba(166, 52, 0, 0.08);
   }
 
   .cl-tabs {
-    margin-bottom: 18px;
+    margin-bottom: 20px;
   }
 
   .cl-tab {
-    padding: 9px 8px;
-    font-size: 0.8rem;
-    gap: 6px;
-  }
-
-  .cl-fields {
-    gap: 10px;
+    padding: 10px 12px;
+    font-size: 0.8125rem;
   }
 
   .cl-input,
   .cl-select,
-  .cl-textarea,
-  .cl-btn-primary,
-  .cl-btn-ghost {
-    font-size: 0.88rem;
-    padding-top: 12px;
-    padding-bottom: 12px;
+  .cl-textarea {
+    padding: 12px 14px;
+    font-size: 0.9375rem;
   }
 
-  .cl-footer {
-    margin-top: 14px;
-  }
-
-  .cl-footer p {
-    font-size: 0.8rem;
+  .cl-btn-primary {
+    padding: 14px 20px;
+    border-radius: 14px;
   }
 }
