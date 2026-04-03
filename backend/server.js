@@ -585,6 +585,24 @@ const buildAdminPaymentRetryHistory = async (intent) => {
       const parsed = new Date(candidate);
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     };
+
+    const buildDeliveredDateRangeWhere = (dateFilter = {}) => {
+      if (!dateFilter || Object.keys(dateFilter).length === 0) {
+        return {};
+      }
+
+      return {
+        OR: [
+          { deliveredAt: dateFilter },
+          {
+            AND: [
+              { deliveredAt: null },
+              { updatedAt: dateFilter }
+            ]
+          }
+        ]
+      };
+    };
     childIdsByParent.get(entry.retrySourceIntentId).push(entry.id);
   });
 
@@ -7168,14 +7186,19 @@ app.get('/api/admin/reports/overview', authMiddleware, roleMiddleware('ADMIN'), 
     if (from) dateFilter.gte = new Date(from);
     if (to)   dateFilter.lte = new Date(new Date(to).setHours(23,59,59,999));
     const where = Object.keys(dateFilter).length ? { createdAt: dateFilter } : {};
+    const deliveredRangeWhere = buildDeliveredDateRangeWhere(dateFilter);
+    const deliveredWhere = {
+      status: ORDER_STATUS.DELIVERED,
+      ...deliveredRangeWhere
+    };
 
-    const [allOrders, topStores, driverStats] = await Promise.all([
+    const [allOrders, deliveredOrders, topStores, driverStats] = await Promise.all([
       prisma.order.findMany({ where, select: { total: true, deliveryFee: true, status: true, refundAmount: true, createdAt: true, updatedAt: true, deliveredAt: true, store: { select: { name: true, category: true } } } }),
-      prisma.order.groupBy({ by: ['storeId'], where: { ...where, status: 'DELIVERED' }, _count: { id: true }, _sum: { total: true }, orderBy: { _sum: { total: 'desc' } }, take: 10 }),
+      prisma.order.findMany({ where: deliveredWhere, select: { total: true, deliveryFee: true, createdAt: true, updatedAt: true, deliveredAt: true } }),
+      prisma.order.groupBy({ by: ['storeId'], where: deliveredWhere, _count: { id: true }, _sum: { total: true }, orderBy: { _sum: { total: 'desc' } }, take: 10 }),
       prisma.driver.findMany({ include: { orders: { where: { ...where }, select: { status: true } }, _count: true } }),
     ]);
 
-    const deliveredOrders = allOrders.filter(o => o.status === 'DELIVERED');
     const cancelledOrders = allOrders.filter(o => o.status === 'CANCELLED');
     const gmv    = deliveredOrders.reduce((s, o) => s + o.total, 0);
     const fees   = deliveredOrders.reduce((s, o) => s + (o.deliveryFee || 0), 0);
@@ -8177,19 +8200,34 @@ app.get('/api/merchant/reports/overview', authMiddleware, roleMiddleware('MERCHA
 
     const { from, to } = req.query;
     const where = { storeId };
+    const dateFilter = {};
     if (from || to) {
-      where.createdAt = {};
-      if (from) where.createdAt.gte = new Date(from);
-      if (to) where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+      if (from) dateFilter.gte = new Date(from);
+      if (to) dateFilter.lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+      where.createdAt = dateFilter;
     }
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        items: { include: { product: true } }
-      }
-    });
-    const delivered = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.DELIVERED);
+    const deliveredWhere = {
+      storeId,
+      status: ORDER_STATUS.DELIVERED,
+      ...buildDeliveredDateRangeWhere(dateFilter)
+    };
+
+    const [orders, delivered] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          items: { include: { product: true } }
+        }
+      }),
+      prisma.order.findMany({
+        where: deliveredWhere,
+        include: {
+          items: { include: { product: true } }
+        }
+      })
+    ]);
+
     const cancelled = orders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
 
     const financialTotals = delivered.reduce((acc, order) => {
