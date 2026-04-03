@@ -4091,19 +4091,65 @@ const parseRequestedDocs = (value) => {
 };
 
 const computeGoLiveReadiness = ({ store, productCount }) => {
-  const hasRequiredDocs = Boolean(store?.ownerIdDocument) && Boolean(store?.businessPermitDocument) && Boolean(store?.taxPin);
-  const hasPayout = store?.payoutMethod === 'BANK'
-    ? Boolean(store.bankName && store.accountName && store.accountNumber)
-    : store?.payoutMethod === 'MPESA'
-      ? Boolean(store.mpesaNumber && store.mpesaRegisteredName)
-      : store?.payoutMethod === 'WALLET';
-  const hasProduct = Number(productCount || 0) > 0;
+  const hasValue = (value) => typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
+
+  const missingDocuments = [];
+  if (!hasValue(store?.ownerIdDocument)) {
+    missingDocuments.push('ownerIdDocument');
+  }
+  if (!hasValue(store?.businessPermitDocument)) {
+    missingDocuments.push('businessPermitDocument');
+  }
+  if (!hasValue(store?.taxPin)) {
+    missingDocuments.push('taxPin');
+  }
+
+  const hasRequiredDocs = missingDocuments.length === 0;
+
+  const payoutMethod = String(store?.payoutMethod || '').toUpperCase();
+  const missingPayoutFields = [];
+
+  if (!payoutMethod) {
+    missingPayoutFields.push('payoutMethod');
+  } else if (payoutMethod === 'BANK') {
+    if (!hasValue(store?.bankName)) {
+      missingPayoutFields.push('bankName');
+    }
+    if (!hasValue(store?.accountName)) {
+      missingPayoutFields.push('accountName');
+    }
+    if (!hasValue(store?.accountNumber)) {
+      missingPayoutFields.push('accountNumber');
+    }
+  } else if (payoutMethod === 'MPESA') {
+    if (!hasValue(store?.mpesaNumber)) {
+      missingPayoutFields.push('mpesaNumber');
+    }
+    if (!hasValue(store?.mpesaRegisteredName)) {
+      missingPayoutFields.push('mpesaRegisteredName');
+    }
+  } else if (payoutMethod !== 'WALLET') {
+    missingPayoutFields.push('payoutMethod');
+  }
+
+  const hasPayout = missingPayoutFields.length === 0;
+  const totalProducts = Number(productCount || 0);
+  const hasProduct = totalProducts > 0;
+  const missingRequirements = [
+    ...(hasRequiredDocs ? [] : ['requiredDocuments']),
+    ...(hasPayout ? [] : ['payoutSetup']),
+    ...(hasProduct ? [] : ['products'])
+  ];
 
   return {
     hasRequiredDocs,
     hasPayout,
     hasProduct,
-    ready: hasRequiredDocs && hasPayout && hasProduct
+    ready: hasRequiredDocs && hasPayout && hasProduct,
+    missingRequirements,
+    missingDocuments,
+    missingPayoutFields,
+    productCount: totalProducts
   };
 };
 
@@ -4579,7 +4625,17 @@ app.post('/api/admin/stores/:id/review',
         auditAction = 'STORE_SUSPENDED';
       } else if (action === 'activate') {
         if (!canGoLive) {
-          return res.status(400).json({ error: 'Store is not eligible to go live. Complete required documents, payout setup, and add at least one product.' });
+          const productCount = await prisma.product.count({ where: { storeId: store.id } });
+          const readiness = computeGoLiveReadiness({ store: refreshed || store, productCount });
+          return res.status(400).json({
+            error: 'Store is not eligible to go live. Complete required documents, payout setup, and add at least one product.',
+            details: {
+              missingRequirements: readiness.missingRequirements,
+              missingDocuments: readiness.missingDocuments,
+              missingPayoutFields: readiness.missingPayoutFields,
+              productCount: readiness.productCount
+            }
+          });
         }
         updateData.status = STORE_REVIEW_STATUS.ACTIVE;
         updateData.isActive = true;

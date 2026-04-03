@@ -430,7 +430,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      throw new Error(await getErrorMessage(res, 'Failed to update store review state'));
+      const payloadData = await readJsonSafely<{
+        error?: string;
+        message?: string;
+        details?: {
+          missingRequirements?: string[];
+          missingDocuments?: string[];
+          missingPayoutFields?: string[];
+          productCount?: number;
+        };
+      }>(res);
+
+      const baseMessage = payloadData?.error || payloadData?.message || 'Failed to update store review state';
+      const details = payloadData?.details;
+
+      if (details && Array.isArray(details.missingRequirements) && details.missingRequirements.length > 0) {
+        const parts: string[] = [];
+        if (Array.isArray(details.missingDocuments) && details.missingDocuments.length > 0) {
+          parts.push(`Missing docs: ${details.missingDocuments.join(', ')}`);
+        }
+        if (Array.isArray(details.missingPayoutFields) && details.missingPayoutFields.length > 0) {
+          parts.push(`Missing payout fields: ${details.missingPayoutFields.join(', ')}`);
+        }
+        if (Number(details.productCount || 0) === 0) {
+          parts.push('No products added');
+        }
+        throw new Error(parts.length > 0 ? `${baseMessage} ${parts.join(' | ')}` : baseMessage);
+      }
+
+      throw new Error(baseMessage);
     } catch (error) {
       console.error('Failed to review store', error);
       throw error;
