@@ -87,8 +87,12 @@ export function DriverDashboard() {
   useEffect(() => {
     fetchOrders();
     fetchDriverPayouts();
-    const interval = setInterval(fetchOrders, 10000);
-    return () => clearInterval(interval);
+    const ordersInterval = setInterval(fetchOrders, 10000);
+    const payoutsInterval = setInterval(fetchDriverPayouts, 30000);
+    return () => {
+      clearInterval(ordersInterval);
+      clearInterval(payoutsInterval);
+    };
   }, []);
 
   const updateOrderStatus = async (id: string, newStatus: string) => {
@@ -113,6 +117,9 @@ export function DriverDashboard() {
         if (newStatus === 'DELIVERED') {
           showToast('Delivery completed successfully.', 'success');
         }
+        if (newStatus === 'OUT_FOR_DELIVERY') {
+          setActiveTab('active');
+        }
         fetchOrders(); // refresh
         fetchDriverPayouts();
       } else {
@@ -122,10 +129,6 @@ export function DriverDashboard() {
     } catch (e) {
       console.error(e);
       showToast('Could not reach the server.', 'error');
-    }
-
-    if (newStatus === 'OUT_FOR_DELIVERY') {
-      setActiveTab('active');
     }
   };
 

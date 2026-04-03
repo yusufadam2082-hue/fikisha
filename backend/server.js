@@ -5573,7 +5573,13 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
         return res.json([]);
       }
 
-      where = { driverId };
+      // Support both canonical Driver.id and legacy User.id assignments.
+      where = {
+        OR: [
+          { driverId },
+          { driverId: req.user.id }
+        ]
+      };
     } else if (req.user.role === 'CUSTOMER') {
       where = { customerId: req.user.id };
     }
@@ -5847,7 +5853,7 @@ app.put('/api/orders/:id/status',
       const currentStatus = normalizeOrderStatus(existingOrder.status) || ORDER_STATUS.PENDING;
       let resolvedDriverId = existingOrder.driverId;
       const updateData = {
-        status: normalizedStatus,
+        status: currentStatus,
         driverId: resolvedDriverId,
         pickedUpAt: undefined,
         deliveredAt: undefined
@@ -5894,6 +5900,14 @@ app.put('/api/orders/:id/status',
 
         if (!ownedByCurrentDriver) {
           return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (
+          normalizedStatus !== ORDER_STATUS.DRIVER_ACCEPTED
+          && normalizedStatus !== ORDER_STATUS.OUT_FOR_DELIVERY
+          && normalizedStatus !== ORDER_STATUS.DELIVERED
+        ) {
+          return res.status(403).json({ error: 'Drivers can only accept jobs, mark pickup, or complete delivery.' });
         }
 
         if (normalizedStatus === ORDER_STATUS.DRIVER_ACCEPTED) {
