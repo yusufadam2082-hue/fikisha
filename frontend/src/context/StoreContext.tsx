@@ -149,7 +149,7 @@ interface StoreContextType {
   updateProduct: (storeId: string, productId: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (storeId: string, productId: string) => Promise<void>;
   deleteStore: (id: string) => Promise<void>;
-  reviewStore: (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[] }) => Promise<void>;
+  reviewStore: (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[]; forceActivate?: boolean }) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -413,7 +413,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const reviewStore = async (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[] }) => {
+  const reviewStore = async (id: string, payload: { action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate'; reason?: string; requestedDocs?: string[]; forceActivate?: boolean }) => {
     try {
       const res = await fetch(`${API_URL}/admin/stores/${id}/review`, {
         method: 'POST',

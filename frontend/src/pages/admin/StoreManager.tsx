@@ -393,13 +393,21 @@ export function StoreManager() {
     }
   };
 
-  const handleStoreReviewAction = async (storeId: string, action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate') => {
+  const handleStoreReviewAction = async (storeId: string, action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate', forceActivate = false) => {
+    if (action === 'activate' && forceActivate) {
+      const confirmed = confirm('Force activate this store even if required docs, payout setup, or products are missing?');
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setActionError('');
     try {
       await reviewStore(storeId, {
         action,
         reason: reviewReason[storeId] || undefined,
-        requestedDocs: action === 'request_documents' ? ['owner_id_document', 'business_permit', 'tax_pin'] : undefined
+        requestedDocs: action === 'request_documents' ? ['owner_id_document', 'business_permit', 'tax_pin'] : undefined,
+        forceActivate: action === 'activate' ? forceActivate : undefined
       });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Failed to process store action');
@@ -1390,6 +1398,7 @@ export function StoreManager() {
                   <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'reject')}>Reject</Button>
                   <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'suspend')}>Suspend</Button>
                   <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate')}><ShieldCheck size={14} /> Activate</Button>
+                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate', true)} style={{ color: '#b45309' }}>Force Activate</Button>
                 </div>
                 {(store.ownerIdDocument || store.businessPermitDocument || store.taxPin || store.proofOfAddressDocument || store.payoutMethod) && (
                   <div>
@@ -1533,6 +1542,9 @@ export function StoreManager() {
                 <Button variant="outline" onClick={() => setViewingDocsForStore(null)}>Close</Button>
                 <Button onClick={() => { handleStoreReviewAction(s.id, 'approve'); setViewingDocsForStore(null); }}>
                   <CheckCircle2 size={16} /> Approve Store
+                </Button>
+                <Button variant="outline" onClick={() => { handleStoreReviewAction(s.id, 'activate', true); setViewingDocsForStore(null); }} style={{ color: '#b45309' }}>
+                  Force Activate
                 </Button>
               </div>
             </div>

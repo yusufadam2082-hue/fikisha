@@ -4594,6 +4594,7 @@ app.post('/api/admin/stores/:id/review',
       const action = String(req.body.action || '').toLowerCase();
       const reason = req.body.reason || null;
       const requestedDocs = parseRequestedDocs(req.body.requestedDocs);
+      const forceActivate = req.body.forceActivate === true || String(req.body.forceActivate || '').toLowerCase() === 'true';
 
       const refreshed = await refreshStoreReadiness(store.id);
       const canGoLive = Boolean(refreshed?.goLiveReady);
@@ -4624,7 +4625,7 @@ app.post('/api/admin/stores/:id/review',
         updateData.reviewNotes = reason;
         auditAction = 'STORE_SUSPENDED';
       } else if (action === 'activate') {
-        if (!canGoLive) {
+        if (!canGoLive && !forceActivate) {
           const productCount = await prisma.product.count({ where: { storeId: store.id } });
           const readiness = computeGoLiveReadiness({ store: refreshed || store, productCount });
           return res.status(400).json({
@@ -4641,7 +4642,7 @@ app.post('/api/admin/stores/:id/review',
         updateData.isActive = true;
         updateData.isOpen = true;
         updateData.reviewNotes = reason;
-        auditAction = 'STORE_ACTIVATED';
+        auditAction = forceActivate ? 'STORE_FORCE_ACTIVATED' : 'STORE_ACTIVATED';
       } else {
         return res.status(400).json({ error: 'Invalid review action' });
       }
