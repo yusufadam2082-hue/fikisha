@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 
 async function run() {
   const tableExistsRows = await prisma.$queryRawUnsafe(
-    "SELECT to_regclass('public.\"PayoutBatchItem\"') AS table_name"
+    "SELECT to_regclass('public.\"PayoutBatchItem\"')::text AS table_name"
   );
 
   const tableName = Array.isArray(tableExistsRows) ? tableExistsRows[0]?.table_name : null;
