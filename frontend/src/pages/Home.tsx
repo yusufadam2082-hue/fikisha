@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Clock3,
-  MapPin,
-  Navigation,
   Package,
   Pill,
   ShoppingBasket,
@@ -64,10 +62,11 @@ function categoryVisual(name: string) {
 export function Home() {
   const { categories, stores } = useStoreContext();
   const { searchQuery } = useSearch();
-  const { activeLocation, openLocationSelector } = useLocation();
+  const { activeLocation } = useLocation();
   const storesRef = useRef<HTMLElement>(null);
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [merchantSort, setMerchantSort] = useState<'all' | 'fastest' | 'top-rated'>('all');
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
 
@@ -141,14 +140,26 @@ export function Home() {
         : filteredBySearch
       )
         .slice()
-        .sort((a, b) => b.rating - a.rating)
+        .sort((a, b) => {
+          if (merchantSort === 'fastest') {
+            const aTime = Number(String(a.time || '').match(/\d+/)?.[0] || 999);
+            const bTime = Number(String(b.time || '').match(/\d+/)?.[0] || 999);
+            return aTime - bTime;
+          }
+
+          if (merchantSort === 'top-rated') {
+            return b.rating - a.rating;
+          }
+
+          return b.rating - a.rating;
+        })
         .filter((store) => {
           if (!activeLocation || Object.keys(storeQuotes).length === 0) return true;
           const quote = storeQuotes[store.id];
           if (!quote) return true;
           return quote.serviceable;
         }),
-    [selectedCategory, filteredBySearch, activeLocation, storeQuotes]
+    [selectedCategory, filteredBySearch, activeLocation, storeQuotes, merchantSort]
   );
 
   const heroPromo = promotions[0];
@@ -179,20 +190,14 @@ export function Home() {
     <div className="customer-home-shell">
       <section
         className={`customer-hero${heroPromo?.image ? ' has-image' : ''}`}
-        style={{
-          background: heroPromo?.image
-            ? `linear-gradient(102deg, rgba(24, 8, 4, 0.75), rgba(24, 8, 4, 0.25)), url(${heroPromo.image}) center/cover`
-            : 'linear-gradient(125deg, #fff1ee 0%, #ffd6ca 52%, #ffe9e3 100%)',
-        }}
       >
         <div className="customer-hero-copy">
-          <p className="customer-hero-kicker">Premium speed, citywide reach</p>
           <h1>
             Fastest delivery in <span>your</span> city.
           </h1>
           <p>
             {heroPromo?.subtitle ||
-              'From hot meals to groceries and pharmacies, Mtaaexpress brings your essentials to your door in minutes.'}
+              'From gourmet meals to emergency prescriptions, Mtaaexpress delivers excellence to your doorstep in 30 minutes.'}
           </p>
           <div className="customer-hero-actions">
             <button
@@ -212,12 +217,11 @@ export function Home() {
           </div>
         </div>
 
-        <div className="customer-hero-badge" role="status" aria-live="polite">
-          <button type="button" className="customer-hero-location" onClick={openLocationSelector}>
-            {activeLocation ? <MapPin size={14} /> : <Navigation size={14} />}
-            <span>{activeLocation ? activeLocation.label : 'Set delivery location'}</span>
-          </button>
-          <p>Most stores deliver in 15-35 minutes</p>
+        <div className="customer-hero-media" aria-hidden="true">
+          <img
+            src={heroPromo?.image || 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=1400&q=80'}
+            alt=""
+          />
         </div>
       </section>
 
@@ -257,7 +261,7 @@ export function Home() {
           <h2>Exclusive Rewards</h2>
         </div>
         <div className="customer-rewards-row">
-          {rewardPromos.map((promo) => (
+          {rewardPromos.slice(0, 2).map((promo) => (
             <article
               key={promo.id}
               className="reward-card"
@@ -279,12 +283,12 @@ export function Home() {
         <div className="customer-merchants-head">
           <div>
             <h2>{selectedCategory ? `${selectedCategory} near you` : 'Nearby Merchants'}</h2>
-            <p>{filteredStores.length} options available now</p>
           </div>
-          <button type="button" className="location-filter" onClick={openLocationSelector}>
-            {activeLocation ? <MapPin size={14} /> : <Navigation size={14} />}
-            <span>{activeLocation ? activeLocation.label : 'Set location'}</span>
-          </button>
+          <div className="merchant-filter-pills" role="tablist" aria-label="Merchant sorting">
+            <button type="button" className={`merchant-filter-pill${merchantSort === 'all' ? ' active' : ''}`} onClick={() => setMerchantSort('all')}>All</button>
+            <button type="button" className={`merchant-filter-pill${merchantSort === 'fastest' ? ' active' : ''}`} onClick={() => setMerchantSort('fastest')}>Fastest</button>
+            <button type="button" className={`merchant-filter-pill${merchantSort === 'top-rated' ? ' active' : ''}`} onClick={() => setMerchantSort('top-rated')}>Top Rated</button>
+          </div>
         </div>
 
         {filteredStores.length === 0 ? (
