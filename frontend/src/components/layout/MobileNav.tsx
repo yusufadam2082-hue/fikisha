@@ -1,4 +1,4 @@
-import { Home, Package, Wallet, User, ShoppingCart } from 'lucide-react';
+import { Home, Wallet, User, ShoppingCart } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
