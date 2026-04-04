@@ -655,16 +655,7 @@
   }
 
   .merchant-filter-pills {
-    width: 100%;
-    justify-content: flex-start;
-    padding: 4px;
-  }
-
-  .merchant-filter-pill {
-    flex: 1;
-    text-align: center;
-    padding: 8px 12px;
-    font-size: 0.6875rem;
+    display: none;
   }
 
   .customer-merchants-grid {
