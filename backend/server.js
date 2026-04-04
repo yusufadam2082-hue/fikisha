@@ -6569,6 +6569,7 @@ app.put('/api/orders/:id/status',
             return res.status(423).json({ error: 'Complete Delivery is locked until OTP is verified.' });
           }
 
+          updateData.status = ORDER_STATUS.DELIVERED;
           updateData.deliveredAt = new Date();
 
           await prisma.driver.update({
