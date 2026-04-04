@@ -292,9 +292,6 @@
   .reward-card {
     min-width: 280px;
     scroll-snap-align: start;
-    aspect-ratio: 16 / 9;
-    border-radius: 24px;
-    padding: 24px;
   }
 }
 
@@ -632,6 +629,31 @@
   .customer-merchants-head h2 {
     font-size: 1.5rem;
   }
+
+  .customer-rewards-row {
+    gap: 16px;
+  }
+
+  .reward-card {
+    aspect-ratio: 16 / 11;
+    border-radius: 20px;
+    padding: 20px;
+  }
+
+  .reward-pill {
+    font-size: 0.5625rem;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+  }
+
+  .reward-card h3 {
+    font-size: 1.25rem;
+  }
+
+  .reward-card p {
+    font-size: 0.8125rem;
+  }
+}
 
   .merchant-filter-pills {
     width: 100%;
