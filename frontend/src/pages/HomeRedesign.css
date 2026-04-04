@@ -275,7 +275,26 @@
 
 @media (max-width: 768px) {
   .customer-rewards-row {
-    grid-template-columns: 1fr;
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+    margin: 0 -16px;
+    padding: 0 16px 8px;
+  }
+
+  .customer-rewards-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reward-card {
+    min-width: 280px;
+    scroll-snap-align: start;
+    aspect-ratio: 16 / 9;
+    border-radius: 24px;
+    padding: 24px;
   }
 }
 
@@ -603,30 +622,6 @@
     font-size: 4rem;
     right: -8px;
     bottom: -8px;
-  }
-
-  .customer-rewards-row {
-    gap: 16px;
-  }
-
-  .reward-card {
-    aspect-ratio: 16 / 11;
-    border-radius: 20px;
-    padding: 20px;
-  }
-
-  .reward-pill {
-    font-size: 0.5625rem;
-    padding: 3px 8px;
-    margin-bottom: 8px;
-  }
-
-  .reward-card h3 {
-    font-size: 1.25rem;
-  }
-
-  .reward-card p {
-    font-size: 0.8125rem;
   }
 
   .customer-merchants-head {
