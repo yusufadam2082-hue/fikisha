@@ -550,6 +550,34 @@ const loadAdminPaymentIntentById = (id) => {
   });
 };
 
+const getOrderCompletionTimestamp = (order) => {
+  const candidate = order?.deliveredAt || order?.updatedAt || order?.createdAt;
+  if (!candidate) {
+    return null;
+  }
+
+  const parsed = new Date(candidate);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const buildDeliveredDateRangeWhere = (dateFilter = {}) => {
+  if (!dateFilter || Object.keys(dateFilter).length === 0) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { deliveredAt: dateFilter },
+      {
+        AND: [
+          { deliveredAt: null },
+          { updatedAt: dateFilter }
+        ]
+      }
+    ]
+  };
+};
+
 const buildAdminPaymentRetryHistory = async (intent) => {
   if (!intent) {
     return [];
@@ -577,34 +605,6 @@ const buildAdminPaymentRetryHistory = async (intent) => {
     if (!childIdsByParent.has(entry.retrySourceIntentId)) {
       childIdsByParent.set(entry.retrySourceIntentId, []);
     }
-
-    const getOrderCompletionTimestamp = (order) => {
-      const candidate = order?.deliveredAt || order?.updatedAt || order?.createdAt;
-      if (!candidate) {
-        return null;
-      }
-
-      const parsed = new Date(candidate);
-      return Number.isNaN(parsed.getTime()) ? null : parsed;
-    };
-
-    const buildDeliveredDateRangeWhere = (dateFilter = {}) => {
-      if (!dateFilter || Object.keys(dateFilter).length === 0) {
-        return {};
-      }
-
-      return {
-        OR: [
-          { deliveredAt: dateFilter },
-          {
-            AND: [
-              { deliveredAt: null },
-              { updatedAt: dateFilter }
-            ]
-          }
-        ]
-      };
-    };
     childIdsByParent.get(entry.retrySourceIntentId).push(entry.id);
   });
 
