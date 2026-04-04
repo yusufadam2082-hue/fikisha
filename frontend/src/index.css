@@ -847,3 +847,70 @@ img {
   border-radius: 10px;
   padding: 9px 12px;
 }
+
+/* ========== RESPONSIVE UTILITIES ========== */
+.hidden-mobile {
+  display: block;
+}
+
+.hidden-desktop {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+  
+  .hidden-desktop {
+    display: block !important;
+  }
+}
+
+/* Container responsive */
+@media (max-width: 767px) {
+  .container {
+    padding: 0 16px !important;
+  }
+}
+
+/* Text utilities for mobile */
+@media (max-width: 767px) {
+  .text-h1 {
+    font-size: 1.75rem !important;
+  }
+  
+  .text-h2 {
+    font-size: 1.5rem !important;
+  }
+  
+  .text-h3 {
+    font-size: 1.125rem !important;
+  }
+}
+
+/* Layout adjustments for mobile */
+@media (max-width: 767px) {
+  .layout-wrapper main {
+    padding-top: 72px !important;
+    padding-bottom: 80px !important;
+  }
+}
+
+/* Touch-friendly button minimum size */
+@media (max-width: 767px) {
+  button,
+  .btn,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+@media (max-width: 767px) {
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}

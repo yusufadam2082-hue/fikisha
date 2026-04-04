@@ -84,6 +84,17 @@ export function Navbar() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+
+          <div className="customer-search-mobile">
+            <Search size={18} className="customer-search-icon" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="customer-actions-side">
