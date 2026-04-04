@@ -1,4 +1,4 @@
-import { Home, Package, Wallet, User } from 'lucide-react';
+import { Home, Package, Wallet, User, ShoppingCart } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -46,13 +46,18 @@ export function MobileNav() {
         <span>Home</span>
       </Link>
 
-      <Link
-        to="/customer/tracking"
-        className={`mobile-nav-item ${location.pathname.startsWith('/customer/tracking') ? 'active' : ''}`}
+      <button
+        type="button"
+        className="mobile-nav-item"
+        onClick={() => setIsCartOpen(true)}
+        aria-label="Open cart"
       >
-        <Package size={22} />
-        <span>Activity</span>
-      </Link>
+        <div style={{ position: 'relative' }}>
+          <ShoppingCart size={22} />
+          {itemCount > 0 && <span className="cart-count-badge">{itemCount}</span>}
+        </div>
+        <span>Cart</span>
+      </button>
 
       <Link 
         to="/customer/wallet" 

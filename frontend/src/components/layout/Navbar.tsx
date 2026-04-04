@@ -1,16 +1,19 @@
-import { Bell, LogOut, MapPin, Search, User } from 'lucide-react';
+import { Bell, LogOut, MapPin, Search, User, ShoppingCart } from 'lucide-react';
 import { Link, useNavigate, useLocation as useRouteLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useSearch } from '../../context/SearchContext';
 import { useLocation } from '../../context/LocationContext';
+import { useCart } from '../../context/CartContext';
 import './CustomerNavRedesign.css';
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const { searchQuery, setSearchQuery, searchInputRef } = useSearch();
   const { activeLocation, openLocationSelector } = useLocation();
+  const { items, setIsCartOpen } = useCart();
   const navigate = useNavigate();
   const routeLocation = useRouteLocation();
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const homeByRole = user?.role === 'ADMIN'
     ? '/admin'
     : user?.role === 'MERCHANT'
@@ -100,13 +103,24 @@ export function Navbar() {
         <div className="customer-actions-side">
           <div className="customer-nav-links" aria-label="Primary">
             <Link to="/customer" className={routeLocation.pathname === '/customer' ? 'active' : ''}>Home</Link>
-            <Link to="/customer/tracking" className={routeLocation.pathname.startsWith('/customer/tracking') ? 'active' : ''}>Activity</Link>
+            <button type="button" className="cart-nav-btn" onClick={() => setIsCartOpen(true)}>Cart</button>
             <Link to="/customer/wallet" className={routeLocation.pathname.startsWith('/customer/wallet') ? 'active' : ''}>Wallet</Link>
           </div>
 
           <button type="button" className="customer-location-pill" onClick={openLocationSelector}>
             <MapPin size={15} />
             <span>{activeLocation ? activeLocation.label : 'Set location'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="customer-cart-btn"
+            title="Cart"
+            aria-label="Cart"
+            onClick={() => setIsCartOpen(true)}
+          >
+            <ShoppingCart size={17} />
+            {itemCount > 0 && <span className="cart-count-pill">{itemCount}</span>}
           </button>
 
           <button
