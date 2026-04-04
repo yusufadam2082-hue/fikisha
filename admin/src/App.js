@@ -36,6 +36,7 @@ import Settings from './pages/Settings';
 import Zones from './pages/Zones';
 import Notifications from './pages/Notifications';
 import SupportTickets from './pages/SupportTickets';
+import ReviewDocuments from './pages/ReviewDocuments';
 import { useAuth } from './context/AuthContext';
 
 const DRAWER_WIDTH = 240;
@@ -70,6 +71,7 @@ const navSections = [
   {
     label: 'Admin',
     items: [
+      { text: 'Review Documents', icon: <DescriptionIcon />,      link: '/review-documents' },
       { text: 'Support Tickets', icon: <SupportAgentIcon />,      link: '/support-tickets' },
       { text: 'Audit Logs',  icon: <HistoryIcon />,               link: '/audit-logs'},
       { text: 'Store Logs',  icon: <DescriptionIcon />,           link: '/store-logs'},
@@ -163,6 +165,7 @@ function App() {
           <Route path="/accounting" element={<Accounting />} />
           <Route path="/payments"   element={<Payments />} />
           <Route path="/reports"    element={<Reports />} />
+          <Route path="/review-documents" element={<ReviewDocuments />} />
           <Route path="/support-tickets" element={<SupportTickets />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/store-logs" element={<StoreLogs />} />

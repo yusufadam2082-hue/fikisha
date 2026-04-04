@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Chip,
   Box,
@@ -725,9 +726,14 @@ function Stores() {
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4">Stores Management</Typography>
-        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpen}>
-          Add Store
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" component={RouterLink} to="/review-documents">
+            Review Documents
+          </Button>
+          <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpen}>
+            Add Store
+          </Button>
+        </Box>
       </Box>
 
       {loading ? (
