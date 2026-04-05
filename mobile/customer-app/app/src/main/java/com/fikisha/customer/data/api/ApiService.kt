@@ -40,6 +40,7 @@ interface ApiService {
     @GET("api/orders/{id}")
     suspend fun getOrder(@Path("id") orderId: String): Response<Order>
 
+    // Backend scopes results by authenticated role; for customers this returns only their orders.
     @GET("api/orders")
     suspend fun getCustomerOrders(): Response<List<Order>>
 
@@ -76,4 +77,13 @@ interface ApiService {
 
     @GET("api/me")
     suspend fun getProfile(): Response<User>
+
+    @POST("api/ai/chat")
+    suspend fun chatWithAi(@Body request: AiChatRequest): Response<AiChatResponse>
+
+    @POST("api/payments/intents")
+    suspend fun createPaymentIntent(@Body request: PaymentIntentRequest): Response<PaymentIntentResponse>
+
+    @GET("api/payments/intents/{id}")
+    suspend fun getPaymentIntent(@Path("id") intentId: String): Response<PaymentIntentResponse>
 }

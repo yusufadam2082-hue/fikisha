@@ -36,7 +36,7 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
                 NetworkModule.setAuthToken(response.body()!!.token)
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception(response.message() ?: "Login failed"))
+                Result.failure(Exception(getApiError(response).ifBlank { "Login failed" }))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -76,7 +76,7 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
                 NetworkModule.setAuthToken(response.body()!!.token)
                 Result.success(response.body()!!)
             } else {
-                Result.failure(Exception(response.message() ?: "Registration failed"))
+                Result.failure(Exception(getApiError(response).ifBlank { "Registration failed" }))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -144,7 +144,8 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
         latitude: Double? = null,
         longitude: Double? = null,
         locationSource: String? = null,
-        notes: String? = null
+        notes: String? = null,
+        paymentMethod: String? = null
     ): Result<Order> {
         return try {
             val request = CreateOrderRequest(
@@ -159,7 +160,8 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
                 customerInfo = CreateOrderCustomerInfo(
                     name = customerName,
                     phone = customerPhone,
-                    address = deliveryAddress
+                    address = deliveryAddress,
+                    paymentMethod = paymentMethod
                 ),
                 notes = notes?.takeIf { it.isNotBlank() }
             )
@@ -379,6 +381,45 @@ class Repository(private val apiService: ApiService = NetworkModule.apiService) 
                 Result.success(response.body()!!)
             } else {
                 Result.failure(Exception(response.message() ?: "Failed to fetch profile"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun chatWithAi(message: String, context: List<Map<String, String>>): Result<AiChatResponse> {
+        return try {
+            val response = apiService.chatWithAi(AiChatRequest(message = message, context = context))
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(getApiError(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createPaymentIntent(request: PaymentIntentRequest): Result<PaymentIntentResponse> {
+        return try {
+            val response = apiService.createPaymentIntent(request)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(getApiError(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getPaymentIntent(intentId: String): Result<PaymentIntentResponse> {
+        return try {
+            val response = apiService.getPaymentIntent(intentId)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(getApiError(response)))
             }
         } catch (e: Exception) {
             Result.failure(e)

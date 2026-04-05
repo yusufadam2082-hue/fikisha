@@ -38,7 +38,13 @@ object NetworkModule {
     }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        // Keep verbose logs in debug only and always redact auth tokens.
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BODY
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
+        redactHeader("Authorization")
     }
 
     private val okHttpClient = OkHttpClient.Builder()

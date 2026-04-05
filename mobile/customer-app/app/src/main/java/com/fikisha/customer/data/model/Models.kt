@@ -201,3 +201,49 @@ data class ProductUpsertRequest(
     val category: String? = null,
     val available: Boolean? = null
 )
+
+// ─── AI Chat ───────────────────────────────────────────────────────────────────
+
+data class AiChatMessage(
+    val id: String,
+    val role: String, // "user" or "assistant"
+    val text: String
+)
+
+data class AiChatRequest(
+    @SerializedName("message") val message: String,
+    @SerializedName("context") val context: List<Map<String, String>> = emptyList()
+)
+
+data class AiChatResponse(
+    @SerializedName("reply") val reply: String? = null,
+    @SerializedName("suggestions") val suggestions: List<String> = emptyList()
+)
+
+// ─── Payments ──────────────────────────────────────────────────────────────────
+
+data class PaymentIntentRequest(
+    @SerializedName("amount") val amount: Double,
+    @SerializedName("currency") val currency: String = "KES",
+    @SerializedName("provider") val provider: String,
+    @SerializedName("phoneNumber") val phoneNumber: String? = null,
+    @SerializedName("description") val description: String? = null
+)
+
+data class PaymentIntent(
+    @SerializedName("id") val id: String,
+    @SerializedName("status") val status: String,
+    @SerializedName("amount") val amount: Double,
+    @SerializedName("currency") val currency: String,
+    @SerializedName("provider") val provider: String
+)
+
+data class PaymentAction(
+    @SerializedName("type") val type: String? = null,
+    @SerializedName("checkoutUrl") val checkoutUrl: String? = null
+)
+
+data class PaymentIntentResponse(
+    @SerializedName("intent") val intent: PaymentIntent,
+    @SerializedName("action") val action: PaymentAction? = null
+)

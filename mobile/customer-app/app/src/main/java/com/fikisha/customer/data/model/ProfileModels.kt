@@ -17,6 +17,9 @@ data class Address(
     val label: String = "", // "Home", "Work", "Other"
     val street: String = "",
     val city: String = "",
+    val fullAddress: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val postalCode: String? = null,
     val isDefault: Boolean = false
 )
@@ -24,10 +27,11 @@ data class Address(
 // Payment Methods
 data class PaymentMethod(
     val id: String = "",
-    val type: String = "", // "Visa", "Mastercard", "Amex"
+    val type: String = "", // "Visa", "Mastercard", "Amex", "M-Pesa"
     val last4: String = "",
     val expiry: String = "",
     val cardholderName: String = "",
+    val phoneNumber: String? = null,
     val isDefault: Boolean = false
 )
 

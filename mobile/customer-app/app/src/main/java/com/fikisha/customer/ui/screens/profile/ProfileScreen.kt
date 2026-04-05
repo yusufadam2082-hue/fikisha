@@ -1,4 +1,4 @@
-package com.Mtaaexpresscustomer.ui.screens.profile
+package com.fikisha.customer.ui.screens.profile
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Help
@@ -37,8 +37,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,24 +53,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.Mtaaexpresscustomer.data.api.NetworkModule
-import com.Mtaaexpresscustomer.data.session.SessionStore
+import com.fikisha.customer.data.api.NetworkModule
+import com.fikisha.customer.data.session.SessionStore
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ProfileViewModel : ViewModel() {
+    private val profileAvatarStoreKey = stringPreferencesKey("profile_avatar_uri")
+
     private val _name = MutableStateFlow("")
     val name: StateFlow<String> = _name.asStateFlow()
 
@@ -79,6 +85,9 @@ class ProfileViewModel : ViewModel() {
 
     private val _userId = MutableStateFlow("")
     val userId: StateFlow<String> = _userId.asStateFlow()
+
+    private val _avatarUri = MutableStateFlow<String?>(null)
+    val avatarUri: StateFlow<String?> = _avatarUri.asStateFlow()
 
     init {
         loadUser()
@@ -95,6 +104,7 @@ class ProfileViewModel : ViewModel() {
                         _name.value = user.name
                         _username.value = user.username
                     }
+                    _avatarUri.value = preferences[profileAvatarStoreKey]
                 }
             } catch (_: Exception) {
             }
@@ -112,6 +122,7 @@ fun ProfileScreen(
     onEditProfileClick: () -> Unit,
     onAddressesClick: () -> Unit,
     onPaymentsClick: () -> Unit,
+    onWalletClick: () -> Unit,
     onNotificationsClick: () -> Unit,
     onHelpClick: () -> Unit,
     onAboutClick: () -> Unit,
@@ -122,6 +133,7 @@ fun ProfileScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     val name by viewModel.name.collectAsState()
     val username by viewModel.username.collectAsState()
+    val avatarUri by viewModel.avatarUri.collectAsState()
 
     Scaffold(
         topBar = {
@@ -143,7 +155,7 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Icon(
-                                Icons.Default.ArrowBack,
+                                Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 modifier = Modifier
                                     .padding(4.dp)
@@ -220,13 +232,22 @@ fun ProfileScreen(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(28.dp)
+                            if (!avatarUri.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = avatarUri,
+                                    contentDescription = "Profile picture",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
                                 )
+                            } else {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -279,32 +300,32 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(14.dp)) {
                         ProfileMenuItem(
                             icon = Icons.Default.Person,
-                            title = "Edit Profile",
-                            subtitle = "Name, phone and account details",
+                            title = "Personal Info",
+                            subtitle = "Photo, name, username, email, phone, password",
                             onClick = onEditProfileClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.LocationOn,
                             title = "Saved Addresses",
                             subtitle = "Home, work and delivery locations",
                             onClick = onAddressesClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.Payment,
-                            title = "Payment Methods",
+                            title = "Payment",
                             subtitle = "Cards and billing preferences",
                             onClick = onPaymentsClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.Notifications,
                             title = "Notifications",
                             subtitle = "Alerts and delivery updates",
                             onClick = onNotificationsClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.Help,
                             title = "Help & Support",
@@ -322,20 +343,28 @@ fun ProfileScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        ProfileMenuItem(
+                            icon = Icons.Default.AccountBalanceWallet,
+                            title = "Wallet",
+                            subtitle = "Top up, cashback, and quick pay",
+                            onClick = onWalletClick
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.Info,
                             title = "About",
                             subtitle = "Platform overview",
                             onClick = onAboutClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.Gavel,
                             title = "Terms of Service",
                             subtitle = "Usage terms",
                             onClick = onTermsClick
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ProfileMenuItem(
                             icon = Icons.Default.PrivacyTip,
                             title = "Privacy Policy",

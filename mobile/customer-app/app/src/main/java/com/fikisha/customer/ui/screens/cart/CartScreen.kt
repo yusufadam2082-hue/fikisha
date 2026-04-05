@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,9 +34,56 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import org.json.JSONArray
+import org.json.JSONObject
+
+enum class PaymentMethod(val label: String, val value: String) {
+    CASH("Cash on Delivery", "CASH"),
+    MPESA("M-Pesa (STK Push)", "MPESA")
+}
+
+private fun normalizeMpesaPhone(input: String): String {
+    val digits = input.filter { it.isDigit() }
+    if (digits.isBlank()) return ""
+
+    return when {
+        digits.startsWith("254") -> digits.take(12)
+        digits.startsWith("0") && digits.length >= 10 -> ("254" + digits.drop(1)).take(12)
+        digits.startsWith("7") && digits.length >= 9 -> ("254" + digits).take(12)
+        else -> digits.take(12)
+    }
+}
+
+private fun isValidMpesaPhone(input: String): Boolean {
+    val normalized = normalizeMpesaPhone(input)
+    return normalized.matches(Regex("^2547\\d{8}$"))
+}
+
+private fun extractDefaultMpesaPhone(rawPaymentMethods: String): String? {
+    if (rawPaymentMethods.isBlank()) return null
+
+    return runCatching {
+        val arr = JSONArray(rawPaymentMethods)
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+            val isDefault = obj.optBoolean("isDefault", false)
+            val type = obj.optString("type")
+            if (!isDefault || !type.equals("M-Pesa", ignoreCase = true)) continue
+
+            val phone = obj.optString("phoneNumber").ifBlank { "" }
+            val normalized = normalizeMpesaPhone(phone)
+            if (isValidMpesaPhone(normalized)) return normalized
+        }
+        null
+    }.getOrNull()
+}
 
 class CartViewModel : ViewModel() {
     private val repository = Repository()
+    private val zoneErrorMessage = "Selected location is outside the store delivery zone. Choose another location."
+    private val paymentMethodsStoreKey = stringPreferencesKey("profile_payment_methods")
+    private val addressesStoreKey = stringPreferencesKey("profile_addresses")
 
     val cartItems: StateFlow<List<CartItem>> = CartStore.items
     
@@ -66,25 +114,149 @@ class CartViewModel : ViewModel() {
     private val _deliveryQuote = MutableStateFlow<DeliveryQuote?>(null)
     val deliveryQuote: StateFlow<DeliveryQuote?> = _deliveryQuote.asStateFlow()
 
+    private val _defaultSavedAddressLabel = MutableStateFlow<String?>(null)
+    val defaultSavedAddressLabel: StateFlow<String?> = _defaultSavedAddressLabel.asStateFlow()
+
+    private val _selectedPaymentMethod = MutableStateFlow(PaymentMethod.CASH)
+    val selectedPaymentMethod: StateFlow<PaymentMethod> = _selectedPaymentMethod.asStateFlow()
+
+    private val _mpesaPhone = MutableStateFlow("")
+    val mpesaPhone: StateFlow<String> = _mpesaPhone.asStateFlow()
+
+    private val _paymentIntentId = MutableStateFlow<String?>(null)
+    val paymentIntentId: StateFlow<String?> = _paymentIntentId.asStateFlow()
+
+    fun updateSelectedPaymentMethod(method: PaymentMethod) {
+        _selectedPaymentMethod.value = method
+    }
+
+    fun updateMpesaPhone(phone: String) {
+        _mpesaPhone.value = normalizeMpesaPhone(phone)
+    }
+
     init {
         viewModelScope.launch {
             try {
                 val prefs = NetworkModule.dataStore.data.first()
                 val user = SessionStore.deserializeUser(prefs[SessionStore.userKey])
                 val location = LocationStore.getActiveLocation()
+                val defaultProfileAddress = extractDefaultProfileAddress(prefs[addressesStoreKey].orEmpty())
                 if (user != null) {
                     if (_customerName.value.isBlank()) _customerName.value = user.name
                     if (_customerPhone.value.isBlank()) _customerPhone.value = user.phone.orEmpty()
+                    if (_mpesaPhone.value.isBlank()) {
+                        _mpesaPhone.value = normalizeMpesaPhone(user.phone.orEmpty())
+                    }
                 }
+
+                val storedMethods = prefs[paymentMethodsStoreKey].orEmpty()
+                val defaultMpesa = extractDefaultMpesaPhone(storedMethods)
+                if (!defaultMpesa.isNullOrBlank()) {
+                    _mpesaPhone.value = defaultMpesa
+                }
+
+                if (_deliveryAddress.value.isBlank() && defaultProfileAddress != null) {
+                    _deliveryAddress.value = defaultProfileAddress.address
+                }
+
+                if (defaultProfileAddress != null) {
+                    _defaultSavedAddressLabel.value = defaultProfileAddress.label.ifBlank { "Default" }
+                }
+
                 if (location != null) {
                     _activeLocation.value = location
                     if (_deliveryAddress.value.isBlank()) {
                         _deliveryAddress.value = location.address
                     }
+                } else if (defaultProfileAddress != null && defaultProfileAddress.latitude != null && defaultProfileAddress.longitude != null) {
+                    val seeded = AppLocation(
+                        id = "addr-${defaultProfileAddress.id}",
+                        label = defaultProfileAddress.label.ifBlank { "Delivery Address" },
+                        address = defaultProfileAddress.address,
+                        latitude = defaultProfileAddress.latitude,
+                        longitude = defaultProfileAddress.longitude,
+                        source = "PROFILE_ADDRESS",
+                        isSaved = true,
+                        isDefault = true
+                    )
+                    _activeLocation.value = seeded
+                    LocationStore.setActiveLocation(seeded)
                 }
                 refreshDeliveryQuote()
             } catch (_: Exception) { }
         }
+    }
+
+    fun useDefaultSavedAddress() {
+        viewModelScope.launch {
+            val prefs = NetworkModule.dataStore.data.first()
+            val defaultAddress = extractDefaultProfileAddress(prefs[addressesStoreKey].orEmpty())
+            if (defaultAddress == null) {
+                _error.value = "No default saved address found"
+                return@launch
+            }
+
+            _deliveryAddress.value = defaultAddress.address
+            _defaultSavedAddressLabel.value = defaultAddress.label.ifBlank { "Default" }
+
+            if (defaultAddress.latitude != null && defaultAddress.longitude != null) {
+                val seeded = AppLocation(
+                    id = "addr-${defaultAddress.id}",
+                    label = defaultAddress.label.ifBlank { "Delivery Address" },
+                    address = defaultAddress.address,
+                    latitude = defaultAddress.latitude,
+                    longitude = defaultAddress.longitude,
+                    source = "PROFILE_ADDRESS",
+                    isSaved = true,
+                    isDefault = true
+                )
+                _activeLocation.value = seeded
+                LocationStore.setActiveLocation(seeded)
+                refreshDeliveryQuote()
+            }
+
+            _error.value = null
+        }
+    }
+
+    private data class DefaultProfileAddress(
+        val id: String,
+        val label: String,
+        val address: String,
+        val latitude: Double?,
+        val longitude: Double?
+    )
+
+    private fun extractDefaultProfileAddress(rawAddresses: String): DefaultProfileAddress? {
+        if (rawAddresses.isBlank()) return null
+
+        return runCatching {
+            val arr = JSONArray(rawAddresses)
+            for (i in 0 until arr.length()) {
+                val obj = arr.optJSONObject(i) ?: continue
+                if (!obj.optBoolean("isDefault", false)) continue
+
+                val full = obj.optString("fullAddress").ifBlank {
+                    val street = obj.optString("street").ifBlank { "" }
+                    val city = obj.optString("city").ifBlank { "" }
+                    listOf(street, city).filter { it.isNotBlank() }.joinToString(", ")
+                }
+
+                return DefaultProfileAddress(
+                    id = obj.optString("id"),
+                    label = obj.optString("label"),
+                    address = full,
+                    latitude = obj.optNullableDouble("latitude"),
+                    longitude = obj.optNullableDouble("longitude")
+                )
+            }
+            null
+        }.getOrNull()
+    }
+
+    private fun JSONObject.optNullableDouble(key: String): Double? {
+        if (!has(key) || isNull(key)) return null
+        return optDouble(key)
     }
 
     fun updateDeliveryAddress(address: String) {
@@ -134,7 +306,9 @@ class CartViewModel : ViewModel() {
             ).onSuccess { quote ->
                 _deliveryQuote.value = quote
                 if (!quote.serviceable) {
-                    _error.value = "Selected location is outside the store delivery zone. Choose another location."
+                    _error.value = zoneErrorMessage
+                } else if (_error.value == zoneErrorMessage) {
+                    _error.value = null
                 }
             }.onFailure { _deliveryQuote.value = null }
         }
@@ -166,6 +340,11 @@ class CartViewModel : ViewModel() {
             return
         }
 
+        if (_selectedPaymentMethod.value == PaymentMethod.MPESA && !isValidMpesaPhone(_mpesaPhone.value)) {
+            _error.value = "Enter a valid M-Pesa number in format 2547XXXXXXXX"
+            return
+        }
+
         val storeId = cartItems.value.firstOrNull()?.storeId ?: return
 
         viewModelScope.launch {
@@ -192,7 +371,28 @@ class CartViewModel : ViewModel() {
                     return@launch
                 }
             }
-            
+
+            // For M-Pesa, create a payment intent first (STK push)
+            if (_selectedPaymentMethod.value == PaymentMethod.MPESA) {
+                val totalAmount = getTotal()
+                val intentResult = repository.createPaymentIntent(
+                    com.fikisha.customer.data.model.PaymentIntentRequest(
+                        amount = totalAmount,
+                        currency = "KES",
+                        provider = "MPESA",
+                        phoneNumber = _mpesaPhone.value.trim(),
+                        description = "Order payment"
+                    )
+                )
+                intentResult.onSuccess { resp ->
+                    _paymentIntentId.value = resp.intent.id
+                }.onFailure { e ->
+                    _isLoading.value = false
+                    _error.value = e.message ?: "Failed to initiate M-Pesa payment"
+                    return@launch
+                }
+            }
+
             repository.createOrder(
                 storeId = storeId,
                 items = cartItems.value,
@@ -202,7 +402,8 @@ class CartViewModel : ViewModel() {
                 latitude = location.latitude,
                 longitude = location.longitude,
                 locationSource = location.source,
-                notes = _orderNotes.value.takeIf { it.isNotBlank() }
+                notes = _orderNotes.value.takeIf { it.isNotBlank() },
+                paymentMethod = _selectedPaymentMethod.value.value
             ).onSuccess { order ->
                 _orderId.value = order.id
                 CartStore.clear()
@@ -249,14 +450,18 @@ class CartViewModel : ViewModel() {
 fun CartScreen(
     viewModel: CartViewModel = viewModel(),
     onBackClick: () -> Unit,
-    onOrderPlaced: (String) -> Unit
+    onOrderPlaced: (String, String?) -> Unit
 ) {
     val cartItems by viewModel.cartItems.collectAsState()
     val deliveryAddress by viewModel.deliveryAddress.collectAsState()
     val customerName by viewModel.customerName.collectAsState()
     val customerPhone by viewModel.customerPhone.collectAsState()
     val orderNotes by viewModel.orderNotes.collectAsState()
+    val selectedPaymentMethod by viewModel.selectedPaymentMethod.collectAsState()
+    val mpesaPhone by viewModel.mpesaPhone.collectAsState()
+    val paymentIntentId by viewModel.paymentIntentId.collectAsState()
     val activeLocation by viewModel.activeLocation.collectAsState()
+    val defaultSavedAddressLabel by viewModel.defaultSavedAddressLabel.collectAsState()
     val deliveryQuote by viewModel.deliveryQuote.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -283,7 +488,7 @@ fun CartScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -330,7 +535,7 @@ fun CartScreen(
                                 Text("${deliveryQuote?.etaMinMinutes}-${deliveryQuote?.etaMaxMinutes} min")
                             }
                         }
-                        Divider(modifier = Modifier.padding(vertical = 2.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -351,7 +556,7 @@ fun CartScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         Button(
-                            onClick = { viewModel.placeOrder(onOrderPlaced) },
+                            onClick = { viewModel.placeOrder { orderId -> onOrderPlaced(orderId, paymentIntentId) } },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp),
@@ -469,6 +674,28 @@ fun CartScreen(
                         placeholder = { Text("Enter your delivery address") },
                         leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) }
                     )
+                    if (!defaultSavedAddressLabel.isNullOrBlank()) {
+                        TextButton(
+                            onClick = { viewModel.useDefaultSavedAddress() },
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Text("Use Default (${defaultSavedAddressLabel})")
+                        }
+                    }
+                    if (activeLocation?.source == "PROFILE_ADDRESS") {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                        ) {
+                            Text(
+                                text = "Using saved address: ${activeLocation?.label.orEmpty()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
 
                 item {
@@ -504,6 +731,65 @@ fun CartScreen(
                         maxLines = 3,
                         minLines = 1
                     )
+                }
+
+                item {
+                    Text(
+                        "Payment Method",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PaymentMethod.values().forEach { method ->
+                            ElevatedCard(
+                                onClick = { viewModel.updateSelectedPaymentMethod(method) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = if (selectedPaymentMethod == method)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        method.label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (selectedPaymentMethod == method) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                    RadioButton(
+                                        selected = selectedPaymentMethod == method,
+                                        onClick = { viewModel.updateSelectedPaymentMethod(method) }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (selectedPaymentMethod == PaymentMethod.MPESA) {
+                            OutlinedTextField(
+                                value = mpesaPhone,
+                                onValueChange = { viewModel.updateMpesaPhone(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("M-Pesa phone (2547XXXXXXXX)") },
+                                leadingIcon = { Icon(Icons.Default.PhoneAndroid, contentDescription = null) },
+                                singleLine = true
+                            )
+                            Text(
+                                "We auto-format to 2547XXXXXXXX and send STK push to this number.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
 
                 item {

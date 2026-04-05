@@ -112,9 +112,9 @@ class AuthViewModel : ViewModel() {
                     onSuccess(response.user.role)
                 }
                 .onFailure { e ->
-                    _error.value = e.message ?: "Login failed"
+                    _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Login failed"
                 }
-            
+
             _isLoading.value = false
         }
     }
@@ -175,7 +175,7 @@ class AuthViewModel : ViewModel() {
                     onSuccess(response.user.role)
                 }
                 .onFailure { e ->
-                    _error.value = e.message ?: "Registration failed"
+                    _error.value = e.message?.takeIf { it.isNotBlank() } ?: "Registration failed"
                 }
 
             _isLoading.value = false

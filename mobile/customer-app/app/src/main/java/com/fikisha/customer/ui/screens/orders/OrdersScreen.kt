@@ -280,7 +280,7 @@ private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit, onRe
                 StatusChip(status = order.status)
             }
 
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 10.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
@@ -304,7 +304,7 @@ private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit, onRe
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "KSh ${order.total.toInt()}",
+                        "KSh ${String.format("%.2f", order.total)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -319,7 +319,7 @@ private fun OrderCard(order: Order, isActive: Boolean, onClick: () -> Unit, onRe
             }
 
             if (onReorder != null) {
-                Divider(
+                HorizontalDivider(
                     modifier = Modifier.padding(vertical = 8.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                 )

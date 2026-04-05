@@ -2,11 +2,13 @@ package com.fikisha.customer.ui.screens.order
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class OrderTrackingViewModel : ViewModel() {
@@ -36,7 +39,14 @@ class OrderTrackingViewModel : ViewModel() {
     private val _currentStep = MutableStateFlow(1)
     val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
 
+    private val _paymentIntentStatus = MutableStateFlow<String?>(null)
+    val paymentIntentStatus: StateFlow<String?> = _paymentIntentStatus.asStateFlow()
+
+    private val _paymentActionUrl = MutableStateFlow<String?>(null)
+    val paymentActionUrl: StateFlow<String?> = _paymentActionUrl.asStateFlow()
+
     private var pollingJob: Job? = null
+    private val terminalStatuses = setOf("DELIVERED", "CANCELLED")
 
     fun loadOrder(orderId: String) {
         viewModelScope.launch {
@@ -54,10 +64,28 @@ class OrderTrackingViewModel : ViewModel() {
     fun startPolling(orderId: String) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            while (true) {
+            while (isActive) {
                 delay(10_000)
                 loadOrder(orderId)
+
+                val status = _order.value?.status?.uppercase()
+                if (status != null && status in terminalStatuses) {
+                    pollingJob?.cancel()
+                    break
+                }
             }
+        }
+    }
+
+    fun loadPaymentIntent(paymentIntentId: String?) {
+        if (paymentIntentId.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            repository.getPaymentIntent(paymentIntentId)
+                .onSuccess { resp ->
+                    _paymentIntentStatus.value = resp.intent.status
+                    _paymentActionUrl.value = resp.action?.checkoutUrl
+                }
         }
     }
 
@@ -81,18 +109,27 @@ class OrderTrackingViewModel : ViewModel() {
 @Composable
 fun OrderTrackingScreen(
     orderId: String,
+    paymentIntentId: String? = null,
     viewModel: OrderTrackingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onBackClick: () -> Unit,
     onOrdersClick: () -> Unit,
     onHomeClick: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
     val order by viewModel.order.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
     val currentStep by viewModel.currentStep.collectAsState()
+    val paymentIntentStatus by viewModel.paymentIntentStatus.collectAsState()
+    val paymentActionUrl by viewModel.paymentActionUrl.collectAsState()
 
     LaunchedEffect(orderId) {
         viewModel.loadOrder(orderId)
         viewModel.startPolling(orderId)
+    }
+
+    LaunchedEffect(paymentIntentId) {
+        viewModel.loadPaymentIntent(paymentIntentId)
     }
 
     Scaffold(
@@ -101,7 +138,7 @@ fun OrderTrackingScreen(
                 title = { Text("Track Order") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -175,6 +212,47 @@ fun OrderTrackingScreen(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
+
+                if (!paymentIntentStatus.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Payment Status",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = paymentIntentStatus!!.replace("_", " "),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+
+                            if (!paymentActionUrl.isNullOrBlank()) {
+                                Text(
+                                    text = "Action required: complete payment in browser if prompted.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+
+                                Button(
+                                    onClick = { uriHandler.openUri(paymentActionUrl!!) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.OpenInBrowser, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Open Payment Action")
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if (currentStep == 3 && !order!!.deliveryOtp.isNullOrBlank() && !order!!.deliveryOtpVerified) {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -284,6 +362,34 @@ fun OrderTrackingScreen(
                     }
                 }
             }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ErrorOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = error ?: "Failed to load order",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(onClick = { viewModel.loadOrder(orderId) }) {
+                        Text("Retry")
+                    }
+                }
+            }
         }
     }
 }
@@ -317,10 +423,10 @@ fun OrderStep(
                 modifier = Modifier.size(32.dp)
             )
             if (step < 4) {
-                Divider(
+                VerticalDivider(
                     modifier = Modifier
-                        .width(2.dp)
                         .height(24.dp),
+                    thickness = 2.dp,
                     color = if (isCompleted) MaterialTheme.colorScheme.primary 
                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
+
+private fun formatKes(value: Double): String = "KSh ${String.format(Locale.US, "%.2f", value)}"
 
 class OrderReceiptViewModel : ViewModel() {
     private val repository = Repository()
@@ -66,7 +69,7 @@ fun OrderReceiptScreen(
                 title = { Text("Receipt", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -155,9 +158,9 @@ fun OrderReceiptScreen(
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.titleMedium
                                 )
-                                if (!o.store?.address.isNullOrBlank()) {
+                                o.store?.address?.takeIf { it.isNotBlank() }?.let { address ->
                                     Text(
-                                        o.store!!.address!!,
+                                        address,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -191,7 +194,7 @@ fun OrderReceiptScreen(
                                     }
                                 }
 
-                                Divider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
                                 // Items
                                 Text(
@@ -217,14 +220,14 @@ fun OrderReceiptScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                         Text(
-                                            "KSh ${(item.price * item.quantity).toInt()}",
+                                            formatKes(item.price * item.quantity),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
 
-                                Divider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
                                 // Totals
                                 Row(
@@ -232,7 +235,7 @@ fun OrderReceiptScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("Subtotal", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("KSh ${(o.total - o.deliveryFee).toInt()}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(formatKes(o.total - o.deliveryFee), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Row(
@@ -240,11 +243,11 @@ fun OrderReceiptScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("Delivery fee", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("KSh ${o.deliveryFee.toInt()}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(formatKes(o.deliveryFee), style = MaterialTheme.typography.bodyMedium)
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
-                                Divider(color = MaterialTheme.colorScheme.outline)
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                                 Spacer(modifier = Modifier.height(14.dp))
 
                                 Row(
@@ -254,7 +257,7 @@ fun OrderReceiptScreen(
                                 ) {
                                     Text("Total", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                     Text(
-                                        "KSh ${o.total.toInt()}",
+                                        formatKes(o.total),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = MaterialTheme.colorScheme.primary
@@ -275,6 +278,17 @@ fun OrderReceiptScreen(
                         ) {
                             Text("Done", fontWeight = FontWeight.SemiBold)
                         }
+                    }
+                }
+            }
+            else -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Receipt not available", style = MaterialTheme.typography.bodyLarge)
+                        TextButton(onClick = { viewModel.loadOrder(orderId) }) { Text("Retry") }
                     }
                 }
             }

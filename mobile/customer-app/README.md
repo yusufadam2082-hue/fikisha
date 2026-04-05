@@ -75,7 +75,7 @@ The app expects these backend endpoints:
 - `GET /api/products/store/{storeId}` - Get store products
 - `POST /api/orders` - Create new order
 - `GET /api/orders/{id}` - Get order details
-- `GET /api/orders/customer/{customerId}` - Get customer orders
+- `GET /api/orders` - Get current user's orders (customer scope is inferred from auth token)
 
 ## Screenshots
 

@@ -1,4 +1,4 @@
-package com.Mtaaexpresscustomer.ui.screens.home
+package com.fikisha.customer.ui.screens.home
 
 import android.content.Intent
 import android.net.Uri
@@ -24,16 +24,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.Mtaaexpresscustomer.data.model.AiRecommendation
-import com.Mtaaexpresscustomer.data.model.DeliveryQuote
-import com.Mtaaexpresscustomer.data.model.Order
-import com.Mtaaexpresscustomer.data.model.Promotion
-import com.Mtaaexpresscustomer.data.model.Store
-import com.Mtaaexpresscustomer.data.repository.Repository
+import com.fikisha.customer.ui.screens.ai.AiAssistantBubble
+import com.fikisha.customer.ui.screens.ai.AiAssistantViewModel
+import com.fikisha.customer.data.model.AiRecommendation
+import com.fikisha.customer.data.model.DeliveryQuote
+import com.fikisha.customer.data.model.Order
+import com.fikisha.customer.data.model.Promotion
+import com.fikisha.customer.data.model.Store
+import com.fikisha.customer.data.repository.Repository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.Mtaaexpresscustomer.ui.viewmodel.LocationViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.fikisha.customer.ui.viewmodel.LocationViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -142,6 +145,7 @@ class HomeViewModel : ViewModel() {
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
+    aiViewModel: AiAssistantViewModel = viewModel(),
     locationViewModel: LocationViewModel,
     onStoreClick: (String) -> Unit,
     onCartClick: () -> Unit,
@@ -153,29 +157,37 @@ fun HomeScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val stores by viewModel.stores.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val promotions by viewModel.promotions.collectAsState()
-    val aiRecommendations by viewModel.aiRecommendations.collectAsState()
-    val loadingHighlights by viewModel.loadingHighlights.collectAsState()
-    val activeOrder by viewModel.activeOrder.collectAsState()
-    val activeLocation by locationViewModel.activeLocation.collectAsState()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val promotions by viewModel.promotions.collectAsStateWithLifecycle()
+    val aiRecommendations by viewModel.aiRecommendations.collectAsStateWithLifecycle()
+    val loadingHighlights by viewModel.loadingHighlights.collectAsStateWithLifecycle()
+    val activeOrder by viewModel.activeOrder.collectAsStateWithLifecycle()
+    val activeLocation by locationViewModel.activeLocation.collectAsStateWithLifecycle()
     var showPromotionsDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var deliveryQuotes by remember { mutableStateOf<Map<String, DeliveryQuote>>(emptyMap()) }
 
-    LaunchedEffect(stores, activeLocation) {
+    val quoteCandidateStoreIds = remember(stores) {
+        stores
+            .sortedByDescending { it.rating }
+            .take(10)
+            .map { it.id }
+    }
+
+    LaunchedEffect(quoteCandidateStoreIds, activeLocation?.id) {
         if (activeLocation == null || stores.isEmpty()) {
             deliveryQuotes = emptyMap()
             return@LaunchedEffect
         }
 
-        val quoteMap = mutableMapOf<String, DeliveryQuote>()
-        stores.forEach { store ->
-            locationViewModel.getDeliveryQuote(store.id, orderTotal = 0.0)
-                .onSuccess { quoteMap[store.id] = it }
+        val quoteMap = deliveryQuotes.toMutableMap()
+        quoteCandidateStoreIds.forEach { storeId ->
+            if (quoteMap.containsKey(storeId)) return@forEach
+            locationViewModel.getDeliveryQuote(storeId, orderTotal = 0.0)
+                .onSuccess { quoteMap[storeId] = it }
         }
         deliveryQuotes = quoteMap
     }
@@ -187,7 +199,7 @@ fun HomeScreen(
             .sorted()
     }
 
-    val filteredStores = remember(stores, searchQuery, selectedCategory) {
+    val filteredStores = remember(stores, searchQuery, selectedCategory, activeLocation, deliveryQuotes) {
         stores
             .filter { store ->
                 val query = searchQuery.trim().lowercase()
@@ -722,6 +734,7 @@ fun HomeScreen(
                 items(filteredStores) { store ->
                     StoreCard(
                         store = store,
+                        deliveryQuote = deliveryQuotes[store.id],
                         onClick = { onStoreClick(store.id) }
                     )
                 }
@@ -793,6 +806,9 @@ fun HomeScreen(
             }
         )
     }
+
+    // Floating AI Assistant bubble
+    AiAssistantBubble(viewModel = aiViewModel)
 }
 
 private fun homeStatusLabel(status: String): String = when (status.uppercase()) {
@@ -807,6 +823,7 @@ private fun homeStatusLabel(status: String): String = when (status.uppercase()) 
 @Composable
 fun StoreCard(
     store: Store,
+    deliveryQuote: DeliveryQuote? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -916,9 +933,17 @@ fun StoreCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // ETA chip — live from delivery quote when available
+                val etaText = if (deliveryQuote != null && deliveryQuote.serviceable)
+                    "${deliveryQuote.etaMinMinutes}-${deliveryQuote.etaMaxMinutes} min"
+                else
+                    store.time
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                    color = if (deliveryQuote != null && deliveryQuote.serviceable)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -927,18 +952,29 @@ fun StoreCard(
                         Icon(
                             Icons.Default.AccessTime,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
+                            tint = if (deliveryQuote != null && deliveryQuote.serviceable)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = store.time,
+                            text = etaText,
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (deliveryQuote != null && deliveryQuote.serviceable)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
+                // Delivery fee chip — live from delivery quote when available
+                val feeText = if (deliveryQuote != null && deliveryQuote.serviceable)
+                    formatKes(deliveryQuote.deliveryFee)
+                else
+                    "KSh ${store.deliveryFee}"
                 Surface(
                     shape = RoundedCornerShape(999.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
@@ -955,9 +991,24 @@ fun StoreCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "KSh ${store.deliveryFee}",
+                            text = feeText,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Outside-zone badge
+                if (deliveryQuote != null && !deliveryQuote.serviceable) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            text = "Out of zone",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
                 }

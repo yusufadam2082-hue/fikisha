@@ -15,7 +15,7 @@ object CartStore {
 
         if (existing != null) {
             val index = current.indexOf(existing)
-            current[index] = existing.copy(quantity = existing.quantity + 1)
+            current[index] = existing.copy(quantity = existing.quantity + item.quantity)
         } else {
             current.add(item)
         }

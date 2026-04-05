@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class LocationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = Repository()
@@ -174,7 +175,8 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
 
     suspend fun getDeliveryQuote(storeId: String, orderTotal: Double): Result<DeliveryQuote> {
         val location = _activeLocation.value ?: return Result.failure(Exception("Choose a location first"))
-        val key = "$storeId:${location.latitude}:${location.longitude}:${orderTotal.toInt()}"
+        val normalizedTotal = String.format(Locale.US, "%.2f", orderTotal)
+        val key = "$storeId:${location.latitude}:${location.longitude}:$normalizedTotal"
         val cached = quoteCache[key]
         if (cached != null) return Result.success(cached)
 

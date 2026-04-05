@@ -25,6 +25,7 @@ import com.fikisha.customer.ui.screens.info.PaymentMethodsScreen
 import com.fikisha.customer.ui.screens.info.PrivacyScreen
 import com.fikisha.customer.ui.screens.info.SavedAddressesScreen
 import com.fikisha.customer.ui.screens.info.TermsScreen
+import com.fikisha.customer.ui.screens.info.CustomerWalletScreen
 import com.fikisha.customer.ui.screens.login.LoginScreen
 import com.fikisha.customer.ui.screens.location.LocationSelectorScreen
 import com.fikisha.customer.ui.screens.order.OrderReceiptScreen
@@ -43,8 +44,14 @@ sealed class Screen(val route: String) {
     }
     object Cart : Screen("cart")
     object LocationSelector : Screen("location-selector")
-    object OrderTracking : Screen("order/{orderId}") {
-        fun createRoute(orderId: String) = "order/$orderId"
+    object OrderTracking : Screen("order/{orderId}?paymentIntentId={paymentIntentId}") {
+        fun createRoute(orderId: String, paymentIntentId: String? = null): String {
+            return if (paymentIntentId.isNullOrBlank()) {
+                "order/$orderId"
+            } else {
+                "order/$orderId?paymentIntentId=$paymentIntentId"
+            }
+        }
     }
     object Orders : Screen("orders")
     object OrderReceipt : Screen("order/{orderId}/receipt") {
@@ -54,6 +61,7 @@ sealed class Screen(val route: String) {
     object EditProfile : Screen("profile/edit")
     object SavedAddresses : Screen("profile/addresses")
     object PaymentMethods : Screen("profile/payments")
+    object Wallet : Screen("profile/wallet")
     object Notifications : Screen("profile/notifications")
     object HelpSupport : Screen("profile/help")
     object About : Screen("about")
@@ -149,8 +157,8 @@ fun FikishaNavigation() {
         composable(Screen.Cart.route) {
             CartScreen(
                 onBackClick = { navController.popBackStack() },
-                onOrderPlaced = { orderId ->
-                    navController.navigate(Screen.OrderTracking.createRoute(orderId)) {
+                onOrderPlaced = { orderId, paymentIntentId ->
+                    navController.navigate(Screen.OrderTracking.createRoute(orderId, paymentIntentId)) {
                         popUpTo(Screen.Home.route)
                     }
                 }
@@ -159,11 +167,20 @@ fun FikishaNavigation() {
 
         composable(
             route = Screen.OrderTracking.route,
-            arguments = listOf(navArgument("orderId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("orderId") { type = NavType.StringType },
+                navArgument("paymentIntentId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
         ) { backStackEntry ->
             val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            val paymentIntentId = backStackEntry.arguments?.getString("paymentIntentId")
             OrderTrackingScreen(
                 orderId = orderId,
+                paymentIntentId = paymentIntentId,
                 onBackClick = {
                     navController.navigate(Screen.Orders.route) {
                         popUpTo(Screen.OrderTracking.route) { inclusive = true }
@@ -233,6 +250,7 @@ fun FikishaNavigation() {
                 onEditProfileClick = { navController.navigate(Screen.EditProfile.route) },
                 onAddressesClick = { navController.navigate(Screen.SavedAddresses.route) },
                 onPaymentsClick = { navController.navigate(Screen.PaymentMethods.route) },
+                onWalletClick = { navController.navigate(Screen.Wallet.route) },
                 onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
                 onHelpClick = { navController.navigate(Screen.HelpSupport.route) },
                 onAboutClick = { navController.navigate(Screen.About.route) },
@@ -252,11 +270,18 @@ fun FikishaNavigation() {
         }
 
         composable(Screen.SavedAddresses.route) {
-            SavedAddressesScreen(onBackClick = { navController.popBackStack() })
+            SavedAddressesScreen(
+                onBackClick = { navController.popBackStack() },
+                onGoToCart = { navController.navigate(Screen.Cart.route) }
+            )
         }
 
         composable(Screen.PaymentMethods.route) {
             PaymentMethodsScreen(onBackClick = { navController.popBackStack() })
+        }
+
+        composable(Screen.Wallet.route) {
+            CustomerWalletScreen(onBackClick = { navController.popBackStack() })
         }
 
         composable(Screen.Notifications.route) {
