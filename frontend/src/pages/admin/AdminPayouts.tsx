@@ -5,6 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { formatKES } from '../../utils/currency';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 import { apiUrl } from '../../utils/apiUrl';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_PERMISSION_KEYS } from '../../utils/adminRbac';
 
 type PayoutStatus = 'PENDING' | 'PAID' | 'HELD' | 'REVERSED';
 type PayoutTab = 'merchant' | 'driver';
@@ -66,6 +68,7 @@ async function readError(response: Response, fallback: string): Promise<string> 
 }
 
 export function AdminPayouts() {
+  const { hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<PayoutTab>('merchant');
   const [merchantRows, setMerchantRows] = useState<MerchantRecipient[]>([]);
   const [driverRows, setDriverRows] = useState<DriverRecipient[]>([]);
@@ -149,6 +152,10 @@ export function AdminPayouts() {
   }, [fromDate, toDate]);
 
   function prepareBatchFromRecipient(row: MerchantRecipient | DriverRecipient) {
+    if (!hasPermission(ADMIN_PERMISSION_KEYS.createPayouts)) {
+      return;
+    }
+
     const entries = row.entries || [];
     const pendingOrderIds = entries.filter((entry) => entry.status === 'PENDING').map((entry) => entry.orderId);
     setRecipientId(activeTab === 'merchant' ? (row as MerchantRecipient).storeId : (row as DriverRecipient).driverId);
@@ -160,6 +167,7 @@ export function AdminPayouts() {
 
   async function handleCreateBatch(event: FormEvent) {
     event.preventDefault();
+    if (!hasPermission(ADMIN_PERMISSION_KEYS.createPayouts)) return;
     if (isCreatingBatch) return;
 
     const orderIds = orderIdsText.split(',').map((value) => value.trim()).filter(Boolean);
@@ -199,6 +207,13 @@ export function AdminPayouts() {
   }
 
   async function updateBatchStatus(batchId: string, action: 'mark-paid' | 'hold' | 'reverse') {
+    const requiredPermission = action === 'mark-paid'
+      ? ADMIN_PERMISSION_KEYS.approvePayouts
+      : ADMIN_PERMISSION_KEYS.manageCodSettlements;
+    if (!hasPermission(requiredPermission)) {
+      return;
+    }
+
     try {
       const res = await fetch(apiUrl(`/api/admin/payout-batches/${batchId}/${action}`), {
         method: 'POST',
@@ -292,7 +307,7 @@ export function AdminPayouts() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontWeight: 700, color: '#b45309' }}>{formatKES(pending)}</p>
-                      <Button size="sm" onClick={() => prepareBatchFromRecipient(row)}>Create Batch</Button>
+                      {hasPermission(ADMIN_PERMISSION_KEYS.createPayouts) ? <Button size="sm" onClick={() => prepareBatchFromRecipient(row)}>Create Batch</Button> : null}
                     </div>
                   </div>
                 </div>
@@ -302,7 +317,7 @@ export function AdminPayouts() {
         )}
       </Card>
 
-      <Card style={{ padding: '16px', marginBottom: '14px' }}>
+      {hasPermission(ADMIN_PERMISSION_KEYS.createPayouts) ? <Card style={{ padding: '16px', marginBottom: '14px' }}>
         <h3 className="text-h3" style={{ marginBottom: '12px' }}>Create Payout Batch</h3>
         <form onSubmit={handleCreateBatch} style={{ display: 'grid', gap: '10px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
@@ -327,7 +342,7 @@ export function AdminPayouts() {
             <Button type="submit" disabled={isCreatingBatch}>{isCreatingBatch ? 'Creating...' : 'Create Batch'}</Button>
           </div>
         </form>
-      </Card>
+      </Card> : null}
 
       <Card style={{ padding: '16px' }}>
         <h3 className="text-h3" style={{ marginBottom: '12px' }}>Batch History</h3>
@@ -348,13 +363,13 @@ export function AdminPayouts() {
                   <div style={{ textAlign: 'right' }}>
                     <p style={{ fontWeight: 700 }}>{formatKES(Number(batch.totalAmount || 0))}</p>
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      {batch.status !== 'PAID' && (
+                      {batch.status !== 'PAID' && hasPermission(ADMIN_PERMISSION_KEYS.approvePayouts) && (
                         <Button size="sm" onClick={() => updateBatchStatus(batch.id, 'mark-paid')}>Mark Paid</Button>
                       )}
-                      {batch.status !== 'HELD' && batch.status !== 'PAID' && (
+                      {batch.status !== 'HELD' && batch.status !== 'PAID' && hasPermission(ADMIN_PERMISSION_KEYS.manageCodSettlements) && (
                         <Button size="sm" variant="secondary" onClick={() => updateBatchStatus(batch.id, 'hold')}>Hold</Button>
                       )}
-                      {batch.status !== 'REVERSED' && (
+                      {batch.status !== 'REVERSED' && hasPermission(ADMIN_PERMISSION_KEYS.manageCodSettlements) && (
                         <Button size="sm" variant="outline" onClick={() => updateBatchStatus(batch.id, 'reverse')}>Reverse</Button>
                       )}
                     </div>

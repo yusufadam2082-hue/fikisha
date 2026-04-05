@@ -2,10 +2,13 @@ import { createContext, useContext, useState, type ReactNode, useEffect } from '
 import { clearStoredAuth, getStoredAuth, setStoredAuth } from '../utils/authStorage';
 
 export type Role = 'ADMIN' | 'MERCHANT' | 'CUSTOMER' | 'DRIVER';
+export type SessionAuthType = 'USER' | 'ADMIN';
 
 // This shape mirrors the authenticated user payload returned by the backend.
 export interface User {
   id?: string;
+  adminId?: string;
+  userId?: string;
   username?: string;
   name?: string;
   email?: string | null;
@@ -16,8 +19,16 @@ export interface User {
   gender?: string | null;
   address?: string | null;
   role: Role;
+  authType?: SessionAuthType;
   storeId?: string;
   driverId?: string;
+  adminRoleId?: string;
+  adminRoleName?: string;
+  permissions?: string[];
+  isSuperAdmin?: boolean;
+  isActive?: boolean;
+  notes?: string | null;
+  lastLoginAt?: string | null;
   token?: string;
 }
 
@@ -41,6 +52,8 @@ interface AuthContextType {
   updateUser: (updates: Partial<User>) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  hasPermission: (permission: string) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,9 +98,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const hasPermission = (permission: string) => {
+    if (!user) {
+      return false;
+    }
+
+    if (user.role !== 'ADMIN') {
+      return false;
+    }
+
+    if (user.isSuperAdmin) {
+      return true;
+    }
+
+    return (user.permissions || []).includes(permission);
+  };
+
+  const hasAnyPermission = (permissions: string[]) => permissions.some((permission) => hasPermission(permission));
+
   return (
     // Expose auth state and auth actions to any child component that needs them.
-    <AuthContext.Provider value={{ user, login, updateUser, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, login, updateUser, logout, isAuthenticated: !!user, hasPermission, hasAnyPermission }}>
       {children}
     </AuthContext.Provider>
   );
@@ -125,6 +156,32 @@ export async function loginUser(username: string, password: string): Promise<{ t
     throw new Error('Login failed');
   }
   
+  const data = await res.json();
+  return { token: data.token, user: data.user };
+}
+
+export async function loginAdmin(identifier: string, password: string): Promise<{ token: string; user: User }> {
+  let res: Response;
+
+  try {
+    res = await fetch(`${API_URL}/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+  } catch {
+    throw new Error('Could not reach the admin login service. Check the deployed backend URL and CORS configuration.');
+  }
+
+  if (!res.ok) {
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json') && res.status !== 204) {
+      const error = await res.json();
+      throw new Error(error.error || 'Admin login failed');
+    }
+    throw new Error('Admin login failed');
+  }
+
   const data = await res.json();
   return { token: data.token, user: data.user };
 }

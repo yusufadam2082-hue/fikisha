@@ -11,6 +11,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import Stripe from 'stripe';
+import {
+  getDefaultRoleCatalog,
+  getPermissionCatalog,
+  isSuperAdminRole,
+  resolveAdminPermissionsForRequest
+} from './adminRbac.js';
 
 // Core server and environment wiring.
 const app = express();
@@ -1445,6 +1451,273 @@ const publicUserFields = {
   updatedAt: true
 };
 
+const adminRoleWithPermissionsSelect = {
+  id: true,
+  name: true,
+  description: true,
+  isSystemRole: true,
+  rolePermissions: {
+    select: {
+      permission: {
+        select: {
+          id: true,
+          key: true,
+          name: true,
+          description: true
+        }
+      }
+    }
+  }
+};
+
+const publicAdminFields = {
+  id: true,
+  userId: true,
+  roleId: true,
+  fullName: true,
+  email: true,
+  phone: true,
+  isActive: true,
+  lastLoginAt: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+  role: {
+    select: adminRoleWithPermissionsSelect
+  }
+};
+
+const slugifyAdminUsername = (value = '') => {
+  const normalized = String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+  return normalized || `admin.${Date.now().toString().slice(-6)}`;
+};
+
+const buildAdminSessionUser = (admin) => {
+  const permissions = (admin?.role?.rolePermissions || []).map((entry) => entry.permission?.key).filter(Boolean);
+  const roleName = admin?.role?.name || 'Admin';
+  const legacyUserId = admin?.userId || admin?.id;
+
+  return {
+    id: legacyUserId,
+    adminId: admin.id,
+    userId: legacyUserId,
+    role: 'ADMIN',
+    authType: 'ADMIN',
+    name: admin.fullName,
+    username: admin.user?.username || slugifyAdminUsername(admin.email || admin.phone || admin.fullName),
+    email: admin.email,
+    phone: admin.phone,
+    isActive: admin.isActive,
+    adminRoleId: admin.roleId,
+    adminRoleName: roleName,
+    permissions,
+    isSuperAdmin: isSuperAdminRole(roleName),
+    notes: admin.notes || null,
+    lastLoginAt: admin.lastLoginAt,
+    createdAt: admin.createdAt,
+    updatedAt: admin.updatedAt
+  };
+};
+
+const issueUserToken = (user) => jwt.sign(
+  { id: user.id, username: user.username, role: user.role, storeId: user.storeId },
+  JWT_SECRET,
+  { expiresIn: '24h' }
+);
+
+const issueAdminToken = (admin) => jwt.sign(
+  {
+    id: admin.userId || admin.id,
+    adminId: admin.id,
+    userId: admin.userId || null,
+    role: 'ADMIN',
+    authType: 'ADMIN'
+  },
+  JWT_SECRET,
+  { expiresIn: '24h' }
+);
+
+const findAdminForAuth = async ({ adminId, userId }) => {
+  if (adminId) {
+    return prisma.admin.findUnique({
+      where: { id: adminId },
+      select: {
+        ...publicAdminFields,
+        passwordHash: true,
+        roleId: true,
+        user: { select: { id: true, username: true, banned: true } }
+      }
+    });
+  }
+
+  if (userId) {
+    return prisma.admin.findUnique({
+      where: { userId },
+      select: {
+        ...publicAdminFields,
+        passwordHash: true,
+        roleId: true,
+        user: { select: { id: true, username: true, banned: true } }
+      }
+    });
+  }
+
+  return null;
+};
+
+const requireSuperAdmin = (req, res, next) => {
+  if (!req.user || req.user.authType !== 'ADMIN' || !req.user.isSuperAdmin) {
+    return res.status(403).json({ error: 'Super Admin access required' });
+  }
+
+  return next();
+};
+
+const hasAdminPermissions = (user, permissions = []) => {
+  if (!user || user.authType !== 'ADMIN') {
+    return false;
+  }
+
+  if (user.isSuperAdmin) {
+    return true;
+  }
+
+  const granted = new Set(user.permissions || []);
+  return permissions.every((permission) => granted.has(permission));
+};
+
+const ensureLegacyAdminUser = async ({ adminId, fullName, email, phone, passwordHash }) => {
+  const existingAdmin = await prisma.admin.findUnique({
+    where: { id: adminId },
+    select: { userId: true }
+  });
+
+  if (existingAdmin?.userId) {
+    return existingAdmin.userId;
+  }
+
+  const baseUsername = slugifyAdminUsername(email || phone || fullName);
+  let username = baseUsername;
+  let suffix = 1;
+
+  while (await prisma.user.findUnique({ where: { username } })) {
+    username = `${baseUsername}.${suffix}`;
+    suffix += 1;
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      username,
+      password: passwordHash,
+      role: 'ADMIN',
+      name: fullName,
+      email: email || null,
+      phone: phone || null
+    },
+    select: { id: true }
+  });
+
+  await prisma.admin.update({
+    where: { id: adminId },
+    data: { userId: user.id }
+  });
+
+  return user.id;
+};
+
+const seedAdminRbac = async ({ seededAdminPasswordHash }) => {
+  const permissionRecords = new Map();
+  for (const permission of getPermissionCatalog()) {
+    const record = await prisma.adminPermission.upsert({
+      where: { key: permission.key },
+      update: {
+        name: permission.name,
+        description: permission.description || null
+      },
+      create: {
+        key: permission.key,
+        name: permission.name,
+        description: permission.description || null
+      }
+    });
+    permissionRecords.set(permission.key, record);
+  }
+
+  const roleCatalog = getDefaultRoleCatalog();
+  const roleRecords = new Map();
+  for (const [roleName, permissionKeys] of Object.entries(roleCatalog)) {
+    const role = await prisma.adminRole.upsert({
+      where: { name: roleName },
+      update: {
+        description: `${roleName} system role`,
+        isSystemRole: true
+      },
+      create: {
+        name: roleName,
+        description: `${roleName} system role`,
+        isSystemRole: true
+      }
+    });
+
+    roleRecords.set(roleName, role);
+
+    const existingRolePermissions = await prisma.adminRolePermission.findMany({
+      where: { roleId: role.id },
+      select: { id: true, permissionId: true }
+    });
+    const existingPermissionIds = new Set(existingRolePermissions.map((entry) => entry.permissionId));
+    const desiredPermissionIds = new Set(permissionKeys.map((key) => permissionRecords.get(key)?.id).filter(Boolean));
+
+    for (const permissionId of desiredPermissionIds) {
+      if (!existingPermissionIds.has(permissionId)) {
+        await prisma.adminRolePermission.create({
+          data: {
+            roleId: role.id,
+            permissionId
+          }
+        });
+      }
+    }
+  }
+
+  const superAdminRole = roleRecords.get('Super Admin');
+  if (!superAdminRole) {
+    return;
+  }
+
+  const existingSuperAdmin = await prisma.admin.findFirst({
+    where: { roleId: superAdminRole.id },
+    select: { id: true, passwordHash: true, userId: true }
+  });
+
+  let superAdminId = existingSuperAdmin?.id || null;
+  if (!existingSuperAdmin) {
+    const created = await prisma.admin.create({
+      data: {
+        fullName: 'System Administrator',
+        email: process.env.ADMIN_EMAIL || 'admin@mtaaexpress.local',
+        phone: process.env.ADMIN_PHONE || '+255700000099',
+        passwordHash: seededAdminPasswordHash,
+        roleId: superAdminRole.id,
+        isActive: true,
+        notes: 'Bootstrap super admin account'
+      },
+      select: { id: true }
+    });
+    superAdminId = created.id;
+  }
+
+  if (superAdminId) {
+    await ensureLegacyAdminUser({
+      adminId: superAdminId,
+      fullName: 'System Administrator',
+      email: process.env.ADMIN_EMAIL || 'admin@mtaaexpress.local',
+      phone: process.env.ADMIN_PHONE || '+255700000099',
+      passwordHash: seededAdminPasswordHash
+    });
+  }
+};
+
 // Store mutation routes reuse this access check so merchants can only manage their own store.
 const ensureStoreAccess = async (req, storeId) => {
   const store = await prisma.store.findUnique({
@@ -2329,6 +2602,7 @@ const authLimiter = rateLimit({
 
 app.use('/api/', limiter);
 app.post('/api/auth/login', authLimiter);
+app.post('/api/admin/auth/login', authLimiter);
 app.post('/api/auth/register', authLimiter);
 app.post('/api/drivers/login', authLimiter);
 
@@ -2341,6 +2615,20 @@ const authMiddleware = async (req, res, next) => {
   try {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (decoded?.authType === 'ADMIN' || decoded?.adminId || decoded?.role === 'ADMIN') {
+      const admin = await findAdminForAuth({
+        adminId: decoded.adminId || null,
+        userId: decoded.userId || decoded.id || null
+      });
+
+      if (!admin || admin.isActive !== true || admin.user?.banned === true) {
+        return res.status(401).json({ error: 'Admin account is inactive or no longer exists' });
+      }
+
+      req.user = buildAdminSessionUser(admin);
+      return next();
+    }
 
     const dbUser = await prisma.user.findUnique({
       where: { id: decoded.id },
@@ -2363,6 +2651,7 @@ const authMiddleware = async (req, res, next) => {
     req.user = {
       ...decoded,
       ...dbUser,
+      authType: 'USER',
       driverId: decoded.driverId || null
     };
     next();
@@ -2374,7 +2663,34 @@ const authMiddleware = async (req, res, next) => {
 // Role middleware keeps authorization rules close to route definitions.
 const roleMiddleware = (...roles) => {
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (req.user.authType === 'ADMIN') {
+      if (!roles.includes('ADMIN')) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const requiredPermissions = resolveAdminPermissionsForRequest(req);
+      if (req.user.isSuperAdmin) {
+        return next();
+      }
+
+      if (requiredPermissions.length === 0) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const granted = new Set(req.user.permissions || []);
+      const hasAllPermissions = requiredPermissions.every((permission) => granted.has(permission));
+      if (!hasAllPermissions) {
+        return res.status(403).json({ error: 'Forbidden: missing required permission' });
+      }
+
+      return next();
+    }
+
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Access denied' });
     }
     next();
@@ -3208,6 +3524,8 @@ const initDB = async () => {
       }
     });
 
+    await seedAdminRbac({ seededAdminPasswordHash: adminPassword });
+
     // Create merchant user
     const merchantPassword = await bcrypt.hash(MERCHANT_PASSWORD, 12);
     const merchant = await prisma.user.upsert({
@@ -3402,6 +3720,362 @@ app.post('/api/admin/settings', authMiddleware, roleMiddleware('ADMIN'), async (
   }
 });
 
+app.get('/api/admin/permissions', authMiddleware, roleMiddleware('ADMIN'), requireSuperAdmin, async (req, res) => {
+  try {
+    const permissions = await prisma.adminPermission.findMany({ orderBy: { key: 'asc' } });
+    res.json(permissions);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch permissions' });
+  }
+});
+
+app.get('/api/admin/roles', authMiddleware, roleMiddleware('ADMIN'), requireSuperAdmin, async (req, res) => {
+  try {
+    const roles = await prisma.adminRole.findMany({
+      include: {
+        rolePermissions: {
+          include: {
+            permission: true
+          }
+        },
+        admins: {
+          select: { id: true }
+        }
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    res.json(roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      description: role.description,
+      isSystemRole: role.isSystemRole,
+      createdAt: role.createdAt,
+      updatedAt: role.updatedAt,
+      adminCount: role.admins.length,
+      permissions: role.rolePermissions.map((entry) => entry.permission)
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch roles' });
+  }
+});
+
+app.post('/api/admin/roles',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  requireSuperAdmin,
+  body('name').trim().notEmpty(),
+  body('description').optional({ nullable: true }).trim(),
+  body('permissions').isArray(),
+  validate,
+  async (req, res) => {
+    try {
+      const permissionKeys = Array.from(new Set((req.body.permissions || []).map((value) => String(value).trim()).filter(Boolean)));
+      const permissions = await prisma.adminPermission.findMany({ where: { key: { in: permissionKeys } } });
+      if (permissions.length !== permissionKeys.length) {
+        return res.status(400).json({ error: 'One or more permissions are invalid' });
+      }
+
+      const role = await prisma.adminRole.create({
+        data: {
+          name: String(req.body.name).trim(),
+          description: req.body.description?.trim() || null,
+          isSystemRole: false,
+          rolePermissions: {
+            create: permissions.map((permission) => ({ permissionId: permission.id }))
+          }
+        },
+        include: {
+          rolePermissions: { include: { permission: true } }
+        }
+      });
+
+      res.status(201).json({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+        isSystemRole: role.isSystemRole,
+        permissions: role.rolePermissions.map((entry) => entry.permission)
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create role' });
+    }
+  }
+);
+
+app.put('/api/admin/roles/:id',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  requireSuperAdmin,
+  body('name').optional().trim().notEmpty(),
+  body('description').optional({ nullable: true }).trim(),
+  body('permissions').optional().isArray(),
+  validate,
+  async (req, res) => {
+    try {
+      const existingRole = await prisma.adminRole.findUnique({ where: { id: req.params.id } });
+      if (!existingRole) {
+        return res.status(404).json({ error: 'Role not found' });
+      }
+
+      let permissionIds = null;
+      if (Array.isArray(req.body.permissions)) {
+        const permissionKeys = Array.from(new Set(req.body.permissions.map((value) => String(value).trim()).filter(Boolean)));
+        const permissions = await prisma.adminPermission.findMany({ where: { key: { in: permissionKeys } } });
+        if (permissions.length !== permissionKeys.length) {
+          return res.status(400).json({ error: 'One or more permissions are invalid' });
+        }
+        permissionIds = permissions.map((permission) => permission.id);
+      }
+
+      await prisma.adminRole.update({
+        where: { id: req.params.id },
+        data: {
+          name: req.body.name ? String(req.body.name).trim() : undefined,
+          description: req.body.description === undefined ? undefined : (req.body.description?.trim() || null)
+        }
+      });
+
+      if (permissionIds) {
+        await prisma.adminRolePermission.deleteMany({ where: { roleId: req.params.id } });
+        if (permissionIds.length > 0) {
+          await prisma.adminRolePermission.createMany({
+            data: permissionIds.map((permissionId) => ({ roleId: req.params.id, permissionId }))
+          });
+        }
+      }
+
+      const role = await prisma.adminRole.findUnique({
+        where: { id: req.params.id },
+        include: {
+          rolePermissions: { include: { permission: true } }
+        }
+      });
+
+      res.json({
+        id: role.id,
+        name: role.name,
+        description: role.description,
+        isSystemRole: role.isSystemRole,
+        permissions: role.rolePermissions.map((entry) => entry.permission)
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update role' });
+    }
+  }
+);
+
+app.get('/api/admin/admin-users', authMiddleware, roleMiddleware('ADMIN'), requireSuperAdmin, async (req, res) => {
+  try {
+    const admins = await prisma.admin.findMany({
+      select: publicAdminFields,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(admins.map((admin) => ({
+      ...buildAdminSessionUser(admin),
+      roleId: admin.roleId,
+      notes: admin.notes || null,
+      isActive: admin.isActive,
+      createdAt: admin.createdAt,
+      updatedAt: admin.updatedAt
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch admins' });
+  }
+});
+
+app.post('/api/admin/admin-users',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  requireSuperAdmin,
+  body('fullName').trim().notEmpty(),
+  body('email').isEmail(),
+  body('phone').trim().notEmpty(),
+  body('password').isLength({ min: 6 }),
+  body('confirmPassword').notEmpty(),
+  body('roleId').trim().notEmpty(),
+  body('isActive').optional().isBoolean(),
+  body('notes').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const { fullName, email, phone, password, confirmPassword, roleId, isActive, notes } = req.body;
+      if (password !== confirmPassword) {
+        return res.status(400).json({ error: 'Passwords do not match' });
+      }
+
+      const role = await prisma.adminRole.findUnique({ where: { id: roleId } });
+      if (!role) {
+        return res.status(404).json({ error: 'Role not found' });
+      }
+
+      const existingAdmin = await prisma.admin.findFirst({
+        where: {
+          OR: [
+            { email: String(email).toLowerCase() },
+            { phone: String(phone).trim() }
+          ]
+        },
+        select: { id: true }
+      });
+      if (existingAdmin) {
+        return res.status(409).json({ error: 'Admin with this email or phone already exists' });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      const admin = await prisma.admin.create({
+        data: {
+          fullName: String(fullName).trim(),
+          email: String(email).toLowerCase().trim(),
+          phone: String(phone).trim(),
+          passwordHash,
+          roleId,
+          isActive: isActive !== false,
+          notes: notes?.trim() || null
+        },
+        select: {
+          ...publicAdminFields,
+          passwordHash: true,
+          roleId: true,
+          user: { select: { id: true, username: true, banned: true } }
+        }
+      });
+
+      const userId = await ensureLegacyAdminUser({
+        adminId: admin.id,
+        fullName: admin.fullName,
+        email: admin.email,
+        phone: admin.phone,
+        passwordHash
+      });
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: passwordHash,
+          name: admin.fullName,
+          email: admin.email,
+          phone: admin.phone,
+          role: 'ADMIN',
+          banned: admin.isActive !== true
+        }
+      });
+
+      const createdAdmin = await prisma.admin.findUnique({
+        where: { id: admin.id },
+        select: publicAdminFields
+      });
+
+      res.status(201).json({
+        ...buildAdminSessionUser(createdAdmin),
+        roleId: createdAdmin.roleId,
+        notes: createdAdmin.notes || null,
+        isActive: createdAdmin.isActive
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create admin' });
+    }
+  }
+);
+
+app.put('/api/admin/admin-users/:id',
+  authMiddleware,
+  roleMiddleware('ADMIN'),
+  requireSuperAdmin,
+  body('fullName').optional().trim().notEmpty(),
+  body('email').optional().isEmail(),
+  body('phone').optional().trim().notEmpty(),
+  body('password').optional().isLength({ min: 6 }),
+  body('confirmPassword').optional().notEmpty(),
+  body('roleId').optional().trim().notEmpty(),
+  body('isActive').optional().isBoolean(),
+  body('notes').optional({ nullable: true }).trim(),
+  validate,
+  async (req, res) => {
+    try {
+      const existingAdmin = await prisma.admin.findUnique({
+        where: { id: req.params.id },
+        select: {
+          ...publicAdminFields,
+          passwordHash: true,
+          roleId: true,
+          user: { select: { id: true, username: true, banned: true } }
+        }
+      });
+
+      if (!existingAdmin) {
+        return res.status(404).json({ error: 'Admin not found' });
+      }
+
+      if (req.body.password && req.body.password !== req.body.confirmPassword) {
+        return res.status(400).json({ error: 'Passwords do not match' });
+      }
+
+      if (req.body.roleId) {
+        const role = await prisma.adminRole.findUnique({ where: { id: req.body.roleId } });
+        if (!role) {
+          return res.status(404).json({ error: 'Role not found' });
+        }
+      }
+
+      const passwordHash = req.body.password ? await bcrypt.hash(req.body.password, 12) : existingAdmin.passwordHash;
+
+      await prisma.admin.update({
+        where: { id: req.params.id },
+        data: {
+          fullName: req.body.fullName ? String(req.body.fullName).trim() : undefined,
+          email: req.body.email ? String(req.body.email).toLowerCase().trim() : undefined,
+          phone: req.body.phone ? String(req.body.phone).trim() : undefined,
+          passwordHash: req.body.password ? passwordHash : undefined,
+          roleId: req.body.roleId || undefined,
+          isActive: req.body.isActive === undefined ? undefined : Boolean(req.body.isActive),
+          notes: req.body.notes === undefined ? undefined : (req.body.notes?.trim() || null)
+        }
+      });
+
+      const adminAfterUpdate = await prisma.admin.findUnique({
+        where: { id: req.params.id },
+        select: {
+          ...publicAdminFields,
+          passwordHash: true,
+          roleId: true,
+          user: { select: { id: true, username: true, banned: true } }
+        }
+      });
+
+      const userId = adminAfterUpdate.userId || await ensureLegacyAdminUser({
+        adminId: adminAfterUpdate.id,
+        fullName: adminAfterUpdate.fullName,
+        email: adminAfterUpdate.email,
+        phone: adminAfterUpdate.phone,
+        passwordHash
+      });
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: passwordHash,
+          name: adminAfterUpdate.fullName,
+          email: adminAfterUpdate.email,
+          phone: adminAfterUpdate.phone,
+          role: 'ADMIN',
+          banned: adminAfterUpdate.isActive !== true
+        }
+      });
+
+      res.json({
+        ...buildAdminSessionUser(adminAfterUpdate),
+        roleId: adminAfterUpdate.roleId,
+        notes: adminAfterUpdate.notes || null,
+        isActive: adminAfterUpdate.isActive
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update admin' });
+    }
+  }
+);
+
 // Admin: list all promotions regardless of active/date state.
 app.get('/api/admin/promotions', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
   try {
@@ -3498,6 +4172,65 @@ app.delete('/api/admin/promotions/:id', authMiddleware, roleMiddleware('ADMIN'),
   }
 });
 
+app.post('/api/admin/auth/login',
+  body('identifier').trim().notEmpty(),
+  body('password').notEmpty(),
+  validate,
+  async (req, res) => {
+    try {
+      const identifier = String(req.body.identifier || '').trim();
+      const password = String(req.body.password || '');
+
+      const admin = await prisma.admin.findFirst({
+        where: {
+          OR: [
+            { email: identifier.toLowerCase() },
+            { phone: identifier }
+          ]
+        },
+        select: {
+          ...publicAdminFields,
+          passwordHash: true,
+          roleId: true,
+          user: { select: { id: true, username: true, banned: true } }
+        }
+      });
+
+      if (!admin || admin.isActive !== true) {
+        return res.status(401).json({ error: 'Invalid admin credentials' });
+      }
+
+      const validPassword = await bcrypt.compare(password, admin.passwordHash).catch(() => false);
+      if (!validPassword) {
+        return res.status(401).json({ error: 'Invalid admin credentials' });
+      }
+
+      const ensuredUserId = admin.userId || await ensureLegacyAdminUser({
+        adminId: admin.id,
+        fullName: admin.fullName,
+        email: admin.email,
+        phone: admin.phone,
+        passwordHash: admin.passwordHash
+      });
+
+      const updatedAdmin = await prisma.admin.update({
+        where: { id: admin.id },
+        data: { lastLoginAt: new Date(), userId: ensuredUserId },
+        select: {
+          ...publicAdminFields,
+          roleId: true,
+          user: { select: { id: true, username: true, banned: true } }
+        }
+      });
+
+      const token = issueAdminToken(updatedAdmin);
+      return res.json({ token, user: buildAdminSessionUser(updatedAdmin) });
+    } catch (error) {
+      return res.status(500).json({ error: 'Admin login failed' });
+    }
+  }
+);
+
 app.post('/api/auth/login',
   body('username').trim().notEmpty(),
   body('password').notEmpty(),
@@ -3546,11 +4279,15 @@ app.post('/api/auth/login',
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role, storeId: user.storeId },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
+      if (user.role === 'ADMIN') {
+        const adminProfile = await findAdminForAuth({ userId: user.id });
+        if (adminProfile && adminProfile.isActive === true) {
+          const token = issueAdminToken(adminProfile);
+          return res.json({ token, user: buildAdminSessionUser(adminProfile) });
+        }
+      }
+
+      const token = issueUserToken(user);
 
       const { password: _, ...userWithoutPassword } = user;
       res.json({ token, user: userWithoutPassword });
@@ -3631,11 +4368,7 @@ app.post('/api/auth/register',
         select: publicUserFields,
       });
 
-      const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role, storeId: user.storeId },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
+      const token = issueUserToken(user);
 
       res.status(201).json({ token, user });
     } catch (error) {
@@ -3663,6 +4396,23 @@ app.get('/api/me', authMiddleware, async (req, res) => {
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+app.get('/api/admin/me', authMiddleware, async (req, res) => {
+  try {
+    if (!req.user || req.user.authType !== 'ADMIN') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const admin = await findAdminForAuth({ adminId: req.user.adminId, userId: req.user.userId || req.user.id });
+    if (!admin || admin.isActive !== true) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    return res.json({ user: buildAdminSessionUser(admin) });
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch admin profile' });
   }
 });
 
@@ -4179,11 +4929,18 @@ const refreshStoreReadiness = async (storeId) => {
 app.get('/api/stores', async (req, res) => {
   try {
     let requester = null;
+    let adminRequester = null;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        if (decoded?.authType === 'ADMIN' || decoded?.adminId || decoded?.role === 'ADMIN') {
+          adminRequester = await findAdminForAuth({
+            adminId: decoded.adminId || null,
+            userId: decoded.userId || decoded.id || null
+          });
+        }
         requester = await prisma.user.findUnique({
           where: { id: decoded.id },
           select: {
@@ -4197,6 +4954,13 @@ app.get('/api/stores', async (req, res) => {
         }
       } catch {
         requester = null;
+      }
+    }
+
+    if (adminRequester && adminRequester.isActive === true) {
+      const adminUser = buildAdminSessionUser(adminRequester);
+      if (!hasAdminPermissions(adminUser, ['view_merchants'])) {
+        return res.status(403).json({ error: 'Forbidden: missing required permission' });
       }
     }
 
@@ -4779,11 +5543,18 @@ app.put('/api/stores/:id/credentials',
 app.get('/api/stores/:id', async (req, res) => {
   try {
     let requester = null;
+    let adminRequester = null;
     const authHeader = req.headers.authorization;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+        if (decoded?.authType === 'ADMIN' || decoded?.adminId || decoded?.role === 'ADMIN') {
+          adminRequester = await findAdminForAuth({
+            adminId: decoded.adminId || null,
+            userId: decoded.userId || decoded.id || null
+          });
+        }
         requester = await prisma.user.findUnique({
           where: { id: decoded.id },
           select: {
@@ -4797,6 +5568,13 @@ app.get('/api/stores/:id', async (req, res) => {
         }
       } catch {
         requester = null;
+      }
+    }
+
+    if (adminRequester && adminRequester.isActive === true) {
+      const adminUser = buildAdminSessionUser(adminRequester);
+      if (!hasAdminPermissions(adminUser, ['view_merchants'])) {
+        return res.status(403).json({ error: 'Forbidden: missing required permission' });
       }
     }
 
@@ -4838,7 +5616,7 @@ app.get('/api/stores/:id', async (req, res) => {
 
 app.post('/api/stores/:storeId/products',
   authMiddleware,
-  roleMiddleware('MERCHANT'),
+  roleMiddleware('ADMIN', 'MERCHANT'),
   body('name').trim().notEmpty(),
   body('price').isFloat({ gt: 0 }),
   validate,
@@ -4871,7 +5649,7 @@ app.post('/api/stores/:storeId/products',
 
 app.put('/api/stores/:storeId/products/:productId',
   authMiddleware,
-  roleMiddleware('MERCHANT'),
+  roleMiddleware('ADMIN', 'MERCHANT'),
   async (req, res) => {
     try {
       const access = await ensureStoreAccess(req, req.params.storeId);
@@ -4934,7 +5712,7 @@ app.delete('/api/stores/:id',
 
 app.delete('/api/stores/:storeId/products/:productId',
   authMiddleware,
-  roleMiddleware('MERCHANT'),
+  roleMiddleware('ADMIN', 'MERCHANT'),
   async (req, res) => {
     try {
       const access = await ensureStoreAccess(req, req.params.storeId);
@@ -6080,6 +6858,10 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
   try {
     let where = {};
 
+    if (req.user.authType === 'ADMIN' && !hasAdminPermissions(req.user, ['view_orders'])) {
+      return res.status(403).json({ error: 'Forbidden: missing required permission' });
+    }
+
     if (req.user.role === 'MERCHANT') {
       const merchantStoreId = await resolveMerchantStoreIdForUser(req.user);
       if (!merchantStoreId) {
@@ -6140,6 +6922,10 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
 
 app.get('/api/orders/:id', authMiddleware, async (req, res) => {
   try {
+    if (req.user.authType === 'ADMIN' && !hasAdminPermissions(req.user, ['view_orders'])) {
+      return res.status(403).json({ error: 'Forbidden: missing required permission' });
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
       include: {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth, updateProfile } from '../../context/AuthContext';
+import { ADMIN_PERMISSION_KEYS } from '../../utils/adminRbac';
 
 type AdminSettingsState = {
   general: {
@@ -72,8 +73,9 @@ const defaultSettings: AdminSettingsState = {
 };
 
 export function Settings() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, hasPermission } = useAuth();
   const token = user?.token;
+  const canManageSettings = hasPermission(ADMIN_PERMISSION_KEYS.manageSettings);
   const [settings, setSettings] = useState<AdminSettingsState>(defaultSettings);
   const [message, setMessage] = useState('');
   const [isSavingSystem, setIsSavingSystem] = useState(false);
@@ -133,6 +135,10 @@ export function Settings() {
   };
 
   const handleSave = async () => {
+    if (!canManageSettings) {
+      return;
+    }
+
     setIsSavingSystem(true);
     try {
       const url = import.meta.env.VITE_API_URL || 'http://localhost:3002';
@@ -239,10 +245,10 @@ export function Settings() {
           <p className="text-muted">Global system logic used by Mtaaexpress application.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="outline" onClick={handleReset}>Reset defaults</Button>
-          <Button onClick={handleSave} disabled={isSavingSystem}>
+          {canManageSettings ? <Button variant="outline" onClick={handleReset}>Reset defaults</Button> : null}
+          {canManageSettings ? <Button onClick={handleSave} disabled={isSavingSystem}>
             {isSavingSystem ? 'Saving...' : 'Save platform settings'}
-          </Button>
+          </Button> : null}
         </div>
       </div>
 

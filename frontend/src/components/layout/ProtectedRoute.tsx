@@ -5,10 +5,11 @@ import type { ReactNode } from 'react';
 interface ProtectedRouteProps {
   children: ReactNode;
   allowedRoles?: Role[];
+  requiredPermissions?: string[];
 }
 
-export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, isAuthenticated } = useAuth();
+export function ProtectedRoute({ children, allowedRoles, requiredPermissions }: ProtectedRouteProps) {
+  const { user, isAuthenticated, hasPermission } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated || !user) {
@@ -29,6 +30,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     if (user.role === 'MERCHANT') return <Navigate to="/merchant" replace />;
     if (user.role === 'DRIVER') return <Navigate to="/driver" replace />;
     return <Navigate to="/customer" replace />;
+  }
+
+  if (user.role === 'ADMIN' && requiredPermissions && requiredPermissions.length > 0) {
+    const hasAccess = requiredPermissions.every((permission) => hasPermission(permission));
+    if (!hasAccess) {
+      return <Navigate to="/access-denied" replace state={{ from: location.pathname }} />;
+    }
   }
 
   return <>{children}</>;

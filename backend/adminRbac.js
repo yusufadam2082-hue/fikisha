@@ -1,0 +1,203 @@
+export const ADMIN_PERMISSION_DEFINITIONS = [
+  ['view_dashboard', 'View dashboard', 'Access the admin dashboard overview'],
+  ['view_orders', 'View orders', 'Read platform order data'],
+  ['manage_orders', 'Manage orders', 'Update order state and notes'],
+  ['assign_drivers', 'Assign drivers', 'Assign delivery jobs to drivers'],
+  ['cancel_orders', 'Cancel orders', 'Cancel orders from the admin console'],
+  ['refund_orders', 'Refund orders', 'Issue order refunds'],
+  ['view_customers', 'View customers', 'Read customer profiles and history'],
+  ['manage_customers', 'Manage customers', 'Edit or suspend customer accounts'],
+  ['view_merchants', 'View merchants', 'Read merchant and store records'],
+  ['create_merchants', 'Create merchants', 'Create merchant/store records'],
+  ['edit_merchants', 'Edit merchants', 'Edit merchant/store records'],
+  ['approve_merchants', 'Approve merchants', 'Approve merchant onboarding and documents'],
+  ['suspend_merchants', 'Suspend merchants', 'Suspend merchant accounts or stores'],
+  ['view_drivers', 'View drivers', 'Read driver records'],
+  ['create_drivers', 'Create drivers', 'Create driver accounts'],
+  ['edit_drivers', 'Edit drivers', 'Edit driver records'],
+  ['approve_drivers', 'Approve drivers', 'Approve or enable driver access'],
+  ['suspend_drivers', 'Suspend drivers', 'Suspend or remove driver access'],
+  ['view_payouts', 'View payouts', 'Read merchant and driver payout data'],
+  ['create_payouts', 'Create payouts', 'Create payout batches'],
+  ['approve_payouts', 'Approve payouts', 'Mark payouts as approved or paid'],
+  ['view_cod_reconciliation', 'View COD reconciliation', 'Read COD and payout reconciliation data'],
+  ['manage_cod_settlements', 'Manage COD settlements', 'Hold, reverse, or reconcile settlement items'],
+  ['view_platform_revenue', 'View platform revenue', 'Read payment intents and revenue details'],
+  ['view_reports', 'View reports', 'Read admin reports'],
+  ['export_reports', 'Export reports', 'Export report data'],
+  ['view_admins', 'View admins', 'Read admin account data'],
+  ['create_admins', 'Create admins', 'Create admin accounts'],
+  ['edit_admins', 'Edit admins', 'Edit admin accounts'],
+  ['suspend_admins', 'Suspend admins', 'Deactivate admin accounts'],
+  ['manage_roles_permissions', 'Manage roles and permissions', 'Create roles and assign permissions'],
+  ['view_settings', 'View settings', 'Read platform settings'],
+  ['manage_settings', 'Manage settings', 'Update platform settings'],
+  ['view_promotions', 'View promotions', 'Read promotion campaigns'],
+  ['manage_promotions', 'Manage promotions', 'Create, edit, or delete promotions'],
+  ['view_support_tickets', 'View support tickets', 'Read support tickets'],
+  ['manage_support_tickets', 'Manage support tickets', 'Update support tickets'],
+  ['view_audit_logs', 'View audit logs', 'Read admin audit logs'],
+  ['view_notifications', 'View notifications', 'Read notification campaigns and audience stats'],
+  ['manage_notifications', 'Manage notifications', 'Create broadcast and notification campaigns'],
+  ['view_zones', 'View zones', 'Read delivery zones'],
+  ['manage_zones', 'Manage zones', 'Create and update delivery zones']
+].map(([key, name, description]) => ({ key, name, description }));
+
+const permissionKeys = ADMIN_PERMISSION_DEFINITIONS.map((permission) => permission.key);
+
+export const DEFAULT_ADMIN_ROLES = {
+  'Super Admin': permissionKeys,
+  'Operations Admin': [
+    'view_dashboard',
+    'view_orders',
+    'manage_orders',
+    'assign_drivers',
+    'cancel_orders',
+    'view_customers',
+    'manage_customers',
+    'view_merchants',
+    'edit_merchants',
+    'approve_merchants',
+    'view_drivers',
+    'create_drivers',
+    'edit_drivers',
+    'approve_drivers',
+    'suspend_drivers',
+    'view_reports',
+    'export_reports',
+    'view_support_tickets',
+    'manage_support_tickets',
+    'view_notifications',
+    'manage_notifications',
+    'view_zones',
+    'manage_zones',
+    'view_promotions',
+    'manage_promotions'
+  ],
+  'Finance Admin': [
+    'view_dashboard',
+    'view_payouts',
+    'create_payouts',
+    'approve_payouts',
+    'view_cod_reconciliation',
+    'manage_cod_settlements',
+    'view_platform_revenue',
+    'view_reports',
+    'export_reports'
+  ],
+  'Support Admin': [
+    'view_dashboard',
+    'view_orders',
+    'view_customers',
+    'manage_customers',
+    'view_merchants',
+    'view_drivers',
+    'view_support_tickets',
+    'manage_support_tickets'
+  ],
+  'Merchant Onboarding Admin': [
+    'view_dashboard',
+    'view_merchants',
+    'create_merchants',
+    'edit_merchants',
+    'approve_merchants',
+    'suspend_merchants',
+    'view_reports'
+  ]
+};
+
+const ROUTE_PERMISSION_MAP = new Map([
+  ['GET /api/products', ['view_merchants']],
+  ['GET /api/orders', ['view_orders']],
+  ['GET /api/orders/:id', ['view_orders']],
+  ['PUT /api/orders/:id/status', ['manage_orders']],
+  ['GET /api/users', ['view_admins']],
+  ['POST /api/users', ['create_admins']],
+  ['PUT /api/users/:id', ['edit_admins']],
+  ['DELETE /api/users/:id', ['suspend_admins']],
+  ['GET /api/customers', ['view_customers']],
+  ['GET /api/customers/:id/orders', ['view_customers']],
+  ['PATCH /api/customers/:id/ban', ['manage_customers']],
+  ['PATCH /api/customers/:id', ['manage_customers']],
+  ['GET /api/ai/fraud-overview', ['view_reports']],
+  ['POST /api/drivers', ['create_drivers']],
+  ['PUT /api/drivers/:id', ['edit_drivers']],
+  ['DELETE /api/drivers/:id', ['suspend_drivers']],
+  ['GET /api/drivers', ['view_drivers']],
+  ['POST /api/stores', ['create_merchants']],
+  ['GET /api/stores/:id/logs', ['view_audit_logs']],
+  ['PUT /api/stores/:id', ['edit_merchants']],
+  ['PUT /api/stores/:id/credentials', ['edit_merchants']],
+  ['DELETE /api/stores/:id', ['suspend_merchants']],
+  ['POST /api/stores/:storeId/products', ['edit_merchants']],
+  ['PUT /api/stores/:storeId/products/:productId', ['edit_merchants']],
+  ['DELETE /api/stores/:storeId/products/:productId', ['edit_merchants']],
+  ['GET /api/admin/dashboard', ['view_dashboard']],
+  ['GET /api/admin/settings', ['view_settings']],
+  ['POST /api/admin/settings', ['manage_settings']],
+  ['GET /api/admin/promotions', ['view_promotions']],
+  ['POST /api/admin/promotions', ['manage_promotions']],
+  ['PUT /api/admin/promotions/:id', ['manage_promotions']],
+  ['DELETE /api/admin/promotions/:id', ['manage_promotions']],
+  ['POST /api/admin/stores/:id/review', ['approve_merchants']],
+  ['POST /api/admin/stores/:id/suspend', ['suspend_merchants']],
+  ['POST /api/admin/drivers/:id/suspend', ['suspend_drivers']],
+  ['GET /api/admin/payout-center/merchants', ['view_payouts']],
+  ['GET /api/admin/payout-center/drivers', ['view_payouts']],
+  ['GET /api/admin/payout-reconciliation/summary', ['view_cod_reconciliation']],
+  ['GET /api/admin/payout-batches', ['view_payouts']],
+  ['GET /api/admin/payout-batches/:id', ['view_payouts']],
+  ['POST /api/admin/payout-batches', ['create_payouts']],
+  ['POST /api/admin/payout-batches/:id/mark-paid', ['approve_payouts']],
+  ['POST /api/admin/payout-batches/:id/hold', ['manage_cod_settlements']],
+  ['POST /api/admin/payout-batches/:id/reverse', ['manage_cod_settlements']],
+  ['POST /api/accounting/migrations/backfill-ledgers', ['manage_cod_settlements']],
+  ['GET /api/admin/payments/intents', ['view_platform_revenue']],
+  ['GET /api/admin/payments/intents/:id', ['view_platform_revenue']],
+  ['GET /api/admin/payments/intents/export', ['export_reports']],
+  ['POST /api/admin/payments/intents/:id/notes', ['manage_cod_settlements']],
+  ['POST /api/admin/payments/intents/:id/reconcile', ['manage_cod_settlements']],
+  ['GET /api/admin/orders', ['view_orders']],
+  ['POST /api/admin/orders/:id/cancel', ['cancel_orders']],
+  ['POST /api/admin/orders/:id/refund', ['refund_orders']],
+  ['POST /api/admin/orders/:id/assign', ['assign_drivers']],
+  ['GET /api/admin/orders/:id/notes', ['view_orders']],
+  ['POST /api/admin/orders/:id/notes', ['manage_orders']],
+  ['GET /api/admin/audit-logs', ['view_audit_logs']],
+  ['GET /api/admin/reports/overview', ['view_reports']],
+  ['GET /api/admin/zones', ['view_zones']],
+  ['POST /api/admin/zones', ['manage_zones']],
+  ['PUT /api/admin/zones/:id', ['manage_zones']],
+  ['POST /api/admin/zones/:id/stores', ['manage_zones']],
+  ['DELETE /api/admin/zones/:id', ['manage_zones']],
+  ['GET /api/admin/notifications/audience-stats', ['view_notifications']],
+  ['GET /api/admin/notifications/campaigns', ['view_notifications']],
+  ['POST /api/admin/notifications/broadcast', ['manage_notifications']],
+  ['GET /api/admin/support-tickets', ['view_support_tickets']],
+  ['PUT /api/admin/support-tickets/:id', ['manage_support_tickets']],
+  ['GET /api/admin/admin-users', ['view_admins']],
+  ['POST /api/admin/admin-users', ['create_admins']],
+  ['PUT /api/admin/admin-users/:id', ['edit_admins']],
+  ['GET /api/admin/roles', ['manage_roles_permissions']],
+  ['POST /api/admin/roles', ['manage_roles_permissions']],
+  ['PUT /api/admin/roles/:id', ['manage_roles_permissions']],
+  ['GET /api/admin/permissions', ['manage_roles_permissions']]
+]);
+
+export function getPermissionCatalog() {
+  return ADMIN_PERMISSION_DEFINITIONS;
+}
+
+export function getDefaultRoleCatalog() {
+  return DEFAULT_ADMIN_ROLES;
+}
+
+export function isSuperAdminRole(roleName) {
+  return String(roleName || '').trim().toLowerCase() === 'super admin';
+}
+
+export function resolveAdminPermissionsForRequest(req) {
+  const routePath = `${req.baseUrl || ''}${req.route?.path || req.path || ''}`;
+  const key = `${String(req.method || 'GET').toUpperCase()} ${routePath}`;
+  return ROUTE_PERMISSION_MAP.get(key) || [];
+}

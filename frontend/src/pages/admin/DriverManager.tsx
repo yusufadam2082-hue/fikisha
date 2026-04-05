@@ -4,12 +4,16 @@ import { Button } from '../../components/ui/Button';
 import { User, Plus, Trash2, Edit2, Navigation } from 'lucide-react';
 import { formatKES } from '../../utils/currency';
 import { apiUrl } from '../../utils/apiUrl';
+import { getAuthHeaders } from '../../utils/authStorage';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_PERMISSION_KEYS } from '../../utils/adminRbac';
 
 function normalizeOrderStatus(status: string): string {
   return String(status || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
 }
 
 export function DriverManager() {
+  const { hasPermission } = useAuth();
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<any>(null);
@@ -30,7 +34,7 @@ export function DriverManager() {
 
   const fetchDrivers = async () => {
     try {
-      const res = await fetch(apiUrl('/api/drivers'));
+      const res = await fetch(apiUrl('/api/drivers'), { headers: getAuthHeaders(false) });
       if (res.ok && res.status !== 204) setDrivers(await res.json());
     } catch (e) {
       console.error(e);
@@ -56,11 +60,11 @@ export function DriverManager() {
       let res;
       if (editingDriver) {
         res = await fetch(apiUrl(`/api/drivers/${editingDriver.id}`), {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          method: 'PUT', headers: getAuthHeaders(), body: JSON.stringify(payload)
         });
       } else {
         res = await fetch(apiUrl('/api/drivers'), {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(payload)
         });
       }
       if (res.ok) {
@@ -75,7 +79,7 @@ export function DriverManager() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this driver?')) return;
     try {
-      const res = await fetch(apiUrl(`/api/drivers/${id}`), { method: 'DELETE' });
+      const res = await fetch(apiUrl(`/api/drivers/${id}`), { method: 'DELETE', headers: getAuthHeaders(false) });
       if (res.ok) fetchDrivers();
     } catch (e) {
       console.error(e);
@@ -102,7 +106,7 @@ export function DriverManager() {
           <h1 className="text-h1">Driver Management</h1>
           <p className="text-muted">Add, remove, and manage delivery personnel.</p>
         </div>
-        <Button onClick={handleOpenAdd}><Plus size={18} /> Add New Driver</Button>
+        {hasPermission(ADMIN_PERMISSION_KEYS.createDrivers) ? <Button onClick={handleOpenAdd}><Plus size={18} /> Add New Driver</Button> : null}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '24px' }}>
@@ -135,8 +139,8 @@ export function DriverManager() {
 
             <div style={{ display: 'flex', gap: '12px' }}>
               <Button variant="outline" onClick={() => handleViewOrders(driver.id)} style={{ flex: 1 }}><Navigation size={16} /> Deliveries</Button>
-              <Button variant="outline" onClick={() => handleOpenEdit(driver)} style={{ width: '40px', padding: '0', display: 'flex', justifyContent: 'center' }}><Edit2 size={16} /></Button>
-              <Button variant="outline" onClick={() => handleDelete(driver.id)} style={{ width: '40px', padding: '0', display: 'flex', justifyContent: 'center', color: 'var(--error)' }}><Trash2 size={16} /></Button>
+              {hasPermission(ADMIN_PERMISSION_KEYS.editDrivers) ? <Button variant="outline" onClick={() => handleOpenEdit(driver)} style={{ width: '40px', padding: '0', display: 'flex', justifyContent: 'center' }}><Edit2 size={16} /></Button> : null}
+              {hasPermission(ADMIN_PERMISSION_KEYS.suspendDrivers) ? <Button variant="outline" onClick={() => handleDelete(driver.id)} style={{ width: '40px', padding: '0', display: 'flex', justifyContent: 'center', color: 'var(--error)' }}><Trash2 size={16} /></Button> : null}
             </div>
           </Card>
         ))}
@@ -149,7 +153,7 @@ export function DriverManager() {
       )}
 
       {/* Add / Edit Modal */}
-      {isModalOpen && (
+      {isModalOpen && hasPermission(editingDriver ? ADMIN_PERMISSION_KEYS.editDrivers : ADMIN_PERMISSION_KEYS.createDrivers) && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Card style={{ padding: '32px', width: '100%', maxWidth: '500px' }} className="animate-fade-in">
             <h2 className="text-h2" style={{ marginBottom: '24px' }}>{editingDriver ? 'Edit Driver' : 'Add New Driver'}</h2>

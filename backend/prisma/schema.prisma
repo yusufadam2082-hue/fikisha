@@ -32,6 +32,7 @@ model User {
   ownedStores Store[]         @relation("StoreOwner")
   orders      Order[]         @relation("OrderCustomer")
   driver      Driver?
+  adminProfile Admin?
   auditLogs   AdminAuditLog[] @relation("AdminAuditLogs")
   orderNotes  OrderNote[]     @relation("OrderNoteAdmin")
   notifications Notification[]
@@ -40,6 +41,66 @@ model User {
 
   @@index([storeId])
   @@index([role])
+}
+
+model Admin {
+  id           String    @id @default(uuid())
+  userId       String?   @unique @map("user_id")
+  fullName     String    @map("full_name")
+  email        String    @unique
+  phone        String    @unique
+  passwordHash String    @map("password_hash")
+  roleId       String    @map("role_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role AdminRole @relation(fields: [roleId], references: [id])
+
+  @@index([roleId])
+  @@index([isActive])
+  @@map("admins")
+}
+
+model AdminRole {
+  id           String                @id @default(uuid())
+  name         String                @unique
+  description  String?
+  isSystemRole Boolean               @default(false) @map("is_system_role")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  admins          Admin[]
+  rolePermissions AdminRolePermission[]
+
+  @@map("admin_roles")
+}
+
+model AdminPermission {
+  id          String                @id @default(uuid())
+  key         String                @unique
+  name        String
+  description String?
+
+  rolePermissions AdminRolePermission[]
+
+  @@map("admin_permissions")
+}
+
+model AdminRolePermission {
+  id           String          @id @default(uuid())
+  roleId       String          @map("role_id")
+  permissionId String          @map("permission_id")
+
+  role       AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("admin_role_permissions")
 }
 
 model Store {

@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { getAuthHeaders as buildAuthHeaders } from '../../utils/authStorage';
 import { apiUrl } from '../../utils/apiUrl';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_PERMISSION_KEYS } from '../../utils/adminRbac';
 
 interface Promotion {
   id: string;
@@ -192,6 +194,7 @@ function getAuthHeaders(): HeadersInit {
 }
 
 export function Promotions() {
+  const { hasPermission } = useAuth();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -270,6 +273,10 @@ export function Promotions() {
   };
 
   const handleSave = async () => {
+    if (!hasPermission(ADMIN_PERMISSION_KEYS.managePromotions)) {
+      return;
+    }
+
     if (!form.title.trim() || !form.subtitle.trim()) {
       setFormError('Title and subtitle are required.');
       return;
@@ -336,6 +343,10 @@ export function Promotions() {
   };
 
   const handleToggleActive = async (promotion: Promotion) => {
+    if (!hasPermission(ADMIN_PERMISSION_KEYS.managePromotions)) {
+      return;
+    }
+
     try {
       const response = await fetch(apiUrl(`/api/admin/promotions/${promotion.id}`), {
         method: 'PUT',
@@ -359,6 +370,10 @@ export function Promotions() {
   };
 
   const handleDelete = async (promotionId: string) => {
+    if (!hasPermission(ADMIN_PERMISSION_KEYS.managePromotions)) {
+      return;
+    }
+
     if (!window.confirm('Delete this promotion?')) {
       return;
     }
@@ -555,7 +570,7 @@ export function Promotions() {
         </div>
       </Card>
 
-      {showForm ? (
+      {showForm && hasPermission(ADMIN_PERMISSION_KEYS.managePromotions) ? (
         <div
           onClick={closeForm}
           style={{
@@ -875,7 +890,7 @@ export function Promotions() {
           <p className="text-muted" style={{ maxWidth: '560px', margin: '0 auto 24px' }}>
             Build your first hero campaign to spotlight offers, event-based sales, or category pushes right at the top of the customer portal.
           </p>
-          <Button onClick={openCreate}><Plus size={18} /> Create Promotion</Button>
+          {hasPermission(ADMIN_PERMISSION_KEYS.managePromotions) ? <Button onClick={openCreate}><Plus size={18} /> Create Promotion</Button> : null}
         </Card>
       ) : filteredPromotions.length === 0 ? (
         <Card hoverable={false} style={{ padding: '48px 40px', textAlign: 'center' }}>
@@ -945,16 +960,16 @@ export function Promotions() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '4px' }}>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => void handleToggleActive(promotion)}>
+                    {hasPermission(ADMIN_PERMISSION_KEYS.managePromotions) ? <Button type="button" variant="secondary" size="sm" onClick={() => void handleToggleActive(promotion)}>
                       {promotion.active ? <EyeOff size={16} /> : <Eye size={16} />}
                       {promotion.active ? 'Pause' : 'Activate'}
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => openEdit(promotion)}>
+                    </Button> : null}
+                    {hasPermission(ADMIN_PERMISSION_KEYS.managePromotions) ? <Button type="button" variant="outline" size="sm" onClick={() => openEdit(promotion)}>
                       <Pencil size={16} /> Edit
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => void handleDelete(promotion.id)} style={{ color: 'var(--error)', borderColor: 'rgba(220, 38, 38, 0.16)' }}>
+                    </Button> : null}
+                    {hasPermission(ADMIN_PERMISSION_KEYS.managePromotions) ? <Button type="button" variant="outline" size="sm" onClick={() => void handleDelete(promotion.id)} style={{ color: 'var(--error)', borderColor: 'rgba(220, 38, 38, 0.16)' }}>
                       <Trash2 size={16} /> Delete
-                    </Button>
+                    </Button> : null}
                   </div>
                 </div>
               </Card>

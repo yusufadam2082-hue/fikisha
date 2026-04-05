@@ -5,12 +5,19 @@ import { Home } from './pages/Home';
 import { StoreDetail } from './pages/StoreDetail';
 import { DriverDashboard } from './pages/DriverDashboard';
 import { OrderTracking } from './pages/OrderTracking';
+import { AccessDenied } from './pages/AccessDenied';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { OrdersAdmin } from './pages/admin/OrdersAdmin';
+import { CustomersAdmin } from './pages/admin/CustomersAdmin';
 import { StoreManager } from './pages/admin/StoreManager';
 import { DriverManager } from './pages/admin/DriverManager';
 import { Settings as AdminSettings } from './pages/admin/Settings';
 import { Promotions } from './pages/admin/Promotions';
 import { AdminPayouts } from './pages/admin/AdminPayouts';
+import { ReportsOverview } from './pages/admin/ReportsOverview';
+import { CodReconciliation } from './pages/admin/CodReconciliation';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { RolesPermissions } from './pages/admin/RolesPermissions';
 import { StoreProvider } from './context/StoreContext';
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
@@ -42,6 +49,7 @@ import { NotFound } from './pages/NotFound';
 import { About } from './pages/About';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
+import { ADMIN_PERMISSION_KEYS } from './utils/adminRbac';
 
 // Redirect old URLs to the current customer route structure so older links keep working.
 function LegacyStoreRedirect() {
@@ -72,6 +80,7 @@ function App() {
                 <Route path="/merchant/login" element={<MerchantLogin />} />
                 <Route path="/driver/login" element={<DriverLogin />} />
                 <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/access-denied" element={<AccessDenied />} />
                 
                 {/* Customer-facing shopping and account routes. */}
                 <Route path="/customer" element={
@@ -126,33 +135,63 @@ function App() {
               
               {/* Admin screens are wrapped in the admin layout for management tooling. */}
               <Route path="/admin" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewDashboard]}>
                   <AdminLayout><AdminDashboard /></AdminLayout>
                 </ProtectedRoute>
               } />
+              <Route path="/admin/orders" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewOrders]}>
+                  <AdminLayout><OrdersAdmin /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/customers" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewCustomers]}>
+                  <AdminLayout><CustomersAdmin /></AdminLayout>
+                </ProtectedRoute>
+              } />
               <Route path="/admin/stores" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewMerchants]}>
                   <AdminLayout><StoreManager /></AdminLayout>
                 </ProtectedRoute>
               } />
               <Route path="/admin/drivers" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewDrivers]}>
                   <AdminLayout><DriverManager /></AdminLayout>
                 </ProtectedRoute>
               } />
+              <Route path="/admin/reports" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewReports]}>
+                  <AdminLayout><ReportsOverview /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/cod-reconciliation" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewCodReconciliation]}>
+                  <AdminLayout><CodReconciliation /></AdminLayout>
+                </ProtectedRoute>
+              } />
               <Route path="/admin/settings" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewSettings]}>
                   <AdminLayout><AdminSettings /></AdminLayout>
                 </ProtectedRoute>
               } />
               <Route path="/admin/promotions" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewPromotions]}>
                   <AdminLayout><Promotions /></AdminLayout>
                 </ProtectedRoute>
               } />
               <Route path="/admin/payouts" element={
-                <ProtectedRoute allowedRoles={['ADMIN']}>
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewPayouts]}>
                   <AdminLayout><AdminPayouts /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/admins" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.viewAdmins]}>
+                  <AdminLayout><AdminUsers /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/roles" element={
+                <ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={[ADMIN_PERMISSION_KEYS.manageRolesPermissions]}>
+                  <AdminLayout><RolesPermissions /></AdminLayout>
                 </ProtectedRoute>
               } />
 

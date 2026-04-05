@@ -6,6 +6,8 @@ import { Plus, Edit2, ChevronLeft, Search, Trash2, ToggleLeft, ToggleRight, X, S
 import { formatKES } from '../../utils/currency';
 import { compressImageToBase64 } from '../../utils/imageUpload';
 import { LocationPickerMap } from '../../components/ui/LocationPickerMap';
+import { useAuth } from '../../context/AuthContext';
+import { ADMIN_PERMISSION_KEYS } from '../../utils/adminRbac';
 
 const ONBOARDING_DRAFT_KEY = 'admin_store_onboarding_draft_v1';
 
@@ -80,6 +82,7 @@ type AddressSearchResult = {
 };
 
 export function StoreManager() {
+  const { hasPermission } = useAuth();
   const { stores, addStore, updateStore, addProduct, updateProduct, deleteProduct, deleteStore, reviewStore } = useStoreContext();
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [viewMode, setViewMode] = useState<'products' | 'analytics'>('products');
@@ -300,9 +303,17 @@ export function StoreManager() {
   }, [stores, searchQuery, categoryFilter, statusFilter]);
 
   const activeStore = selectedStore ? stores.find(s => s.id === selectedStore.id) : null;
+  const canCreateStore = hasPermission(ADMIN_PERMISSION_KEYS.createMerchants);
+  const canEditStore = hasPermission(ADMIN_PERMISSION_KEYS.editMerchants);
+  const canApproveStore = hasPermission(ADMIN_PERMISSION_KEYS.approveMerchants);
+  const canSuspendStore = hasPermission(ADMIN_PERMISSION_KEYS.suspendMerchants);
 
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateStore) {
+      return;
+    }
+
     const validationError = validateStep(1) || validateStep(2) || validateStep(3) || validateStep(4) || validateStep(7);
     if (validationError) {
       setCreateError(validationError);
@@ -333,6 +344,7 @@ export function StoreManager() {
 
   const handleUpdateStore = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStore) return;
     if (!editingStore) return;
     try {
       await updateStore(editingStore.id, {
@@ -387,6 +399,14 @@ export function StoreManager() {
   };
 
   const handleToggleStoreStatus = async (storeId: string, field: 'isActive' | 'isOpen') => {
+    if (field === 'isActive' && !canSuspendStore) {
+      return;
+    }
+
+    if (field === 'isOpen' && !canEditStore) {
+      return;
+    }
+
     const store = stores.find(s => s.id === storeId);
     if (store) {
       await updateStore(storeId, { [field]: !(store as any)[field] });
@@ -394,6 +414,14 @@ export function StoreManager() {
   };
 
   const handleStoreReviewAction = async (storeId: string, action: 'approve' | 'reject' | 'request_documents' | 'suspend' | 'activate', forceActivate = false) => {
+    if (action === 'suspend' && !canSuspendStore) {
+      return;
+    }
+
+    if (action !== 'suspend' && !canApproveStore) {
+      return;
+    }
+
     if (action === 'activate' && forceActivate) {
       const confirmed = confirm('Force activate this store even if required docs, payout setup, or products are missing?');
       if (!confirmed) {
@@ -427,6 +455,7 @@ export function StoreManager() {
 
   const handleCreateProduct = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStore) return;
     if (!selectedStore || !newProductName) return;
     addProduct(selectedStore.id, {
       name: newProductName,
@@ -444,6 +473,7 @@ export function StoreManager() {
 
   const handleUpdateProduct = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditStore) return;
     if (!selectedStore || !editingProduct) return;
     updateProduct(selectedStore.id, editingProduct.id, {
       name: editingProduct.name,
@@ -456,6 +486,7 @@ export function StoreManager() {
   };
 
   const handleToggleProductAvailability = async (productId: string) => {
+    if (!canEditStore) return;
     if (!selectedStore) return;
     const product = selectedStore.products.find(p => p.id === productId);
     if (product) {
@@ -467,12 +498,14 @@ export function StoreManager() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    if (!canEditStore) return;
     if (!selectedStore) return;
     await deleteProduct(selectedStore.id, productId);
     setSelectedStore(stores.find(s => s.id === selectedStore.id) || null);
   };
 
   const handleDeleteStore = async (storeId: string) => {
+    if (!canSuspendStore) return;
     if (!confirm('Are you sure you want to delete this store?')) return;
 
     setActionError('');
@@ -492,6 +525,7 @@ export function StoreManager() {
   };
 
   const handleBulkDeleteStores = async () => {
+    if (!canSuspendStore) return;
     if (selectedStores.size === 0) return;
     if (!confirm(`Delete ${selectedStores.size} selected store(s)? This cannot be undone.`)) return;
 
@@ -545,6 +579,7 @@ export function StoreManager() {
   };
 
   const bulkDeleteProducts = async () => {
+    if (!canEditStore) return;
     if (!selectedStore || selectedProducts.size === 0) return;
     for (const productId of selectedProducts) {
       await deleteProduct(selectedStore.id, productId);
@@ -564,25 +599,25 @@ export function StoreManager() {
           </button>
           <h1 className="text-h1">Managing: {activeStore.name}</h1>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <button 
+            {canEditStore ? <button 
               className="btn-icon" 
               onClick={() => handleToggleStoreStatus(activeStore.id, 'isOpen')}
               title={activeStore.isOpen ? 'Close Store' : 'Open Store'}
               style={{ color: activeStore.isOpen !== false ? '#22c55e' : '#ef4444' }}
             >
               {activeStore.isOpen !== false ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-            </button>
-            <button 
+            </button> : null}
+            {canSuspendStore ? <button 
               className="btn-icon" 
               onClick={() => handleToggleStoreStatus(activeStore.id, 'isActive')}
               title={activeStore.isActive === false ? 'Activate Store' : 'Deactivate Store'}
               style={{ color: activeStore.isActive === false ? '#ef4444' : '#22c55e' }}
             >
               {activeStore.isActive === false ? <ToggleLeft size={24} /> : <ToggleRight size={24} />}
-            </button>
-            <Button variant="outline" size="sm" onClick={() => setEditingStore(activeStore)}>
+            </button> : null}
+            {canEditStore ? <Button variant="outline" size="sm" onClick={() => setEditingStore(activeStore)}>
               <Edit2 size={16} /> Edit Store
-            </Button>
+            </Button> : null}
           </div>
         </div>
 
@@ -628,15 +663,15 @@ export function StoreManager() {
           <>
             <div className="flex-between" style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <Button onClick={() => setShowAddProduct(!showAddProduct)}>
+                {canEditStore ? <Button onClick={() => setShowAddProduct(!showAddProduct)}>
                   <Plus size={18} /> Add Product
-                </Button>
+                </Button> : null}
                 {activeStore && activeStore.products.length > 0 && (
                   <>
-                    <Button variant="outline" size="sm" onClick={() => setBulkMenu(!bulkMenu)}>
+                    {canEditStore ? <Button variant="outline" size="sm" onClick={() => setBulkMenu(!bulkMenu)}>
                       {selectedProducts.size > 0 ? `${selectedProducts.size} Selected` : 'Bulk Actions'}
-                    </Button>
-                    {selectedProducts.size > 0 && (
+                    </Button> : null}
+                    {selectedProducts.size > 0 && canEditStore && (
                       <Button variant="outline" size="sm" onClick={bulkDeleteProducts} style={{ color: 'var(--error)' }}>
                         <Trash2 size={16} /> Delete Selected
                       </Button>
@@ -654,7 +689,7 @@ export function StoreManager() {
               </label>
             </div>
 
-            {showAddProduct && (
+            {showAddProduct && canEditStore && (
               <Card style={{ padding: '24px', marginBottom: '32px', border: '2px dashed var(--primary)' }} hoverable={false}>
                 <h3 className="text-h3" style={{ marginBottom: '16px' }}>Add New Product</h3>
                 <form onSubmit={handleCreateProduct} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
@@ -716,20 +751,20 @@ export function StoreManager() {
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                      <button 
+                      {canEditStore ? <button 
                         className="btn-icon" 
                         onClick={() => handleToggleProductAvailability(product.id)}
                         title={(product as any).available === false ? 'Mark Available' : 'Mark Unavailable'}
                         style={{ color: (product as any).available === false ? '#22c55e' : '#f59e0b' }}
                       >
                         {(product as any).available === false ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                      </button>
-                      <button className="btn-icon" onClick={() => setEditingProduct(product)}>
+                      </button> : null}
+                      {canEditStore ? <button className="btn-icon" onClick={() => setEditingProduct(product)}>
                         <Edit2 size={16} />
-                      </button>
-                      <button className="btn-icon" onClick={() => handleDeleteProduct(product.id)} style={{ color: 'var(--error)' }}>
+                      </button> : null}
+                      {canEditStore ? <button className="btn-icon" onClick={() => handleDeleteProduct(product.id)} style={{ color: 'var(--error)' }}>
                         <Trash2 size={16} />
-                      </button>
+                      </button> : null}
                     </div>
                   </div>
                 </Card>
@@ -949,7 +984,7 @@ export function StoreManager() {
 
                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                   <Button type="button" variant="outline" onClick={() => setEditingStore(null)}>Cancel</Button>
-                  <Button type="submit"><Save size={16} /> Save Changes</Button>
+                  {canEditStore ? <Button type="submit"><Save size={16} /> Save Changes</Button> : null}
                 </div>
               </form>
             </div>
@@ -991,7 +1026,7 @@ export function StoreManager() {
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
               <Button type="button" variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
-              <Button type="submit"><Save size={16} /> Save Changes</Button>
+              {canEditStore ? <Button type="submit"><Save size={16} /> Save Changes</Button> : null}
             </div>
           </form>
         </Card>
@@ -1004,9 +1039,9 @@ export function StoreManager() {
     <div className="animate-fade-in">
       <div className="flex-between" style={{ marginBottom: '32px' }}>
         <h1 className="text-h1">Store Management</h1>
-        <Button onClick={() => setShowAddStore(!showAddStore)}>
+        {canCreateStore ? <Button onClick={() => setShowAddStore(!showAddStore)}>
           <Plus size={20} /> Add New Store
-        </Button>
+        </Button> : null}
       </div>
 
       {/* Search & Filter Bar */}
@@ -1065,7 +1100,7 @@ export function StoreManager() {
         </p>
       ) : null}
 
-      {showAddStore && (
+      {showAddStore && canCreateStore && (
         <Card style={{ padding: '32px', marginBottom: '32px', border: '2px dashed var(--primary)' }} hoverable={false}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '20px' }}>
             <div>
@@ -1393,14 +1428,14 @@ export function StoreManager() {
                   onChange={e => setReviewReason(prev => ({ ...prev, [store.id]: e.target.value }))}
                 />
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'approve')}><CheckCircle2 size={14} /> Approve</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'request_documents')}><AlertTriangle size={14} /> Request Docs</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'reject')}>Reject</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'suspend')}>Suspend</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate')}><ShieldCheck size={14} /> Activate</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate', true)} style={{ color: '#b45309' }}>Force Activate</Button>
+                  {canApproveStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'approve')}><CheckCircle2 size={14} /> Approve</Button> : null}
+                  {canApproveStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'request_documents')}><AlertTriangle size={14} /> Request Docs</Button> : null}
+                  {canApproveStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'reject')}>Reject</Button> : null}
+                  {canSuspendStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'suspend')}>Suspend</Button> : null}
+                  {canApproveStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate')}><ShieldCheck size={14} /> Activate</Button> : null}
+                  {canApproveStore ? <Button size="sm" variant="outline" onClick={() => handleStoreReviewAction(store.id, 'activate', true)} style={{ color: '#b45309' }}>Force Activate</Button> : null}
                 </div>
-                {(store.ownerIdDocument || store.businessPermitDocument || store.taxPin || store.proofOfAddressDocument || store.payoutMethod) && (
+                {canApproveStore && (store.ownerIdDocument || store.businessPermitDocument || store.taxPin || store.proofOfAddressDocument || store.payoutMethod) && (
                   <div>
                     <Button size="sm" variant="outline" onClick={() => setViewingDocsForStore(store)} style={{ color: 'var(--primary)' }}>
                       <FileText size={14} /> Review Documents
@@ -1413,14 +1448,14 @@ export function StoreManager() {
               <Button variant="outline" size="sm" onClick={() => setSelectedStore(store)}>
                 Manage
               </Button>
-              <button 
+              {canSuspendStore ? <button 
                 className="btn-icon" 
                 onClick={() => handleDeleteStore(store.id)}
                 style={{ color: 'var(--error)', alignSelf: 'flex-end' }}
                 title="Delete Store"
               >
                 <Trash2 size={16} />
-              </button>
+              </button> : null}
             </div>
           </Card>
         ))}
@@ -1540,12 +1575,12 @@ export function StoreManager() {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                 <Button variant="outline" onClick={() => setViewingDocsForStore(null)}>Close</Button>
-                <Button onClick={() => { handleStoreReviewAction(s.id, 'approve'); setViewingDocsForStore(null); }}>
+                {canApproveStore ? <Button onClick={() => { handleStoreReviewAction(s.id, 'approve'); setViewingDocsForStore(null); }}>
                   <CheckCircle2 size={16} /> Approve Store
-                </Button>
-                <Button variant="outline" onClick={() => { handleStoreReviewAction(s.id, 'activate', true); setViewingDocsForStore(null); }} style={{ color: '#b45309' }}>
+                </Button> : null}
+                {canApproveStore ? <Button variant="outline" onClick={() => { handleStoreReviewAction(s.id, 'activate', true); setViewingDocsForStore(null); }} style={{ color: '#b45309' }}>
                   Force Activate
-                </Button>
+                </Button> : null}
               </div>
             </div>
           </div>

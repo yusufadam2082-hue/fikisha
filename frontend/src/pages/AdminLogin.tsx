@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, loginUser } from '../context/AuthContext';
+import { useAuth, loginAdmin } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Shield } from 'lucide-react';
@@ -9,14 +9,14 @@ export function AdminLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
   
-  const [adminUsername, setAdminUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [adminError, setAdminError] = useState('');
 
   const handleAdminLogin = async () => {
     setAdminError('');
     try {
-      const { token, user } = await loginUser(adminUsername, adminPassword);
+      const { token, user } = await loginAdmin(identifier, adminPassword);
       if (user.role !== 'ADMIN') {
         setAdminError('Invalid admin credentials');
         return;
@@ -47,9 +47,9 @@ export function AdminLogin() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <input 
               className="input-field" 
-              placeholder="Admin Username"
-              value={adminUsername}
-              onChange={e => setAdminUsername(e.target.value)}
+              placeholder="Email or phone"
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
             />
             <input 
               className="input-field" 
@@ -59,7 +59,7 @@ export function AdminLogin() {
               onChange={e => setAdminPassword(e.target.value)}
             />
             {adminError && <p className="text-sm" style={{ color: 'var(--error)' }}>{adminError}</p>}
-            <Button onClick={handleAdminLogin} disabled={!adminUsername || !adminPassword}>
+            <Button onClick={handleAdminLogin} disabled={!identifier || !adminPassword}>
               Login to Admin Portal
             </Button>
           </div>
