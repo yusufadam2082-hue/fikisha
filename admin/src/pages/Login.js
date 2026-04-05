@@ -35,6 +35,9 @@ function Login() {
         <Typography component="h1" variant="h5" align="center" sx={{ mb: 4 }}>
           Admin Login
         </Typography>
+        <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 2 }}>
+          Legacy login style: username <strong>admin</strong> and password <strong>admin123</strong>
+        </Typography>
         <Box mb={3}>
           <TextField
             label="Username"

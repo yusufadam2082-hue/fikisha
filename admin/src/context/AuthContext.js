@@ -36,8 +36,33 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
-    // Only admins are allowed into this portal, even if another role has valid credentials.
-    const res = await apiClient.post('/api/auth/login', { username, password });
+    const normalizedUsername = String(username || '').trim();
+    const isLegacyAdminUsername = normalizedUsername.toLowerCase() === 'admin';
+    const normalizedPassword = isLegacyAdminUsername
+      ? String(password || '').replace(/\s+/g, '')
+      : String(password || '');
+
+    let res;
+
+    // Primary legacy flow: username/password login endpoint.
+    try {
+      res = await apiClient.post('/api/auth/login', {
+        username: normalizedUsername,
+        password: normalizedPassword
+      });
+    } catch (loginError) {
+      // Compatibility fallback: if backend moved admin auth to identifier flow,
+      // still allow legacy portal users to sign in with username "admin".
+      if (!isLegacyAdminUsername) {
+        throw loginError;
+      }
+
+      res = await apiClient.post('/api/admin/auth/login', {
+        identifier: process.env.REACT_APP_ADMIN_EMAIL || 'admin@mtaaexpress.local',
+        password: normalizedPassword
+      });
+    }
+
     const { token, user } = res.data;
 
     if (user.role !== 'ADMIN') {
