@@ -1520,7 +1520,7 @@ const buildAdminSessionUser = (admin) => {
 };
 
 const issueUserToken = (user) => jwt.sign(
-  { id: user.id, username: user.username, role: user.role, storeId: user.storeId },
+  { id: user.id, username: user.username, role: user.role, storeId: user.storeId, authType: 'USER' },
   JWT_SECRET,
   { expiresIn: '24h' }
 );
@@ -2616,7 +2616,7 @@ const authMiddleware = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    if (decoded?.authType === 'ADMIN' || decoded?.adminId || decoded?.role === 'ADMIN') {
+    if (decoded?.authType === 'ADMIN' || decoded?.adminId) {
       const admin = await findAdminForAuth({
         adminId: decoded.adminId || null,
         userId: decoded.userId || decoded.id || null
