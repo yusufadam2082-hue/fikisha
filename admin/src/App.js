@@ -20,6 +20,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import MapIcon from '@mui/icons-material/Map';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Stores from './pages/Stores';
@@ -37,6 +38,7 @@ import Zones from './pages/Zones';
 import Notifications from './pages/Notifications';
 import SupportTickets from './pages/SupportTickets';
 import ReviewDocuments from './pages/ReviewDocuments';
+import AdminAccounts from './pages/AdminAccounts';
 import { useAuth } from './context/AuthContext';
 
 const DRAWER_WIDTH = 240;
@@ -73,6 +75,7 @@ const navSections = [
     items: [
       { text: 'Review Documents', icon: <DescriptionIcon />,      link: '/review-documents' },
       { text: 'Support Tickets', icon: <SupportAgentIcon />,      link: '/support-tickets' },
+      { text: 'Admin Accounts', icon: <AdminPanelSettingsIcon />, link: '/admin-accounts' },
       { text: 'Audit Logs',  icon: <HistoryIcon />,               link: '/audit-logs'},
       { text: 'Store Logs',  icon: <DescriptionIcon />,           link: '/store-logs'},
       { text: 'Settings',    icon: <SettingsIcon />,              link: '/settings'  },
@@ -167,6 +170,7 @@ function App() {
           <Route path="/reports"    element={<Reports />} />
           <Route path="/review-documents" element={<ReviewDocuments />} />
           <Route path="/support-tickets" element={<SupportTickets />} />
+          <Route path="/admin-accounts" element={<AdminAccounts />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
           <Route path="/store-logs" element={<StoreLogs />} />
           <Route path="/settings"   element={<Settings />} />
