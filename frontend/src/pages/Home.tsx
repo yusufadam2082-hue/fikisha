@@ -23,6 +23,31 @@ interface RewardCard {
   image: string;
 }
 
+interface PromotionItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  image?: string | null;
+  startsAt?: string | null;
+}
+
+const FALLBACK_REWARD_CARDS: RewardCard[] = [
+  {
+    id: 'reward-1',
+    title: '50% Off First Order',
+    subtitle: 'Use code: MTAAEXPRESS50',
+    badge: 'Limited Time',
+    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1400&q=80',
+  },
+  {
+    id: 'reward-2',
+    title: 'Free Market Delivery',
+    subtitle: 'Orders over $30 get zero fees',
+    badge: 'Fresh Pick',
+    image: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=1400&q=80',
+  },
+];
+
 function categoryVisual(name: string) {
   const normalized = name.toLowerCase();
   if (normalized.includes('food') || normalized.includes('restaurant')) {
@@ -66,6 +91,7 @@ export function Home() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [merchantSort, setMerchantSort] = useState<'all' | 'fastest' | 'top-rated'>('all');
   const [storeQuotes, setStoreQuotes] = useState<Record<string, DeliveryQuote>>({});
+  const [rewardCards, setRewardCards] = useState<RewardCard[]>(FALLBACK_REWARD_CARDS);
 
   useEffect(() => {
     if (!activeLocation || stores.length === 0) {
@@ -103,6 +129,42 @@ export function Home() {
     fetchQuotes();
     return () => controller.abort();
   }, [activeLocation, stores]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadPromotions = async () => {
+      try {
+        const response = await fetch(apiUrl('/api/promotions'), { signal: controller.signal });
+        if (!response.ok) {
+          return;
+        }
+
+        const promotions = (await response.json()) as PromotionItem[];
+        if (!Array.isArray(promotions) || promotions.length === 0) {
+          setRewardCards(FALLBACK_REWARD_CARDS);
+          return;
+        }
+
+        const mapped: RewardCard[] = promotions.slice(0, 4).map((promotion) => ({
+          id: promotion.id,
+          title: promotion.title,
+          subtitle: promotion.subtitle,
+          badge: promotion.startsAt ? 'Scheduled' : 'Live Offer',
+          image: promotion.image || 'https://images.unsplash.com/photo-1511688878353-3a2f5be94cd7?auto=format&fit=crop&w=1400&q=80',
+        }));
+
+        setRewardCards(mapped);
+      } catch {
+        if (!controller.signal.aborted) {
+          setRewardCards(FALLBACK_REWARD_CARDS);
+        }
+      }
+    };
+
+    loadPromotions();
+    return () => controller.abort();
+  }, []);
 
   const searchLower = searchQuery.toLowerCase().trim();
 
@@ -147,23 +209,6 @@ export function Home() {
         }),
     [selectedCategory, filteredBySearch, activeLocation, storeQuotes, merchantSort]
   );
-
-  const rewardCards: RewardCard[] = [
-    {
-      id: 'reward-1',
-      title: '50% Off First Order',
-      subtitle: 'Use code: MTAAEXPRESS50',
-      badge: 'Limited Time',
-      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1400&q=80',
-    },
-    {
-      id: 'reward-2',
-      title: 'Free Market Delivery',
-      subtitle: 'Orders over $30 get zero fees',
-      badge: 'Fresh Pick',
-      image: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=1400&q=80',
-    },
-  ];
 
   return (
     <div className="customer-home-shell">
