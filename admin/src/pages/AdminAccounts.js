@@ -69,8 +69,20 @@ function AdminAccounts() {
         apiClient.get('/api/admin/roles'),
       ]);
 
-      setAdmins(Array.isArray(adminsRes.data) ? adminsRes.data : []);
-      setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+      const normalizedAdmins = Array.isArray(adminsRes.data) ? adminsRes.data : [];
+      const normalizedRoles = Array.isArray(rolesRes.data) ? rolesRes.data : [];
+
+      // If RBAC roles are missing, allow legacy admin creation flow to continue.
+      if (normalizedRoles.length === 0) {
+        setAdmins(normalizedAdmins);
+        setRoles([{ id: 'LEGACY_ADMIN', name: 'ADMIN' }]);
+        setLegacyMode(true);
+        setError('RBAC roles are not seeded. Using legacy admin account mode.');
+        return;
+      }
+
+      setAdmins(normalizedAdmins);
+      setRoles(normalizedRoles);
       setLegacyMode(false);
       setError('');
     } catch (err) {
