@@ -4202,27 +4202,44 @@ app.post('/api/admin/auth/login',
     try {
       const identifier = String(req.body.identifier || '').trim();
       const password = String(req.body.password || '');
+      const normalizedIdentifier = identifier.toLowerCase();
 
-      const admin = await prisma.admin.findFirst({
+      let admin = await prisma.admin.findFirst({
         where: {
           OR: [
-            { email: identifier.toLowerCase() },
-            { phone: identifier }
+            { email: normalizedIdentifier },
+            { phone: identifier },
+            { user: { is: { username: identifier } } }
           ]
         },
         select: {
           ...publicAdminFields,
           passwordHash: true,
           roleId: true,
-          user: { select: { id: true, username: true, banned: true } }
+          user: { select: { id: true, username: true, password: true, banned: true } }
         }
       });
+
+      if (!admin) {
+        const legacyUser = await prisma.user.findUnique({
+          where: { username: identifier },
+          select: { id: true, role: true }
+        });
+
+        if (legacyUser?.role === 'ADMIN') {
+          admin = await findAdminForAuth({ adminId: null, userId: legacyUser.id });
+        }
+      }
 
       if (!admin || admin.isActive !== true) {
         return res.status(401).json({ error: 'Invalid admin credentials' });
       }
 
-      const validPassword = await bcrypt.compare(password, admin.passwordHash).catch(() => false);
+      const validAdminPassword = await bcrypt.compare(password, admin.passwordHash).catch(() => false);
+      const validLegacyPassword = admin.user?.password
+        ? await bcrypt.compare(password, admin.user.password).catch(() => false)
+        : false;
+      const validPassword = validAdminPassword || validLegacyPassword;
       if (!validPassword) {
         return res.status(401).json({ error: 'Invalid admin credentials' });
       }
