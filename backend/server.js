@@ -3680,6 +3680,55 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
+// Location search proxy: avoids browser-side geocoder throttling/CORS issues.
+app.get('/api/location/search', async (req, res) => {
+  try {
+    const query = String(req.query.q || '').trim();
+    const requestedLimit = Number.parseInt(String(req.query.limit || '8'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 10) : 8;
+
+    if (!query || query.length < 2) {
+      return res.json([]);
+    }
+
+    const upstreamParams = new URLSearchParams({
+      q: query,
+      format: 'json',
+      limit: String(limit),
+      addressdetails: '1'
+    });
+
+    const upstream = await fetch(`https://nominatim.openstreetmap.org/search?${upstreamParams.toString()}`, {
+      headers: {
+        'User-Agent': 'MtaaexpressBackend/1.0 (customer location search)'
+      }
+    });
+
+    if (!upstream.ok) {
+      return res.status(502).json({ error: 'Geocoding provider unavailable' });
+    }
+
+    const data = await upstream.json();
+    if (!Array.isArray(data)) {
+      return res.json([]);
+    }
+
+    const results = data
+      .filter((item) => item && item.lat && item.lon)
+      .map((item) => ({
+        label: String(item.display_name || query).split(',')[0].trim() || 'Location',
+        address: String(item.display_name || query),
+        latitude: Number.parseFloat(String(item.lat)),
+        longitude: Number.parseFloat(String(item.lon))
+      }))
+      .filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+
+    return res.json(results);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to search locations' });
+  }
+});
+
 // ── Promotions ────────────────────────────────────────────────────────────────
 
 // Public: returns promotions that are active and within their date window.

@@ -201,12 +201,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (!query.trim()) return [];
     try {
       const encoded = encodeURIComponent(query);
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=8&addressdetails=1`,
-        { headers: { 'User-Agent': 'MtaaexpressCustomerWeb/1.0' } }
+      const proxyRes = await fetch(apiUrl(`/api/location/search?q=${encoded}&limit=8`));
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json() as AddressSearchResult[];
+        if (Array.isArray(proxyData) && proxyData.length > 0) {
+          return proxyData;
+        }
+      }
+
+      const directRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=8&addressdetails=1`
       );
-      if (!res.ok) return [];
-      const data = await res.json() as Array<{ lat: string; lon: string; display_name?: string }>;
+      if (!directRes.ok) return [];
+      const data = await directRes.json() as Array<{ lat: string; lon: string; display_name?: string }>;
       if (!Array.isArray(data)) return [];
       return data
         .filter(item => item.lat && item.lon)
