@@ -2648,6 +2648,28 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: 'Account is inactive or no longer exists' });
     }
 
+    // Legacy compatibility: allow the original standalone admin account
+    // to access Super Admin-protected APIs even when RBAC admin rows are absent.
+    const isLegacySuperAdmin =
+      String(dbUser.role || '').toUpperCase() === 'ADMIN'
+      && String(dbUser.username || '').trim().toLowerCase() === 'admin';
+
+    if (isLegacySuperAdmin) {
+      req.user = {
+        ...decoded,
+        ...dbUser,
+        authType: 'ADMIN',
+        adminId: decoded.adminId || dbUser.id,
+        userId: dbUser.id,
+        adminRoleName: 'Super Admin',
+        isSuperAdmin: true,
+        permissions: [],
+        isActive: true,
+        driverId: decoded.driverId || null
+      };
+      return next();
+    }
+
     req.user = {
       ...decoded,
       ...dbUser,
