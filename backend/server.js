@@ -3753,6 +3753,57 @@ app.get('/api/admin/permissions', authMiddleware, roleMiddleware('ADMIN'), requi
 
 app.get('/api/admin/roles', authMiddleware, roleMiddleware('ADMIN'), requireSuperAdmin, async (req, res) => {
   try {
+    const [roleCount, permissionCount] = await Promise.all([
+      prisma.adminRole.count(),
+      prisma.adminPermission.count()
+    ]);
+
+    if (roleCount === 0 || permissionCount === 0) {
+      const permissionRecords = new Map();
+      for (const permission of getPermissionCatalog()) {
+        const record = await prisma.adminPermission.upsert({
+          where: { key: permission.key },
+          update: {
+            name: permission.name,
+            description: permission.description || null
+          },
+          create: {
+            key: permission.key,
+            name: permission.name,
+            description: permission.description || null
+          }
+        });
+        permissionRecords.set(permission.key, record.id);
+      }
+
+      const roleCatalog = getDefaultRoleCatalog();
+      for (const [roleName, permissionKeys] of Object.entries(roleCatalog)) {
+        const role = await prisma.adminRole.upsert({
+          where: { name: roleName },
+          update: {
+            description: `${roleName} system role`,
+            isSystemRole: true
+          },
+          create: {
+            name: roleName,
+            description: `${roleName} system role`,
+            isSystemRole: true
+          }
+        });
+
+        await prisma.adminRolePermission.deleteMany({ where: { roleId: role.id } });
+        const permissionIds = permissionKeys
+          .map((key) => permissionRecords.get(key))
+          .filter(Boolean);
+        if (permissionIds.length > 0) {
+          await prisma.adminRolePermission.createMany({
+            data: permissionIds.map((permissionId) => ({ roleId: role.id, permissionId })),
+            skipDuplicates: true
+          });
+        }
+      }
+    }
+
     const roles = await prisma.adminRole.findMany({
       include: {
         rolePermissions: {
