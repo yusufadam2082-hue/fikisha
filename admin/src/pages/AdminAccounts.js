@@ -83,6 +83,10 @@ function AdminAccounts() {
   }, []);
 
   const openCreate = () => {
+    if (roles.length === 0) {
+      setError('No admin roles available. Sign in as Super Admin and ensure RBAC roles are seeded.');
+      return;
+    }
     setEditingAdminId('');
     setForm(emptyForm);
     setError('');
@@ -191,10 +195,16 @@ function AdminAccounts() {
             Manage RBAC admin accounts (Super Admin permissions required).
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={roles.length === 0}>
           Create Admin
         </Button>
       </Box>
+
+      {roles.length === 0 && !loading ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No roles found for assignment. Log in with a Super Admin RBAC account and verify roles are seeded in backend.
+        </Alert>
+      ) : null}
 
       {error && !open ? (
         <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>

@@ -44,21 +44,24 @@ export const AuthProvider = ({ children }) => {
 
     let res;
 
-    // Primary legacy flow: username/password login endpoint.
-    try {
+    // Prefer RBAC admin session for legacy "admin" username so Super Admin-only
+    // endpoints (roles/admin-users) work in the standalone portal too.
+    if (isLegacyAdminUsername) {
+      try {
+        res = await apiClient.post('/api/admin/auth/login', {
+          identifier: process.env.REACT_APP_ADMIN_EMAIL || 'admin@mtaaexpress.local',
+          password: normalizedPassword
+        });
+      } catch {
+        // Fall back to legacy username flow to preserve old standalone behavior.
+        res = await apiClient.post('/api/auth/login', {
+          username: normalizedUsername,
+          password: normalizedPassword
+        });
+      }
+    } else {
       res = await apiClient.post('/api/auth/login', {
         username: normalizedUsername,
-        password: normalizedPassword
-      });
-    } catch (loginError) {
-      // Compatibility fallback: if backend moved admin auth to identifier flow,
-      // still allow legacy portal users to sign in with username "admin".
-      if (!isLegacyAdminUsername) {
-        throw loginError;
-      }
-
-      res = await apiClient.post('/api/admin/auth/login', {
-        identifier: process.env.REACT_APP_ADMIN_EMAIL || 'admin@mtaaexpress.local',
         password: normalizedPassword
       });
     }
