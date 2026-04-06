@@ -31,6 +31,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import apiClient from '../utils/apiClient';
 
 const emptyForm = {
+  username: '',
   fullName: '',
   email: '',
   phone: '',
@@ -44,6 +45,7 @@ const emptyForm = {
 function AdminAccounts() {
   const [admins, setAdmins] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [legacyMode, setLegacyMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -69,10 +71,32 @@ function AdminAccounts() {
 
       setAdmins(Array.isArray(adminsRes.data) ? adminsRes.data : []);
       setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+      setLegacyMode(false);
       setError('');
     } catch (err) {
-      const message = err.response?.data?.error || err.message || 'Failed to load admin accounts';
-      setError(message);
+      try {
+        const usersRes = await apiClient.get('/api/users');
+        const legacyAdmins = (Array.isArray(usersRes.data) ? usersRes.data : [])
+          .filter((user) => String(user.role || '').toUpperCase() === 'ADMIN')
+          .map((user) => ({
+            id: user.id,
+            username: user.username || '',
+            name: user.name || user.username || '',
+            email: user.email || '',
+            phone: user.phone || '',
+            role: user.role,
+            isActive: true,
+            lastLoginAt: null,
+          }));
+
+        setAdmins(legacyAdmins);
+        setRoles([{ id: 'LEGACY_ADMIN', name: 'ADMIN' }]);
+        setLegacyMode(true);
+        setError('RBAC admin endpoints are unavailable for this account. Using legacy admin account mode.');
+      } catch (fallbackErr) {
+        const message = fallbackErr.response?.data?.error || fallbackErr.message || 'Failed to load admin accounts';
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +107,7 @@ function AdminAccounts() {
   }, []);
 
   const openCreate = () => {
-    if (roles.length === 0) {
+    if (!legacyMode && roles.length === 0) {
       setError('No admin roles available. Sign in as Super Admin and ensure RBAC roles are seeded.');
       return;
     }
@@ -96,10 +120,11 @@ function AdminAccounts() {
   const openEdit = (admin) => {
     setEditingAdminId(admin.adminId || admin.id || '');
     setForm({
+      username: admin.username || '',
       fullName: admin.name || '',
       email: admin.email || '',
       phone: admin.phone || '',
-      roleId: admin.roleId || admin.adminRoleId || '',
+      roleId: legacyMode ? 'LEGACY_ADMIN' : (admin.roleId || admin.adminRoleId || ''),
       password: '',
       confirmPassword: '',
       notes: admin.notes || '',
@@ -126,8 +151,13 @@ function AdminAccounts() {
   const handleSave = async () => {
     setError('');
 
-    if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.roleId.trim()) {
-      setError('Full name, email, phone, and role are required.');
+    if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || (!legacyMode && !form.roleId.trim())) {
+      setError(legacyMode ? 'Username, full name, email, and phone are required.' : 'Full name, email, phone, and role are required.');
+      return;
+    }
+
+    if (legacyMode && !form.username.trim()) {
+      setError('Username is required in legacy mode.');
       return;
     }
 
@@ -158,10 +188,35 @@ function AdminAccounts() {
       }
 
       if (editingAdminId) {
-        await apiClient.put(`/api/admin/admin-users/${editingAdminId}`, payload);
+        if (legacyMode) {
+          const legacyPayload = {
+            username: form.username.trim(),
+            role: 'ADMIN',
+            name: form.fullName.trim(),
+            email: form.email.trim().toLowerCase(),
+            phone: form.phone.trim(),
+          };
+          if (form.password.trim()) {
+            legacyPayload.password = form.password.trim();
+          }
+          await apiClient.put(`/api/users/${editingAdminId}`, legacyPayload);
+        } else {
+          await apiClient.put(`/api/admin/admin-users/${editingAdminId}`, payload);
+        }
         showToast('Admin account updated successfully.');
       } else {
-        await apiClient.post('/api/admin/admin-users', payload);
+        if (legacyMode) {
+          await apiClient.post('/api/users', {
+            username: form.username.trim(),
+            password: form.password.trim(),
+            role: 'ADMIN',
+            name: form.fullName.trim(),
+            email: form.email.trim().toLowerCase(),
+            phone: form.phone.trim(),
+          });
+        } else {
+          await apiClient.post('/api/admin/admin-users', payload);
+        }
         showToast('Admin account created successfully.');
       }
 
@@ -195,14 +250,20 @@ function AdminAccounts() {
             Manage RBAC admin accounts (Super Admin permissions required).
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={roles.length === 0}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!legacyMode && roles.length === 0}>
           Create Admin
         </Button>
       </Box>
 
-      {roles.length === 0 && !loading ? (
+      {!legacyMode && roles.length === 0 && !loading ? (
         <Alert severity="warning" sx={{ mb: 2 }}>
           No roles found for assignment. Log in with a Super Admin RBAC account and verify roles are seeded in backend.
+        </Alert>
+      ) : null}
+
+      {legacyMode && !loading ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Legacy mode is active. Admin accounts are created through legacy users API with ADMIN role.
         </Alert>
       ) : null}
 
@@ -235,7 +296,7 @@ function AdminAccounts() {
                     <TableCell>{admin.name || '-'}</TableCell>
                     <TableCell>{admin.email || '-'}</TableCell>
                     <TableCell>{admin.phone || '-'}</TableCell>
-                    <TableCell>{admin.adminRoleName || roleNameById.get(admin.roleId || admin.adminRoleId) || '-'}</TableCell>
+                    <TableCell>{admin.adminRoleName || roleNameById.get(admin.roleId || admin.adminRoleId) || admin.role || '-'}</TableCell>
                     <TableCell>
                       <Chip
                         label={admin.isActive === false ? 'Inactive' : 'Active'}
@@ -278,6 +339,15 @@ function AdminAccounts() {
         <DialogContent>
           <Box sx={{ mt: 1, display: 'grid', gap: 2 }}>
             <TextField
+              label="Username"
+              value={form.username}
+              onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+              fullWidth
+              required={legacyMode}
+              disabled={!legacyMode && Boolean(editingAdminId)}
+              helperText={legacyMode ? 'Required in legacy mode.' : 'Used only in legacy mode.'}
+            />
+            <TextField
               label="Full Name"
               value={form.fullName}
               onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))}
@@ -299,7 +369,7 @@ function AdminAccounts() {
               fullWidth
               required
             />
-            <FormControl fullWidth required>
+            <FormControl fullWidth required={!legacyMode} disabled={legacyMode}>
               <InputLabel id="admin-role-label">Role</InputLabel>
               <Select
                 labelId="admin-role-label"
@@ -328,23 +398,27 @@ function AdminAccounts() {
               fullWidth
               required={!editingAdminId || Boolean(form.password)}
             />
-            <TextField
-              label="Notes"
-              value={form.notes}
-              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-              fullWidth
-              multiline
-              minRows={2}
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={Boolean(form.isActive)}
-                  onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+            {!legacyMode ? (
+              <>
+                <TextField
+                  label="Notes"
+                  value={form.notes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  fullWidth
+                  multiline
+                  minRows={2}
                 />
-              }
-              label="Active"
-            />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(form.isActive)}
+                      onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    />
+                  }
+                  label="Active"
+                />
+              </>
+            ) : null}
             {error ? <Alert severity="error">{error}</Alert> : null}
           </Box>
         </DialogContent>
