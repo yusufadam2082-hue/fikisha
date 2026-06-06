@@ -1,0 +1,42 @@
+﻿Fikisha App Overview (Simple Version)
+
+Fikisha is a hyperlocal delivery app.
+That means it connects people with nearby shops and delivers orders quickly within the same local area.
+
+What the app does
+
+1. Customers order from nearby stores
+- People open the app, choose products from local shops, and place orders.
+
+2. Stores receive and prepare orders
+- Merchants see incoming orders, confirm them, and get them ready for pickup.
+
+3. Drivers deliver to customers
+- Drivers are assigned nearby deliveries and update status from pickup to drop-off.
+
+4. Admins manage the whole system
+- Admins oversee users, stores, drivers, payments, support, zones, and reports.
+
+How it works
+
+1. Different apps for different people
+- Customer app for buying
+- Merchant app for store operations
+- Driver workflow for deliveries
+- Admin dashboard for control and monitoring
+
+2. One central backend
+- All apps send requests to a central system that processes orders and updates everyone in real time.
+
+3. Location-based matching
+- Orders are matched to nearby stores and drivers to keep delivery fast and local.
+
+4. Secure access by role
+- Each user only sees what they are allowed to use (customer, merchant, driver, admin).
+
+5. Tracking and business control
+- The platform tracks orders, payments, and operational activity with logs and reports.
+
+One-line summary
+
+Fikisha is a local commerce and delivery platform that helps customers buy from nearby businesses, merchants sell efficiently, drivers earn through deliveries, and admins run everything securely.

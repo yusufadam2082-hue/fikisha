@@ -15,6 +15,7 @@
     "prisma:prepush:sanitize": "node scripts/sanitize-payout-batch-items.js",
     "payouts:backfill": "node scripts/backfill-payout-ledgers.js",
     "payouts:verify": "node scripts/payout-ledger-verify.js",
+    "secrets:scan": "node scripts/scan-secrets.mjs",
     "test": "vitest",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix"

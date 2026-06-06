@@ -8,6 +8,10 @@ build/
 .env
 .env.local
 .env.*.local
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 *.hprof
 .vscode/
 .next/

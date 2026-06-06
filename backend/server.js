@@ -836,8 +836,8 @@ const createStripeCheckoutSession = async ({ req, intent, customer, description 
 };
 
 const createMpesaPaymentRequest = async ({ req, intent, phoneNumber, description }) => {
-  const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
-  if (!normalizedPhoneNumber) {
+const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
+  if (!normalizedPhoneNumber || !/^\+?[1-9]\d{6,14}$/.test(normalizedPhoneNumber)) {
     const error = new Error('A valid phone number is required for M-Pesa checkout');
     error.statusCode = 400;
     throw error;

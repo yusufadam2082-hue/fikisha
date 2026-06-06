@@ -1,0 +1,53 @@
+﻿Order to payout algorithm (simple terms)
+
+1) Customer places order
+The app saves the order, items, delivery fee, and payment details.
+
+2) Payment is confirmed
+If payment succeeds (or COD is accepted), the order becomes active for fulfillment.
+
+3) Store prepares order
+The store accepts the order, prepares items, and marks it ready.
+
+4) Driver is assigned and delivers
+A driver is assigned, picks up the order, and updates delivery status until completed.
+
+5) Order is marked DELIVERED
+This is the key trigger. When delivery is completed, the app runs accounting calculations.
+
+6) Accounting snapshot is created
+The app calculates and saves:
+- Customer total
+- Merchant platform fee
+- Merchant net payout
+- Driver payout
+- Platform revenue and delivery margin
+
+7) Payout eligibility is checked
+Only orders that are delivered and not refunded are payout-eligible.
+
+8) Payout entries are created
+If eligible:
+- Merchant payout entry is created as PENDING
+- Driver payout entry is created as PENDING (if a driver exists)
+- Platform revenue entry is recorded
+
+9) Admin payout center groups balances
+The system groups pending entries by merchant and driver so admin sees who is owed and how much.
+
+10) Admin creates payout batch
+Admin selects eligible pending entries and creates a payout batch (merchant or driver).
+
+11) Admin marks batch as paid
+Before finalizing, the app re-checks entries are still valid (not refunded/cancelled).
+Then statuses move from PENDING to PAID and payment timestamps are saved.
+
+12) Reconciliation updates
+Dashboards update:
+- Paid vs pending merchant payouts
+- Paid vs pending driver payouts
+- Total platform revenue
+- Outstanding liabilities
+
+One-line summary:
+Order is placed, delivered, converted into accounting records, then paid out through controlled admin batches with status tracking and safety checks.

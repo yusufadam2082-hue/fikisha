@@ -1,0 +1,28 @@
+﻿Main accounting formulas (backend, source of truth)
+
+1) Customer Total
+Customer Total = Item Subtotal + Delivery Fee + Tax Amount + Service Fee + Other Fees
+
+2) Merchant Net Payout
+Merchant Net Payout = max(0, Item Subtotal - Platform Fee - Discount Amount + Merchant Tax Adjustment)
+
+3) Driver Payout
+Driver Payout = Explicit Driver Payout (if provided), otherwise Delivery Fee
+
+4) Platform Delivery Margin
+Platform Delivery Margin = Delivery Fee - Driver Payout
+
+5) Platform Revenue
+Platform Revenue = Merchant Platform Fee + Platform Delivery Margin + Service Fee + Other Fees
+
+6) Derived Item Subtotal 
+Derived Item Subtotal = max(0, Customer Total - Delivery Fee - Tax Amount + Discount Amount)
+
+7) Derived Merchant Net (fallback when explicit net is missing)
+Derived Merchant Net = max(0, Item Subtotal - Platform Fee - Discount Amount + Merchant Tax Adjustment)
+
+8) Payout Eligibility Rule
+Payout Eligible = (Order Status is DELIVERED) and (Order is not refunded)
+
+9) Rounding Rule
+Final monetary values are rounded to 2 decimal places before persistence.
