@@ -896,9 +896,24 @@ const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
   });
 
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || String(payload.ResponseCode || '') !== '0') {
-    const error = new Error(payload.errorMessage || payload.ResponseDescription || 'Failed to start M-Pesa payment');
+  if (!response.ok) {
+    const message = payload.errorMessage || payload.errorDescription || payload.ResponseDescription || `M-Pesa STK push failed with status ${response.status}`;
+    const error = new Error(message);
     error.statusCode = 502;
+    error.mpesaResponseCode = String(payload.ResponseCode ?? '');
+    error.mpesaMerchantRequestId = payload.MerchantRequestID || null;
+    error.mpesaCheckoutRequestId = payload.CheckoutRequestID || null;
+    error.mpesaCustomerMessage = payload.CustomerMessage || null;
+    throw error;
+  }
+
+  if (String(payload.ResponseCode || '') !== '0') {
+    const error = new Error(payload.ResponseDescription || payload.errorMessage || 'M-Pesa returned a non-success response code');
+    error.statusCode = 502;
+    error.mpesaResponseCode = String(payload.ResponseCode ?? '');
+    error.mpesaMerchantRequestId = payload.MerchantRequestID || null;
+    error.mpesaCheckoutRequestId = payload.CheckoutRequestID || null;
+    error.mpesaCustomerMessage = payload.CustomerMessage || null;
     throw error;
   }
 
